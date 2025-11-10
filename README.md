@@ -72,7 +72,7 @@ Starting LangGraph ReAct Agent
 
 📝 Step 1: Writer Node - Generate Draft
 Product: Polaroid-style Instant Camera
-Theme: Golden-hour beach vacation
+Brand Identity: Nostalgia meets modern adventure
 ✓ Draft generated
 
 🔍 Step 2: Critic Node - Evaluate Script
@@ -119,7 +119,7 @@ Modify the test case in `main.py`:
 if __name__ == "__main__":
     init = {
         "product": "Your Product Name",
-        "theme": "Your Theme"
+        "brand_identity": "Your Brand Identity"
     }
     out = app.invoke(init)
 ```
