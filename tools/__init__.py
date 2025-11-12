@@ -3,6 +3,17 @@ from .web_search import web_search
 from .memory import remember, recall
 from .midjourney import midjourney_imagine, midjourney_upscale
 from .pixelhub import list_tags, search_images_by_tags
+from .nanobanana import nanobanana_generate
+
+# COS uploader (optional, requires COS credentials)
+try:
+    from .cos_uploader import COSUploader, get_cos_uploader, is_cos_available
+    COS_AVAILABLE = True
+except ImportError:
+    COS_AVAILABLE = False
+    COSUploader = None
+    get_cos_uploader = None
+    is_cos_available = None
 
 # Distortion checker tools (optional, requires mediapipe)
 try:
@@ -26,6 +37,11 @@ __all__ = [
     "midjourney_upscale",
     "list_tags",
     "search_images_by_tags",
+    "nanobanana_generate",
+    "COSUploader",
+    "get_cos_uploader",
+    "is_cos_available",
+    "COS_AVAILABLE",
     "check_image_distortion",
     "get_distortion_labels",
     "get_distortion_stats",

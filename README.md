@@ -7,7 +7,7 @@ Automatically generate and optimize advertising scripts using LangGraph and ReAc
 - 🤖 **Three-stage Workflow**: Write → Critique → ReAct Agent Improvement
 - 🔍 **Automatic Web Search**: Forces use of web_search to gather real product information
 - 📝 **Detailed Logging**: Complete reasoning process (Thought/Action/Observation) visible
-- 🛠️ **Multiple Tools**: web_search, remember, recall, midjourney (image generation), pixelhub (image search), distortion_checker (image quality check)
+- 🛠️ **Multiple Tools**: web_search, remember, recall, midjourney (image generation), pixelhub (image search), nanobanana (text+image generation), distortion_checker (image quality check)
 
 ## Quick Start
 
@@ -31,6 +31,15 @@ MIDJOURNEY_PROXY_BASE_URL=https://your-midjourney-proxy.com
 
 # Optional: For PixelHub image search
 PIXELHUB_API_URL=http://your-pixelhub-server:8084/api/v1
+
+# Optional: For Nanobanana text+image generation
+GOOGLE_API_KEY=your_google_api_key
+
+# Optional: For uploading generated images to Tencent Cloud COS
+COS_SECRET_ID=your_cos_secret_id
+COS_SECRET_KEY=your_cos_secret_key
+COS_REGION=ap-guangzhou
+COS_BUCKET=your_bucket_name
 ```
 
 Or set directly in command line:
@@ -40,6 +49,11 @@ export OPENAI_API_KEY="your_key"
 export TAVILY_API_KEY="your_key"
 export MIDJOURNEY_PROXY_BASE_URL="https://your-proxy.com"  # Optional
 export PIXELHUB_API_URL="http://your-pixelhub-server:8084/api/v1"  # Optional
+export GOOGLE_API_KEY="your_google_api_key"  # Optional
+export COS_SECRET_ID="your_cos_secret_id"  # Optional
+export COS_SECRET_KEY="your_cos_secret_key"  # Optional
+export COS_REGION="ap-guangzhou"  # Optional
+export COS_BUCKET="your_bucket_name"  # Optional
 ```
 
 ### 3. Run
@@ -145,7 +159,9 @@ if __name__ == "__main__":
 │   ├── memory.py           # Remember/recall tools
 │   ├── midjourney.py       # Midjourney image generation
 │   ├── pixelhub.py         # PixelHub image search
-│   └── distortion_checker.py  # Image distortion detection
+│   ├── nanobanana.py       # Google Gemini text+image generation
+│   ├── cos_uploader.py     # Tencent Cloud COS uploader
+│   └── distortion_checker/ # Image distortion detection module
 ├── distortion_checker/      # Distortion checker module
 │   └── src/                # Source code for detection
 ├── tests/                   # Test files
@@ -154,12 +170,16 @@ if __name__ == "__main__":
 
 ## Dependencies
 
-- Python >= 3.13
+- Python >= 3.12
 - langchain >= 0.3.0
 - langchain-openai >= 0.3.0
 - langgraph >= 0.2.0
 - tavily-python >= 0.5.0
 - python-dotenv >= 1.0.0
+- google-genai >= 1.0.0 (for Nanobanana)
+- pillow >= 10.0.0 (for Nanobanana)
+- cos-python-sdk-v5 >= 1.9.0 (for COS upload)
+- requests >= 2.31.0
 
 ## Available Tools
 
@@ -172,6 +192,7 @@ if __name__ == "__main__":
 - **midjourney_upscale**: Upscale generated images
 - **list_tags**: List available image tags from PixelHub (requires `PIXELHUB_API_URL`)
 - **search_images_by_tags**: Search images by tags in PixelHub
+- **nanobanana_generate**: Generate images from text+image using Google Gemini (requires `GOOGLE_API_KEY`, optionally `COS_*` for cloud upload)
 - **check_image_distortion**: Detect anatomical distortions in AI-generated images (requires MediaPipe, Python ≤ 3.12)
 - **get_distortion_labels**: Get information about all distortion types
 - **get_distortion_stats**: Get detection statistics and configuration
@@ -182,6 +203,8 @@ if __name__ == "__main__":
 - **Tavily**: https://tavily.com/
 - **Midjourney Proxy**: Deploy your own or use a service
 - **PixelHub**: Use the provided URL or deploy your own
+- **Google Gemini**: https://ai.google.dev/ (for Nanobanana tool)
+- **Tencent Cloud COS**: https://cloud.tencent.com/product/cos (optional, for image upload)
 
 ## Prompt Optimization
 
