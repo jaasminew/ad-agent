@@ -7,7 +7,7 @@ Automatically generate and optimize advertising scripts using LangGraph and ReAc
 - 🤖 **Three-stage Workflow**: Write → Critique → ReAct Agent Improvement
 - 🔍 **Automatic Web Search**: Forces use of web_search to gather real product information
 - 📝 **Detailed Logging**: Complete reasoning process (Thought/Action/Observation) visible
-- 🛠️ **Three Tools**: web_search, remember, recall
+- 🛠️ **Multiple Tools**: web_search, remember, recall, midjourney (image generation), pixelhub (image search)
 
 ## Quick Start
 
@@ -22,8 +22,15 @@ uv sync
 Create a `.env` file:
 
 ```bash
+# Required
 OPENAI_API_KEY=your_openai_api_key
 TAVILY_API_KEY=your_tavily_api_key
+
+# Optional: For Midjourney image generation
+MIDJOURNEY_PROXY_BASE_URL=https://your-midjourney-proxy.com
+
+# Optional: For PixelHub image search
+PIXELHUB_API_URL=http://your-pixelhub-server:8084/api/v1
 ```
 
 Or set directly in command line:
@@ -31,6 +38,8 @@ Or set directly in command line:
 ```bash
 export OPENAI_API_KEY="your_key"
 export TAVILY_API_KEY="your_key"
+export MIDJOURNEY_PROXY_BASE_URL="https://your-proxy.com"  # Optional
+export PIXELHUB_API_URL="http://your-pixelhub-server:8084/api/v1"  # Optional
 ```
 
 ### 3. Run
@@ -133,7 +142,9 @@ if __name__ == "__main__":
 ├── tools/                   # Tool definitions
 │   ├── __init__.py         # Tools package
 │   ├── web_search.py       # Web search tool
-│   └── memory.py           # Remember/recall tools
+│   ├── memory.py           # Remember/recall tools
+│   ├── midjourney.py       # Midjourney image generation
+│   └── pixelhub.py         # PixelHub image search
 └── README.md               # This document
 ```
 
@@ -146,10 +157,24 @@ if __name__ == "__main__":
 - tavily-python >= 0.5.0
 - python-dotenv >= 1.0.0
 
+## Available Tools
+
+### Core Tools (Always Available)
+- **web_search**: Search the web for information
+- **remember/recall**: Session memory management
+
+### Optional Tools
+- **midjourney_imagine**: Generate images with Midjourney (requires `MIDJOURNEY_PROXY_BASE_URL`)
+- **midjourney_upscale**: Upscale generated images
+- **list_tags**: List available image tags from PixelHub (requires `PIXELHUB_API_URL`)
+- **search_images_by_tags**: Search images by tags in PixelHub
+
 ## Get API Keys
 
 - **OpenAI**: https://platform.openai.com/api-keys
 - **Tavily**: https://tavily.com/
+- **Midjourney Proxy**: Deploy your own or use a service
+- **PixelHub**: Use the provided URL or deploy your own
 
 ## Prompt Optimization
 
