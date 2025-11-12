@@ -2,7 +2,7 @@
 import os
 import logging
 import tempfile
-from typing import Optional
+from typing import Optional, Union, List
 from pathlib import Path
 from datetime import datetime
 from google import genai
@@ -38,14 +38,14 @@ class NanobananaClient:
         self._cos_available = None
 
     def generate_image(
-        self, prompt: str, input_image_path: str, upload_to_cos: bool = True
+        self, prompt: str, input_image_paths: Union[str, List[str]], upload_to_cos: bool = True
     ) -> dict:
         """
-        Generate image based on text prompt and input image.
+        Generate image based on text prompt and input image(s).
 
         Args:
             prompt: Text description for image generation
-            input_image_path: Path to the input reference image
+            input_image_paths: Path or URL to the input reference image, or a list of paths/URLs
             upload_to_cos: Whether to upload the generated image to COS
 
         Returns:
@@ -56,32 +56,46 @@ class NanobananaClient:
             - error: str (if failed)
         """
         try:
-            # Load input image
-            if not os.path.exists(input_image_path):
-                # Try to download if it's a URL
-                if input_image_path.startswith(("http://", "https://")):
-                    logger.info(f"Downloading image from URL: {input_image_path}")
-                    import requests
-                    response = requests.get(input_image_path, timeout=30)
-                    response.raise_for_status()
-                    
-                    # Save to temporary file
-                    temp_dir = tempfile.gettempdir()
-                    temp_input = os.path.join(temp_dir, "nanobanana_input.png")
-                    with open(temp_input, "wb") as f:
-                        f.write(response.content)
-                    input_image_path = temp_input
-                else:
-                    raise FileNotFoundError(f"Input image not found: {input_image_path}")
+            # Normalize input to list
+            if isinstance(input_image_paths, str):
+                input_image_paths = [input_image_paths]
+            
+            if not input_image_paths:
+                raise ValueError("At least one input image is required")
+            
+            # Load input images
+            images = []
+            for idx, input_image_path in enumerate(input_image_paths):
+                if not os.path.exists(input_image_path):
+                    # Try to download if it's a URL
+                    if input_image_path.startswith(("http://", "https://")):
+                        logger.info(f"Downloading image {idx + 1}/{len(input_image_paths)} from URL: {input_image_path}")
+                        import requests
+                        response = requests.get(input_image_path, timeout=30)
+                        response.raise_for_status()
+                        
+                        # Save to temporary file
+                        temp_dir = tempfile.gettempdir()
+                        temp_input = os.path.join(temp_dir, f"nanobanana_input_{idx}.png")
+                        with open(temp_input, "wb") as f:
+                            f.write(response.content)
+                        input_image_path = temp_input
+                    else:
+                        raise FileNotFoundError(f"Input image not found: {input_image_path}")
 
-            logger.info(f"Loading input image: {input_image_path}")
-            image = Image.open(input_image_path)
+                logger.info(f"Loading input image {idx + 1}/{len(input_image_paths)}: {input_image_path}")
+                image = Image.open(input_image_path)
+                images.append(image)
 
             # Generate image
-            logger.info(f"Generating image with prompt: {prompt}")
+            logger.info(f"Generating image with prompt: {prompt} and {len(images)} input image(s)")
+            
+            # Build contents list: [image1, image2, ..., prompt]
+            contents = images + [prompt]
+            
             response = self.client.models.generate_content(
                 model=self.model,
-                contents=[prompt, image],
+                contents=contents,
             )
 
             # Extract generated image
@@ -170,29 +184,37 @@ def get_nanobanana_client() -> NanobananaClient:
 # ==================== LangChain Tools ====================
 
 @tool("nanobanana_generate")
-def nanobanana_generate(prompt: str, input_image_path: str, upload_to_cos: bool = True) -> str:
-    """Generate an image based on text prompt and reference image using Google Gemini.
+def nanobanana_generate(prompt: str, input_image_paths: Union[str, List[str]], upload_to_cos: bool = True) -> str:
+    """Generate an image based on text prompt and reference image(s) using Google Gemini.
     The generated image will be saved locally and optionally uploaded to Tencent Cloud COS.
 
     This tool is perfect for creating variations or modifications of existing images based on text descriptions.
     For example: "Create a picture of my cat eating a nano-banana in a fancy restaurant under the Gemini constellation"
+    
+    You can also provide multiple reference images for more complex image generation tasks.
 
     Args:
         prompt: Text description for the image generation. Be creative and detailed!
-        input_image_path: Path or URL to the input reference image
+        input_image_paths: Path or URL to the input reference image, or a list of paths/URLs for multiple images
         upload_to_cos: Whether to upload the generated image to Tencent Cloud COS (default: True)
 
     Returns:
         The URL of the uploaded image (if COS is enabled) or the local file path.
     """
+    # Format image paths for logging
+    if isinstance(input_image_paths, str):
+        image_info = f"Image: '{input_image_paths}'"
+    else:
+        image_info = f"Images: {len(input_image_paths)} files"
+    
     logger.info(
         f"🍌 [nanobanana_generate] Called - Prompt: '{prompt}', "
-        f"Image: '{input_image_path}', Upload: {upload_to_cos}"
+        f"{image_info}, Upload: {upload_to_cos}"
     )
 
     try:
         client = get_nanobanana_client()
-        result = client.generate_image(prompt, input_image_path, upload_to_cos)
+        result = client.generate_image(prompt, input_image_paths, upload_to_cos)
 
         if result["success"]:
             # Return COS URL if available, otherwise return local path

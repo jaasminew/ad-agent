@@ -3,7 +3,7 @@
 Test script for Nanobanana tool functionality.
 
 This script generates images using Google Gemini's image generation API
-based on a text prompt and a reference image, then optionally uploads
+based on a text prompt and one or more reference images, then optionally uploads
 the result to Tencent Cloud COS.
 
 Usage:
@@ -12,6 +12,9 @@ Usage:
 
     # Specify custom image and prompt
     python examples/test_nanobanana.py --image https://example.com/image.jpg --prompt "your prompt"
+
+    # Use multiple images
+    python examples/test_nanobanana.py --image image1.jpg --image image2.jpg --prompt "your prompt"
 
     # Use local image file
     python examples/test_nanobanana.py --image /path/to/local/image.jpg --prompt "your prompt"
@@ -57,6 +60,12 @@ Examples:
     --image https://example.com/image.jpg \\
     --prompt "transform this image into cyberpunk style"
 
+  # Multiple images
+  python examples/test_nanobanana.py \\
+    --image https://example.com/image1.jpg \\
+    --image https://example.com/image2.jpg \\
+    --prompt "combine these two images into one artistic composition"
+
   # Local image file
   python examples/test_nanobanana.py \\
     --image /path/to/photo.jpg \\
@@ -74,8 +83,8 @@ Examples:
         "--image",
         "-i",
         type=str,
-        default="https://style-pictures-1309327302.cos.ap-guangzhou.myqcloud.com/img_38f0bc87-5c18-4ec3-93fa-bd1c4d7025b6.jpg",
-        help="Input image URL or local file path (default: test image)"
+        action="append",
+        help="Input image URL or local file path. Can be specified multiple times for multiple images. If not specified, uses a default test image."
     )
     
     parser.add_argument(
@@ -166,8 +175,22 @@ def main():
     print("Generating Image")
     print("=" * 60)
     
+    # Use default test image if none specified
+    if args.image is None or len(args.image) == 0:
+        input_images = "https://style-pictures-1309327302.cos.ap-guangzhou.myqcloud.com/img_38f0bc87-5c18-4ec3-93fa-bd1c4d7025b6.jpg"
+    elif len(args.image) == 1:
+        input_images = args.image[0]
+    else:
+        input_images = args.image
+    
     # Display test parameters
-    print(f"\nInput image: {args.image}")
+    if isinstance(input_images, str):
+        print(f"\nInput image: {input_images}")
+    else:
+        print(f"\nInput images ({len(input_images)}):")
+        for idx, img in enumerate(input_images, 1):
+            print(f"  {idx}. {img}")
+    
     print(f"Prompt: {args.prompt}")
     print(f"Upload to COS: {upload_to_cos}")
     print("\nProcessing...")
@@ -177,7 +200,7 @@ def main():
         # Call nanobanana_generate tool
         result = nanobanana_generate.invoke({
             "prompt": args.prompt,
-            "input_image_path": args.image,
+            "input_image_paths": input_images,
             "upload_to_cos": upload_to_cos,
         })
         
