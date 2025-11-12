@@ -129,8 +129,11 @@ if __name__ == "__main__":
 ```
 .
 ├── pyproject.toml           # Project configuration
-├── main.py   # Main program
-├── tools.py                 # Tool definitions
+├── main.py                  # Main program
+├── tools/                   # Tool definitions
+│   ├── __init__.py         # Tools package
+│   ├── web_search.py       # Web search tool
+│   └── memory.py           # Remember/recall tools
 └── README.md               # This document
 ```
 
