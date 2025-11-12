@@ -4,6 +4,7 @@ from .memory import remember, recall
 from .midjourney import midjourney_imagine, midjourney_upscale
 from .pixelhub import list_tags, search_images_by_tags
 from .nanobanana import nanobanana_generate
+from .veo_video import veo_generate_video
 
 # COS uploader (optional, requires COS credentials)
 try:
@@ -38,6 +39,7 @@ __all__ = [
     "list_tags",
     "search_images_by_tags",
     "nanobanana_generate",
+    "veo_generate_video",
     "COSUploader",
     "get_cos_uploader",
     "is_cos_available",
