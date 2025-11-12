@@ -1,0 +1,16 @@
+# Distortion Checker Dependencies
+# This is not a standalone package, but part of the ad-agent project.
+# Dependencies are managed here for documentation purposes.
+
+[project]
+name = "distortion-checker"
+version = "0.1.0"
+description = "LangChain tools for detecting anatomical distortions in images"
+requires-python = ">=3.9,<3.13"
+dependencies = [
+    "mediapipe>=0.10.0",
+    "opencv-python>=4.8.0",
+    "pillow>=10.0.0",
+    "numpy>=1.24.0",
+]
+

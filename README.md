@@ -7,7 +7,7 @@ Automatically generate and optimize advertising scripts using LangGraph and ReAc
 - 🤖 **Three-stage Workflow**: Write → Critique → ReAct Agent Improvement
 - 🔍 **Automatic Web Search**: Forces use of web_search to gather real product information
 - 📝 **Detailed Logging**: Complete reasoning process (Thought/Action/Observation) visible
-- 🛠️ **Multiple Tools**: web_search, remember, recall, midjourney (image generation), pixelhub (image search)
+- 🛠️ **Multiple Tools**: web_search, remember, recall, midjourney (image generation), pixelhub (image search), distortion_checker (image quality check)
 
 ## Quick Start
 
@@ -144,7 +144,11 @@ if __name__ == "__main__":
 │   ├── web_search.py       # Web search tool
 │   ├── memory.py           # Remember/recall tools
 │   ├── midjourney.py       # Midjourney image generation
-│   └── pixelhub.py         # PixelHub image search
+│   ├── pixelhub.py         # PixelHub image search
+│   └── distortion_checker.py  # Image distortion detection
+├── distortion_checker/      # Distortion checker module
+│   └── src/                # Source code for detection
+├── tests/                   # Test files
 └── README.md               # This document
 ```
 
@@ -168,6 +172,9 @@ if __name__ == "__main__":
 - **midjourney_upscale**: Upscale generated images
 - **list_tags**: List available image tags from PixelHub (requires `PIXELHUB_API_URL`)
 - **search_images_by_tags**: Search images by tags in PixelHub
+- **check_image_distortion**: Detect anatomical distortions in AI-generated images (requires MediaPipe, Python ≤ 3.12)
+- **get_distortion_labels**: Get information about all distortion types
+- **get_distortion_stats**: Get detection statistics and configuration
 
 ## Get API Keys
 

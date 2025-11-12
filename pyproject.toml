@@ -3,7 +3,7 @@ name = "langgraph-react-agent"
 version = "0.1.0"
 description = "LangGraph ReAct Agent for ad script generation"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "langchain>=0.3.0",
     "langchain-openai>=0.3.0",
