@@ -3,7 +3,8 @@ import os
 import logging
 from typing import Dict, Any, List, Optional
 import requests
-from langchain.tools import tool
+from langchain.tools import StructuredTool
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -159,18 +160,23 @@ def get_pixelhub_client() -> PixelHubClient:
 
 # ==================== LangChain Tools ====================
 
-@tool("list_tags")
-def list_tags(page: int = 1, limit: int = 1000) -> str:
-    """List all available tags in PixelHub. This helps understand what tags are available before searching for images.
-    IMPORTANT: ALWAYS call this tool FIRST before searching for images to get available tags.
-    
-    Args:
-        page: Page number (default: 1)
-        limit: Number of tags per page (default: 1000, max: 1000). Use a high value to get all tags at once.
-    
-    Returns:
-        A JSON string containing tags list with their usage counts.
-    """
+# Input schemas for tools
+class ListTagsInput(BaseModel):
+    """Input schema for list_tags tool"""
+    page: int = Field(default=1, description="Page number (starting from 1)")
+    limit: int = Field(default=1000, description="Number of tags per page (max: 1000). Use a high value to get all tags at once.")
+
+
+class SearchImagesByTagsInput(BaseModel):
+    """Input schema for search_images_by_tags tool"""
+    tags: List[str] = Field(description="List of tags to search for. MUST use tags from list_tags result.")
+    page: int = Field(default=1, description="Page number (starting from 1)")
+    limit: int = Field(default=20, description="Number of results per page (max: 100)")
+
+
+# Implementation functions
+def _list_tags_impl(page: int = 1, limit: int = 1000) -> str:
+    """Implementation for list_tags tool"""
     logger.info(f"🏷️  [list_tags] Called - page: {page}, limit: {limit}")
     
     try:
@@ -202,19 +208,8 @@ def list_tags(page: int = 1, limit: int = 1000) -> str:
         return f"Error: {str(e)}"
 
 
-@tool("search_images_by_tags")
-def search_images_by_tags(tags: List[str], page: int = 1, limit: int = 20) -> str:
-    """Search images by tags using relevance ranking (OR logic). Returns images that match any of the provided tags,
-    sorted by number of matched tags. IMPORTANT: Only use tags that exist in the system (call list_tags first).
-    
-    Args:
-        tags: List of tags to search for. MUST use tags from list_tags result.
-        page: Page number (default: 1)
-        limit: Number of results per page (default: 20, max: 100)
-    
-    Returns:
-        A JSON string containing search results with image URLs, descriptions, and matched tags.
-    """
+def _search_images_by_tags_impl(tags: List[str], page: int = 1, limit: int = 20) -> str:
+    """Implementation for search_images_by_tags tool"""
     logger.info(f"🔍 [search_images_by_tags] Called - tags: {tags}, page: {page}, limit: {limit}")
     
     # Validate input
@@ -255,4 +250,20 @@ def search_images_by_tags(tags: List[str], page: int = 1, limit: int = 20) -> st
     except Exception as e:
         logger.error(f"❌ [search_images_by_tags] Exception: {e}")
         return f"Error: {str(e)}"
+
+
+# Create StructuredTool instances
+list_tags = StructuredTool.from_function(
+    func=_list_tags_impl,
+    name="list_tags",
+    description="List all available tags in PixelHub. This helps understand what tags are available before searching for images. IMPORTANT: ALWAYS call this tool FIRST before searching for images to get available tags.",
+    args_schema=ListTagsInput,
+)
+
+search_images_by_tags = StructuredTool.from_function(
+    func=_search_images_by_tags_impl,
+    name="search_images_by_tags",
+    description="Search images by tags using relevance ranking (OR logic). Returns images that match any of the provided tags, sorted by number of matched tags. IMPORTANT: Only use tags that exist in the system (call list_tags first).",
+    args_schema=SearchImagesByTagsInput,
+)
 

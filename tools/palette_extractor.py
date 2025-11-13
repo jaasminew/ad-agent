@@ -3,7 +3,8 @@ import logging
 from typing import List, Tuple, Optional
 import requests
 from io import BytesIO
-from langchain.tools import tool
+from langchain.tools import StructuredTool
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -139,16 +140,15 @@ def get_palette_extractor() -> PaletteExtractor:
 
 # ==================== LangChain Tool ====================
 
-@tool("extract_color_palette")
-def extract_color_palette(image_url: str) -> str:
-    """Extract the dominant color palette from an image URL. Returns 4 dominant colors.
-    
-    Args:
-        image_url: URL of the image to analyze
-    
-    Returns:
-        A string describing the dominant colors with RGB values and hex codes.
-    """
+# Input schema for tool
+class ExtractColorPaletteInput(BaseModel):
+    """Input schema for extract_color_palette tool"""
+    image_url: str = Field(description="URL of the image to analyze")
+
+
+# Implementation function
+def _extract_color_palette_impl(image_url: str) -> str:
+    """Implementation for extract_color_palette tool"""
     logger.info(f"🎨 [extract_color_palette] Called - URL: '{image_url}'")
     
     try:
@@ -170,6 +170,15 @@ def extract_color_palette(image_url: str) -> str:
     except Exception as e:
         logger.error(f"❌ [extract_color_palette] Exception: {e}")
         return f"Error extracting color palette: {str(e)}"
+
+
+# Create StructuredTool instance
+extract_color_palette = StructuredTool.from_function(
+    func=_extract_color_palette_impl,
+    name="extract_color_palette",
+    description="Extract the dominant color palette from an image URL. Returns 4 dominant colors with RGB values and hex codes.",
+    args_schema=ExtractColorPaletteInput,
+)
 
 
 # ==================== Utility Functions ====================

@@ -1,6 +1,14 @@
 """Example usage of the Storyboard Generation Agent."""
 
 import logging
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+env_path = Path(__file__).parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
 from storyboard_gen_agent import (
     StoryboardAgent,
     EpisodeConfig,
@@ -53,11 +61,11 @@ def main():
     logger.info("🎬 Starting Storyboard Generation Example")
     logger.info("="*80)
     
-    # Initialize LLM (using OpenAI as it's in the project dependencies)
+    # Initialize LLM (using OpenAI GPT-4o)
     logger.info("\n🤖 Initializing LLM...")
     from langchain_openai import ChatOpenAI
     llm = ChatOpenAI(
-        model="gpt-4",
+        model="gpt-4o",  # GPT-4o (ChatGPT-5 class model)
         temperature=0.7,
         max_tokens=4096,
     )

@@ -43,7 +43,7 @@ MIDJOURNEY_PROXY_BASE_URL=https://your-midjourney-proxy.com
 # Google Gemini (for Nanobanana)
 GOOGLE_API_KEY=your-google-api-key
 
-# OpenAI (for the agent)
+# OpenAI (for the agent - primary LLM, uses GPT-4o)
 OPENAI_API_KEY=your-openai-api-key
 
 # Optional: Anthropic Claude (alternative LLM)

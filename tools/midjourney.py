@@ -4,7 +4,8 @@ import time
 import logging
 from typing import Dict, Any, Optional
 import requests
-from langchain.tools import tool
+from langchain.tools import StructuredTool
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -114,17 +115,21 @@ def get_midjourney_client() -> MidjourneyClient:
 
 # ==================== LangChain Tools ====================
 
-@tool("midjourney_imagine")
-def midjourney_imagine(prompt: str) -> str:
-    """Generate an image using Midjourney. This is a synchronous operation that polls until the task completes.
-    Returns the task ID and image URL.
-    
-    Args:
-        prompt: The prompt to generate the image. Can include Midjourney parameters like --ar 16:9, --v 6, etc.
-    
-    Returns:
-        A string containing task information including task ID and image URL.
-    """
+# Input schemas for tools
+class MidjourneyImagineInput(BaseModel):
+    """Input schema for midjourney_imagine tool"""
+    prompt: str = Field(description="The prompt to generate the image. Can include Midjourney parameters like --ar 16:9, --v 6, etc.")
+
+
+class MidjourneyUpscaleInput(BaseModel):
+    """Input schema for midjourney_upscale tool"""
+    task_id: str = Field(description="The task ID from a completed imagine/variation/reroll task")
+    index: int = Field(description="The index of the image to upscale (1-4). Each task generates 4 images arranged in a 2x2 grid: 1=top-left, 2=top-right, 3=bottom-left, 4=bottom-right.", ge=1, le=4)
+
+
+# Implementation functions
+def _midjourney_imagine_impl(prompt: str) -> str:
+    """Implementation for midjourney_imagine tool"""
     logger.info(f"🎨 [midjourney_imagine] Called - Prompt: '{prompt}'")
     
     try:
@@ -180,21 +185,8 @@ You can now use the task ID with midjourney_upscale to select and upscale one of
         return f"Error: {str(e)}"
 
 
-@tool("midjourney_upscale")
-def midjourney_upscale(task_id: str, index: int) -> str:
-    """Upscale a specific image from a completed Midjourney task. The original task generates 4 images,
-    and you can select one by index (1-4) to upscale. This is a synchronous operation that polls until
-    the upscale completes.
-    
-    Args:
-        task_id: The task ID from a completed imagine/variation/reroll task. You can get this from
-                 the midjourney_imagine result.
-        index: The index of the image to upscale (1-4). Each task generates 4 images arranged in a 2x2 grid:
-               1=top-left, 2=top-right, 3=bottom-left, 4=bottom-right.
-    
-    Returns:
-        Upscaled image information including the new task ID and image URL.
-    """
+def _midjourney_upscale_impl(task_id: str, index: int) -> str:
+    """Implementation for midjourney_upscale tool"""
     logger.info(f"🔍 [midjourney_upscale] Called - task_id: '{task_id}', index: {index}")
     
     # Validate index range
@@ -251,4 +243,20 @@ Upscaled Image URL: {image_url}"""
     except Exception as e:
         logger.error(f"❌ [midjourney_upscale] Exception: {e}")
         return f"Error: {str(e)}"
+
+
+# Create StructuredTool instances
+midjourney_imagine = StructuredTool.from_function(
+    func=_midjourney_imagine_impl,
+    name="midjourney_imagine",
+    description="Generate an image using Midjourney. This is a synchronous operation that polls until the task completes. Returns the task ID and image URL.",
+    args_schema=MidjourneyImagineInput,
+)
+
+midjourney_upscale = StructuredTool.from_function(
+    func=_midjourney_upscale_impl,
+    name="midjourney_upscale",
+    description="Upscale a specific image from a completed Midjourney task. The original task generates 4 images, and you can select one by index (1-4) to upscale. This is a synchronous operation that polls until the upscale completes.",
+    args_schema=MidjourneyUpscaleInput,
+)
 

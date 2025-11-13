@@ -1,0 +1,58 @@
+{
+  "episode_id": "b99a9cf5-bf4e-4a5d-a9fb-398d30a301bf",
+  "title": "Creative Workspace - Summer Campaign",
+  "episode_palette": null,
+  "beats": [
+    {
+      "beat_number": 1,
+      "shot_text": "Morning Coffee Shop — A young creative professional sits by a large sunlit window in a cozy coffee shop. Action: Opens their laptop and smiles while reading an email, morning light streaming in",
+      "reference_image_url": null,
+      "color_palette": null,
+      "attempts": [],
+      "total_attempts": 0,
+      "storyboard_image_url": "",
+      "storyboard_task_id": "",
+      "quality_check_passed": false,
+      "final_image_url": null,
+      "product_replacement_success": false,
+      "product_replacement_error": null,
+      "flagged_for_review": true,
+      "review_reason": "Processing error: 'Input to PromptTemplate is missing variables {\\'\\', \\'\"parameter_name\"\\'}.  Expected: [\\'\\', \\'\"parameter_name\"\\', \\'agent_scratchpad\\', \\'input\\'] Received: [\\'input\\', \\'intermediate_steps\\', \\'agent_scratchpad\\']\\nNote: if you intended {} to be part of the string and not a variable, please escape it with double curly braces like: \\'{{}}\\'.\\nFor troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/INVALID_PROMPT_INPUT '"
+    },
+    {
+      "beat_number": 2,
+      "shot_text": "Collaborative Brainstorm — A diverse team of four people gathered around a wooden table, laptops open, sticky notes on the wall. Action: Team members gesture enthusiastically while discussing ideas, one person takes notes on their laptop",
+      "reference_image_url": null,
+      "color_palette": null,
+      "attempts": [],
+      "total_attempts": 0,
+      "storyboard_image_url": "",
+      "storyboard_task_id": "",
+      "quality_check_passed": false,
+      "final_image_url": null,
+      "product_replacement_success": false,
+      "product_replacement_error": null,
+      "flagged_for_review": true,
+      "review_reason": "Processing error: 'Input to PromptTemplate is missing variables {\\'\\', \\'\"parameter_name\"\\'}.  Expected: [\\'\\', \\'\"parameter_name\"\\', \\'agent_scratchpad\\', \\'input\\'] Received: [\\'input\\', \\'intermediate_steps\\', \\'agent_scratchpad\\']\\nNote: if you intended {} to be part of the string and not a variable, please escape it with double curly braces like: \\'{{}}\\'.\\nFor troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/INVALID_PROMPT_INPUT '"
+    },
+    {
+      "beat_number": 3,
+      "shot_text": "Outdoor Innovation — A person working on a laptop in a vibrant urban park, trees and city skyline in background. Action: Types intently while sipping from a reusable water bottle, looking inspired and focused",
+      "reference_image_url": null,
+      "color_palette": null,
+      "attempts": [],
+      "total_attempts": 0,
+      "storyboard_image_url": "",
+      "storyboard_task_id": "",
+      "quality_check_passed": false,
+      "final_image_url": null,
+      "product_replacement_success": false,
+      "product_replacement_error": null,
+      "flagged_for_review": true,
+      "review_reason": "Processing error: 'Input to PromptTemplate is missing variables {\\'\\', \\'\"parameter_name\"\\'}.  Expected: [\\'\\', \\'\"parameter_name\"\\', \\'agent_scratchpad\\', \\'input\\'] Received: [\\'input\\', \\'intermediate_steps\\', \\'agent_scratchpad\\']\\nNote: if you intended {} to be part of the string and not a variable, please escape it with double curly braces like: \\'{{}}\\'.\\nFor troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/INVALID_PROMPT_INPUT '"
+    }
+  ],
+  "total_beats": 3,
+  "successful_beats": 0,
+  "flagged_beats": 3
+}

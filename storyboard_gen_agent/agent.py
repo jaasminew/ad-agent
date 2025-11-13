@@ -3,8 +3,8 @@
 import logging
 import uuid
 from typing import Optional, List
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.prompts import PromptTemplate
+from langchain.agents import AgentExecutor, create_structured_chat_agent
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.language_models import BaseChatModel
 
 from .models import (
@@ -94,35 +94,53 @@ class StoryboardAgent:
         self.beat_results: List[BeatResult] = []
     
     def _create_react_agent(self):
-        """Create the ReAct agent with system prompt."""
-        # Create prompt template for ReAct
-        template = f"""{SYSTEM_PROMPT}
+        """Create the structured chat agent with system prompt."""
+        # Create prompt template for structured chat agent
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", f"""{SYSTEM_PROMPT}
 
-{{tools}}
+Use the following format for your responses:
 
-Use the following format:
+{{{{tools}}}}
 
-Question: the input question/task you must solve
-Thought: you should always think about what to do
-Action: the action to take, should be one of [{{tool_names}}]
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I now have completed the task
-Final Answer: the final summary of what was accomplished
+Tool names: {{{{tool_names}}}}
 
-Begin!
+Use a json blob to specify a tool by providing an action key (tool name) and an action_input key (tool input).
 
-Question: {{input}}
-Thought: {{agent_scratchpad}}
-"""
+Valid "action" values: "Final Answer" or one of the tool names listed above.
+
+Provide only ONE action per response, like this:
+
+```
+{{{{
+  "action": "tool_name",
+  "action_input": {{"param1": "value1", "param2": "value2"}}
+}}}}
+```
+
+or for the final answer:
+
+```
+{{{{
+  "action": "Final Answer",
+  "action_input": "your summary of what was accomplished"
+}}}}
+```
+
+IMPORTANT: Tool action_input must be valid JSON matching the tool's parameter schema. For example:
+- list_tags: {{"page": 1, "limit": 1000}}
+- search_images_by_tags: {{"tags": ["portrait", "outdoor"], "page": 1, "limit": 20}}
+- extract_color_palette: {{"image_url": "https://example.com/image.jpg"}}
+- midjourney_imagine: {{"prompt": "cinematic portrait --ar 16:9 --v 6"}}
+- remember: {{"note": "episode_palette: #FF5733, #3498DB"}}
+- recall: {{}}  (no parameters)
+
+Follow the workflow steps carefully and process each beat systematically."""),
+            ("human", "{input}"),
+            MessagesPlaceholder(variable_name="agent_scratchpad"),
+        ])
         
-        prompt = PromptTemplate(
-            template=template,
-            input_variables=["input", "tools", "tool_names", "agent_scratchpad"],
-        )
-        
-        return create_react_agent(
+        return create_structured_chat_agent(
             llm=self.llm,
             tools=self.tools,
             prompt=prompt,

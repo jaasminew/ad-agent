@@ -1,7 +1,8 @@
 """LangChain tools for distortion checking."""
 
 import logging
-from langchain.tools import tool
+from langchain.tools import StructuredTool
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -26,37 +27,15 @@ def get_distortion_checker():
     return _checker_instance
 
 
-@tool("check_image_distortion")
-def check_image_distortion(image_path: str) -> str:
-    """Check an image for anatomical distortions using MediaPipe detection.
-    
-    This tool detects the following types of distortions:
-    - extra_fingers: More than 5 fingers detected on a hand
-    - extra_hands: More than 2 hands detected in the image
-    - warped_hand: Hand landmark geometry violates anatomical constraints
-    - warped_limbs: Pose landmarks show impossible joint angles
-    - elongated_limbs: Limb length ratios exceed normal thresholds
-    - extra_limbs: More body parts detected than anatomically possible
-    - deformed_face: Face mesh geometry distorted beyond threshold
-    
-    For each detected distortion, the tool provides:
-    - Label: Type of distortion
-    - Confidence: Detection confidence score (0.0-1.0)
-    - Bounding box: Location in pixels (x, y, width, height)
-    - Details: Human-readable description
-    
-    Args:
-        image_path: Path to the image file to check. Supported formats include
-                   JPEG, PNG, WebP, and BMP. Can also be a base64-encoded image
-                   string (with 'data:image/...' prefix or 'base64:...' prefix).
-    
-    Returns:
-        A detailed string report of detected distortions including:
-        - Summary of findings (count of distortions)
-        - List of each distortion with confidence, location, and details
-        - Processing time and image dimensions
-        - JSON formatted results for programmatic access
-    """
+# Input schemas for tools
+class CheckImageDistortionInput(BaseModel):
+    """Input schema for check_image_distortion tool"""
+    image_path: str = Field(description="Path to the image file to check. Supported formats include JPEG, PNG, WebP, and BMP. Can also be a base64-encoded image string (with 'data:image/...' prefix or 'base64:...' prefix).")
+
+
+# Implementation functions
+def _check_image_distortion_impl(image_path: str) -> str:
+    """Implementation for check_image_distortion tool"""
     logger.info(f"🔍 [check_image_distortion] Called - image_path: '{image_path}'")
     
     checker = None
@@ -115,19 +94,8 @@ def check_image_distortion(image_path: str) -> str:
                 pass  # Ignore cleanup errors
 
 
-@tool("get_distortion_labels")
-def get_distortion_labels(_: str = "") -> str:
-    """Get information about all possible distortion labels and their meanings.
-    
-    This tool returns a comprehensive list of all distortion types that can be
-    detected by the distortion checker, along with their descriptions.
-    
-    Args:
-        _: Unused parameter (for compatibility with tool interface)
-    
-    Returns:
-        A formatted string containing all distortion labels and their descriptions.
-    """
+def _get_distortion_labels_impl() -> str:
+    """Implementation for get_distortion_labels tool"""
     logger.info("📋 [get_distortion_labels] Called")
     
     labels = {
@@ -148,21 +116,8 @@ def get_distortion_labels(_: str = "") -> str:
     return output
 
 
-@tool("get_distortion_stats")
-def get_distortion_stats(_: str = "") -> str:
-    """Get detection statistics and configuration information about the distortion checker.
-    
-    This tool provides information about:
-    - Detection capabilities for each category (hands, pose, face)
-    - Performance characteristics
-    - Detection thresholds and parameters
-    
-    Args:
-        _: Unused parameter (for compatibility with tool interface)
-    
-    Returns:
-        A formatted string containing detection statistics and configuration.
-    """
+def _get_distortion_stats_impl() -> str:
+    """Implementation for get_distortion_stats tool"""
     logger.info("📊 [get_distortion_stats] Called")
     
     output = """Distortion Checker Statistics
@@ -197,4 +152,25 @@ For detailed analysis of a specific image, use the check_image_distortion tool.
     
     logger.info("✓ [get_distortion_stats] Returned statistics")
     return output
+
+
+# Create StructuredTool instances
+check_image_distortion = StructuredTool.from_function(
+    func=_check_image_distortion_impl,
+    name="check_image_distortion",
+    description="Check an image for anatomical distortions using MediaPipe detection. Detects: extra_fingers, extra_hands, warped_hand, warped_limbs, elongated_limbs, extra_limbs, deformed_face. For each detected distortion, provides: Label, Confidence (0.0-1.0), Bounding box (x, y, width, height), Details (human-readable description).",
+    args_schema=CheckImageDistortionInput,
+)
+
+get_distortion_labels = StructuredTool.from_function(
+    func=_get_distortion_labels_impl,
+    name="get_distortion_labels",
+    description="Get information about all possible distortion labels and their meanings. Returns a comprehensive list of all distortion types that can be detected by the distortion checker, along with their descriptions.",
+)
+
+get_distortion_stats = StructuredTool.from_function(
+    func=_get_distortion_stats_impl,
+    name="get_distortion_stats",
+    description="Get detection statistics and configuration information about the distortion checker. Provides information about detection capabilities for each category (hands, pose, face), performance characteristics, and detection thresholds and parameters.",
+)
 

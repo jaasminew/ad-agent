@@ -43,8 +43,11 @@ export MIDJOURNEY_PROXY_BASE_URL="https://your-midjourney-proxy.com"
 # Google Gemini (for Nanobanana)
 export GOOGLE_API_KEY="your-google-api-key"
 
-# Anthropic Claude (for the agent)
-export ANTHROPIC_API_KEY="your-anthropic-api-key"
+# OpenAI (for the agent - primary LLM)
+export OPENAI_API_KEY="your-openai-api-key"
+
+# Optional: Anthropic Claude (alternative LLM)
+# export ANTHROPIC_API_KEY="your-anthropic-api-key"
 
 # Optional: Tencent COS (for image upload)
 export COS_SECRET_ID="your-cos-secret-id"
@@ -61,8 +64,8 @@ export COS_BUCKET="your-cos-bucket"
 from storyboard_gen_agent import StoryboardAgent, EpisodeConfig, Beat, ProductConfig
 from langchain_openai import ChatOpenAI
 
-# Initialize LLM
-llm = ChatOpenAI(model="gpt-4", temperature=0.7)
+# Initialize LLM (GPT-4o - ChatGPT-5 class model)
+llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 
 # Configure episode
 episode = EpisodeConfig(
@@ -114,13 +117,18 @@ for beat_result in result.beats:
 ```python
 # You can use any LangChain-compatible chat model
 
-# Example with OpenAI:
+# Example with OpenAI GPT-4o (recommended):
 from langchain_openai import ChatOpenAI
 custom_llm = ChatOpenAI(
-    model="gpt-4",
+    model="gpt-4o",  # GPT-4o (ChatGPT-5 class model)
     temperature=0.5,
     max_tokens=8192,
 )
+
+# Other OpenAI models:
+# - "gpt-4o-mini" (faster, cheaper)
+# - "gpt-4-turbo" (previous generation)
+# - "o1-preview" (reasoning model, not recommended for agents)
 
 # Or with Anthropic (requires: pip install langchain-anthropic):
 # from langchain_anthropic import ChatAnthropic

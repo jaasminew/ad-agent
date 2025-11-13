@@ -8,7 +8,8 @@ from datetime import datetime
 from google import genai
 from google.genai import types
 from PIL import Image
-from langchain.tools import tool
+from langchain.tools import StructuredTool
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -183,24 +184,17 @@ def get_nanobanana_client() -> NanobananaClient:
 
 # ==================== LangChain Tools ====================
 
-@tool("nanobanana_generate")
-def nanobanana_generate(prompt: str, input_image_paths: Union[str, List[str]], upload_to_cos: bool = True) -> str:
-    """Generate an image based on text prompt and reference image(s) using Google Gemini.
-    The generated image will be saved locally and optionally uploaded to Tencent Cloud COS.
+# Input schema for tool
+class NanobananaGenerateInput(BaseModel):
+    """Input schema for nanobanana_generate tool"""
+    prompt: str = Field(description="Text description for the image generation. Be creative and detailed!")
+    input_image_paths: Union[str, List[str]] = Field(description="Path or URL to the input reference image, or a list of paths/URLs for multiple images")
+    upload_to_cos: bool = Field(default=True, description="Whether to upload the generated image to Tencent Cloud COS")
 
-    This tool is perfect for creating variations or modifications of existing images based on text descriptions.
-    For example: "Create a picture of my cat eating a nano-banana in a fancy restaurant under the Gemini constellation"
-    
-    You can also provide multiple reference images for more complex image generation tasks.
 
-    Args:
-        prompt: Text description for the image generation. Be creative and detailed!
-        input_image_paths: Path or URL to the input reference image, or a list of paths/URLs for multiple images
-        upload_to_cos: Whether to upload the generated image to Tencent Cloud COS (default: True)
-
-    Returns:
-        The URL of the uploaded image (if COS is enabled) or the local file path.
-    """
+# Implementation function
+def _nanobanana_generate_impl(prompt: str, input_image_paths: Union[str, List[str]], upload_to_cos: bool = True) -> str:
+    """Implementation for nanobanana_generate tool"""
     # Format image paths for logging
     if isinstance(input_image_paths, str):
         image_info = f"Image: '{input_image_paths}'"
@@ -232,4 +226,13 @@ def nanobanana_generate(prompt: str, input_image_paths: Union[str, List[str]], u
     except Exception as e:
         logger.error(f"❌ [nanobanana_generate] Exception: {e}")
         return f"Error: {str(e)}"
+
+
+# Create StructuredTool instance
+nanobanana_generate = StructuredTool.from_function(
+    func=_nanobanana_generate_impl,
+    name="nanobanana_generate",
+    description="Generate an image based on text prompt and reference image(s) using Google Gemini. The generated image will be saved locally and optionally uploaded to Tencent Cloud COS. Perfect for creating variations or modifications of existing images based on text descriptions. You can also provide multiple reference images for more complex image generation tasks.",
+    args_schema=NanobananaGenerateInput,
+)
 
