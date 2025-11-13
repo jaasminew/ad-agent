@@ -15,4 +15,5 @@ dependencies = [
     "pillow>=10.0.0",
     "cos-python-sdk-v5>=1.9.0",
     "requests>=2.31.0",
+    "colorthief>=0.2.1",
 ]
