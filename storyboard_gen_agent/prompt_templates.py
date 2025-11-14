@@ -1,21 +1,76 @@
 """Prompt templates for the Storyboard Generation Agent."""
 
-SYSTEM_PROMPT = """You are a Storyboard Generation Agent for creating advertisement images.
+import json
+import os
+from pathlib import Path
+
+
+def _escape_curly_braces(text: str) -> str:
+    """Escape curly braces for PromptTemplate compatibility."""
+    return text.replace("{", "{{").replace("}", "}}")
+
+
+def load_tools_metadata():
+    """Load and format tool metadata from JSON file."""
+    json_path = Path(__file__).parent / "tools_metadata.json"
+    
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return "## Available Tools\n\n(Tool metadata file not found. Using default tool descriptions.)"
+    
+    metadata = data.get("tools_metadata", {})
+    tools = metadata.get("tools", [])
+    
+    # Build the formatted tools section
+    tools_text = "## Available Tools\n\n"
+    tools_text += "You have access to the following tools. Pay close attention to usage guidelines and input requirements.\n\n"
+    
+    for i, tool in enumerate(tools, 1):
+        tools_text += f"### {i}. {tool['name']}\n\n"
+        tools_text += f"**Category:** {tool.get('category', 'N/A')}\n\n"
+        tools_text += f"**Function:** {tool.get('function', 'N/A')}\n\n"
+        
+        # Usage guidelines
+        guidelines = tool.get('usage_guidelines', [])
+        if guidelines:
+            tools_text += "**Usage Guidelines:**\n"
+            for guideline in guidelines:
+                tools_text += f"- {guideline}\n"
+            tools_text += "\n"
+        
+        # Inputs
+        inputs = tool.get('inputs', {})
+        if inputs:
+            tools_text += "**Inputs:**\n"
+            for param_name, param_info in inputs.items():
+                required = "**REQUIRED**" if param_info.get('required', False) else "optional"
+                param_type = param_info.get('type', 'any')
+                default = f" (default: {param_info.get('default')})" if 'default' in param_info else ""
+                description = param_info.get('description', '')
+                tools_text += f"- `{param_name}` ({param_type}, {required}){default}: {description}\n"
+            tools_text += "\n"
+        
+        # Example usage
+        if 'example_usage' in tool:
+            tools_text += f"**Example:** `{tool['example_usage']}`\n\n"
+        
+        # Dependencies
+        dependencies = tool.get('dependencies', [])
+        if dependencies:
+            tools_text += "**Dependencies:** " + ", ".join(dependencies) + "\n\n"
+        
+        tools_text += "---\n\n"
+    
+    return _escape_curly_braces(tools_text)
+
+
+SYSTEM_PROMPT_TEMPLATE = """You are a Storyboard Generation Agent for creating advertisement images.
 
 Your goal is to transform script beats into high-quality, product-integrated storyboard frames.
 
-## Available Tools
-
-You have access to the following tools:
-1. **list_tags** - List available tags in PixelHub
-2. **search_images_by_tags** - Search for reference images by tags
-3. **extract_color_palette** - Extract dominant color palette from an image URL
-4. **midjourney_imagine** - Generate images using MidJourney
-5. **midjourney_upscale** - Upscale a specific image from MidJourney results
-6. **check_image_distortion** - Check images for anatomical distortions
-7. **nanobanana_generate** - Replace objects in images with product images
-8. **remember** - Store information in memory
-9. **recall** - Retrieve stored information
+<<TOOLS_SECTION>>
 
 ## Workflow for Processing Each Beat
 
@@ -70,9 +125,9 @@ You must try up to 3 times to generate a quality storyboard:
 - Use `nanobanana_generate` with:
   - Input image: The approved/best storyboard image URL
   - Product image: From product_config
-  - Prompt: "Replace the {target_object} in the scene with the product image. Maintain lighting, shadows, and perspective. Preserve artistic style."
+  - Prompt: "Replace the {{target_object}} in the scene with the product image. Maintain lighting, shadows, and perspective. Preserve artistic style."
 - If it fails:
-  - Retry once with simplified prompt: "Replace {target_object} with the product"
+  - Retry once with simplified prompt: "Replace {{target_object}} with the product"
   - If both fail: Use the storyboard image as final, flag product_replacement_failed
 
 ### Step 8: Store Results
@@ -108,6 +163,18 @@ After processing each beat, provide a summary:
 
 Then proceed to the next beat automatically until all beats are complete.
 """
+
+
+def get_system_prompt():
+    """Generate the system prompt with loaded tool metadata."""
+    tools_section = load_tools_metadata()
+    
+    return SYSTEM_PROMPT_TEMPLATE.replace("<<TOOLS_SECTION>>", tools_section)
+
+
+# Backwards compatibility: Keep SYSTEM_PROMPT as a module-level constant
+# But note that it will be generated once at import time
+SYSTEM_PROMPT = get_system_prompt()
 
 BEAT_PROCESSING_PROMPT = """Process beat {beat_number} from the script:
 

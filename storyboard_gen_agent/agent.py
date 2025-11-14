@@ -3,8 +3,16 @@
 import logging
 import uuid
 from typing import Optional, List
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.prompts import PromptTemplate
+try:
+    # Try newer langchain structure
+    from langchain_classic.agents import AgentExecutor, create_react_agent
+except ImportError:
+    # Fallback to older langchain structure
+    from langchain.agents import AgentExecutor, create_react_agent
+try:
+    from langchain_classic.prompts import PromptTemplate
+except ImportError:
+    from langchain.prompts import PromptTemplate
 from langchain_core.language_models import BaseChatModel
 
 from .models import (
@@ -111,15 +119,45 @@ Observation: the result of the action
 Thought: I now have completed the task
 Final Answer: the final summary of what was accomplished
 
+IMPORTANT FORMATTING RULES:
+- "Action:" and "Action Input:" MUST be on separate lines
+- Do NOT write "Action: tool_name(parameters)" - this is WRONG
+- Do NOT write "Action: tool_name(parameters)" - this is WRONG
+- CORRECT format examples:
+
+Example 1 - Tool with no parameters:
+Thought: I need to check what's in memory
+Action: recall
+Action Input: ""
+
+Observation: (empty)
+
+Example 2 - Tool with JSON parameters:
+Thought: Memory is empty, I should search for reference images
+Action: list_tags
+Action Input: {{{{"page": 1, "limit": 1000}}}}
+
+Observation: {{{{"total": 150, "tags": ["sunset", "beach", "ocean"]}}}}
+
 Begin!
 
 Question: {{input}}
 Thought: {{agent_scratchpad}}
 """
         
+        tool_descriptions = "\n".join(
+            f"{tool.name}: {getattr(tool, 'description', 'No description provided.')}"
+            for tool in self.tools
+        ) or "No tools available."
+        tool_names = ", ".join(tool.name for tool in self.tools) or "None"
+
         prompt = PromptTemplate(
             template=template,
-            input_variables=["input", "tools", "tool_names", "agent_scratchpad"],
+            input_variables=["input", "agent_scratchpad"],
+            partial_variables={
+                "tools": tool_descriptions,
+                "tool_names": tool_names,
+            },
         )
         
         return create_react_agent(

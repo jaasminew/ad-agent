@@ -1,9 +1,13 @@
 # tools/palette_extractor.py
+import ast
+import json
 import logging
-from typing import List, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
 import requests
 from io import BytesIO
 from langchain.tools import tool
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -139,8 +143,62 @@ def get_palette_extractor() -> PaletteExtractor:
 
 # ==================== LangChain Tool ====================
 
-@tool("extract_color_palette")
-def extract_color_palette(image_url: str) -> str:
+class PaletteInput(BaseModel):
+    """Args schema for extract_color_palette tool."""
+
+    image_url: str
+    num_colors: int = Field(default=PALETTE_CONFIG["default_num_colors"], ge=1, le=16)
+
+    @staticmethod
+    def _coerce_action_input(raw_value: str) -> Dict[str, Any]:
+        cleaned = raw_value.strip()
+        if cleaned.startswith("{") and cleaned.endswith("}"):
+            for loader in (json.loads, ast.literal_eval):
+                try:
+                    parsed = loader(cleaned)
+                    if isinstance(parsed, dict):
+                        return parsed
+                except Exception:
+                    continue
+        return {"image_url": cleaned}
+
+    @staticmethod
+    def _coerce_str(value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().strip('"').strip("'")
+        return value
+
+    @staticmethod
+    def _coerce_int(value: Any) -> Any:
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str) and value.strip().isdigit():
+            return int(value.strip())
+        return value
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_router_payload(cls, value: Any):
+        if isinstance(value, str):
+            return cls._coerce_action_input(value)
+        if isinstance(value, dict):
+            coerced = value.copy()
+            raw_image_url = coerced.get("image_url")
+            if isinstance(raw_image_url, str):
+                stripped = raw_image_url.strip()
+                if stripped.startswith("{") and stripped.endswith("}"):
+                    nested = cls._coerce_action_input(stripped)
+                    coerced.update(nested)
+                else:
+                    coerced["image_url"] = cls._coerce_str(raw_image_url)
+            if "num_colors" in coerced:
+                coerced["num_colors"] = cls._coerce_int(coerced["num_colors"])
+            return coerced
+        return value
+
+
+@tool("extract_color_palette", args_schema=PaletteInput)
+def extract_color_palette(image_url: str, num_colors: int = 4) -> str:
     """Extract the dominant color palette from an image URL. Returns 4 dominant colors.
     
     Args:
@@ -152,8 +210,9 @@ def extract_color_palette(image_url: str) -> str:
     logger.info(f"🎨 [extract_color_palette] Called - URL: '{image_url}'")
     
     try:
+        clean_image_url = image_url.strip()
         extractor = get_palette_extractor()
-        palette = extractor.extract_palette(image_url, num_colors=4)
+        palette = extractor.extract_palette(clean_image_url, num_colors=num_colors or 4)
         
         # Format the result
         result_lines = [f"Extracted {len(palette)} dominant colors:"]
@@ -167,6 +226,9 @@ def extract_color_palette(image_url: str) -> str:
         logger.info(f"✓ [extract_color_palette] Successfully extracted palette")
         return result_text
         
+    except ValidationError as ve:
+        logger.error(f"❌ [extract_color_palette] Validation error: {ve}")
+        return f"Error extracting color palette: {ve}"
     except Exception as e:
         logger.error(f"❌ [extract_color_palette] Exception: {e}")
         return f"Error extracting color palette: {str(e)}"
