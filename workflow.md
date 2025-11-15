@@ -96,13 +96,15 @@
 ### 6. 调用 nanobanana 将商品放入图片中（针对单个 shot）
 
 输入：
-- midjourney_image: 该 shot 的图片
-- product_images: 商品图片
+- midjourney_image: 该 shot 的图片（已包含商品的场景图）
+- product_images: 真实的商品图片
+- **shot**: 单个分镜描述（用于指导如何替换商品）
 
-1. 调用工具 nanobanana_generate 将商品放到该 shot 的 Midjourney 生成的分镜图片中（即图片+图片+文字生成新的图片）
+1. 利用 LLM 分析分镜描述，生成 nanobanana 的提示词，指导如何将图片中的商品**替换**为真实的产品图片
+2. 调用工具 nanobanana_generate 将 Midjourney 生成图片中的商品替换为真实商品图片（即图片+图片+文字生成新的图片）
 
 输出：
-- nanobanana_image: 该 shot 的合成图片
+- nanobanana_image: 该 shot 的合成图片（商品已被替换为真实产品）
 
 下一步：7
 

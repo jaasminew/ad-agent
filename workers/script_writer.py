@@ -61,7 +61,7 @@ Please create an advertising shot list for this product:""")
     shots = [line.strip() for line in shots_text.split("\n") if line.strip()]
     
     # Limit to maximum 3 shots
-    max_shots = 3
+    max_shots = 2
     if len(shots) > max_shots:
         logger.info(f"Generated {len(shots)} shots, limiting to {max_shots}")
         shots = shots[:max_shots]
