@@ -9,6 +9,7 @@ from .distortion_checker import check_distortion
 from .product_composer import compose_with_product
 from .video_generator import generate_video
 from .result_aggregator import aggregate_results
+from .video_concatenator import concatenate_videos
 
 __all__ = [
     "WorkflowState",
@@ -21,4 +22,5 @@ __all__ = [
     "compose_with_product",
     "generate_video",
     "aggregate_results",
+    "concatenate_videos",
 ]

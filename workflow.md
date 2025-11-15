@@ -113,13 +113,47 @@
 输入：
 - nanobanana_image: 该 shot 的合成图片
 - **shot**: 该分镜描述
+- generate_video: 是否生成视频的控制标志
 
-1. 调用工具 veo_generate_video，利用**这个 shot** 的描述和合成图片生成视频。
+1. 使用 LLM 生成视频提示词（video_prompt）
+2. 如果 generate_video 为 true，调用工具 veo_generate_video 生成视频；否则只生成提示词
 
 输出：
-- veo3_video: 该 shot 的最终视频
+- video_prompt: 该 shot 的视频提示词（总是生成）
+- veo3_video: 该 shot 的最终视频（仅当 generate_video=true 时）
 
 ---
 
-**最终汇总：**
-所有 shots 并发处理完成后，得到多个独立的视频片段（每个 shot 一个视频）。
+**中间汇总：**
+所有 shots 并发处理完成后，得到：
+- 如果 generate_video=true: 多个独立的视频片段（每个 shot 一个视频）
+- 如果 generate_video=false: 多个合成图片和视频提示词
+
+下一步：8
+
+---
+
+### 8. 拼接视频（最终汇总）
+
+输入：
+- shot_results: 所有 shots 的处理结果
+- generate_video: 是否生成视频的控制标志
+
+1. 汇总所有 shots 的结果
+2. 如果 generate_video 为 true:
+   - 收集所有 shots 的视频 URL
+   - 调用工具 video_concat 按顺序拼接所有视频
+   - 上传拼接后的完整视频到 COS
+3. 如果 generate_video 为 false:
+   - 只汇总结果，不进行视频拼接
+
+输出：
+- aggregated_summary: 汇总统计信息
+- final_outputs: 每个 shot 的详细输出
+- final_video_url: 拼接后的完整视频 URL（仅当 generate_video=true 时）
+
+---
+
+**最终输出：**
+- 如果 generate_video=true: 一个完整的广告视频（所有 shots 拼接）
+- 如果 generate_video=false: 所有 shots 的合成图片和视频提示词

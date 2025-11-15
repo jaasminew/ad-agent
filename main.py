@@ -16,6 +16,7 @@ from workers import (
     compose_with_product,
     generate_video,
     aggregate_results,
+    concatenate_videos,
 )
 
 # Configure logging
@@ -31,10 +32,6 @@ load_dotenv()
 logger.info("=" * 80)
 logger.info("AD Agent Workflow - Generate Advertising Videos")
 logger.info("=" * 80)
-
-# Get environment variable for video generation
-GENERATE_VIDEO = os.getenv("GENERATE_VIDEO", "false").lower() == "true"
-logger.info(f"Video generation: {'ENABLED' if GENERATE_VIDEO else 'DISABLED'}")
 
 
 # ==================== Single Shot Workflow ====================
@@ -156,7 +153,7 @@ def run_ad_workflow(
     brand_identity: str,
     product_images: str,
     must_have_shots: str,
-    generate_video: bool = None
+    generate_video: bool = False
 ) -> dict:
     """
     Run the complete AD Agent workflow.
@@ -166,7 +163,7 @@ def run_ad_workflow(
         brand_identity: Brand positioning/identity
         product_images: Product image URL
         must_have_shots: Required shots (comma-separated)
-        generate_video: Whether to generate video (None = use env var)
+        generate_video: Whether to generate video (default: False)
     
     Returns:
         Final state dict containing all shots' results
@@ -178,10 +175,6 @@ def run_ad_workflow(
     logger.info(f"Brand Identity: {brand_identity}")
     logger.info(f"Product Images: {product_images}")
     logger.info(f"Must Have Shots: {must_have_shots}")
-    
-    # Use parameter or environment variable
-    if generate_video is None:
-        generate_video = GENERATE_VIDEO
     logger.info(f"Generate Video: {generate_video}")
     logger.info("=" * 80 + "\n")
     
@@ -190,11 +183,13 @@ def run_ad_workflow(
     graph.add_node("write_script", write_ad_script)
     graph.add_node("process_shots", process_shots_concurrently)
     graph.add_node("aggregate_results", aggregate_results)
+    graph.add_node("concatenate_videos", concatenate_videos)
     
     graph.add_edge(START, "write_script")
     graph.add_edge("write_script", "process_shots")
     graph.add_edge("process_shots", "aggregate_results")
-    graph.add_edge("aggregate_results", END)
+    graph.add_edge("aggregate_results", "concatenate_videos")
+    graph.add_edge("concatenate_videos", END)
     
     app = graph.compile()
     
@@ -231,6 +226,12 @@ def run_ad_workflow(
         logger.info("  - Total distortion retries: %d", summary.get('total_distortion_retries', 0))
         logger.info("  - Video generation: %s", 'ENABLED' if summary.get('video_generation_enabled') else 'DISABLED')
     
+    # Print final video URL if available
+    final_video_url = final_state.get('final_video_url')
+    if final_video_url:
+        logger.info("\n🎬 Final Video:")
+        logger.info("  %s", final_video_url)
+    
     # Print each shot's final output
     final_outputs = final_state.get('final_outputs', [])
     if final_outputs:
@@ -247,12 +248,13 @@ def run_ad_workflow(
 
 
 if __name__ == "__main__":
-    # Example usage
+    # Example usage - set generate_video=True to generate and concatenate videos
     result = run_ad_workflow(
         product_name="Polaroid Camera",
         brand_identity="Nostalgia, Artistic, Instant Sharing, Creativity, Authenticity",
         product_images="https://m.media-amazon.com/images/I/71a0-JzaiEL._AC_SL1500_.jpg",
-        must_have_shots="Scenes of friends instantly sharing photos"
+        must_have_shots="Scenes of friends instantly sharing photos",
+        generate_video=True  # Set to True to generate and concatenate videos
     )
     
     print("\n" + "=" * 80)
@@ -263,6 +265,12 @@ if __name__ == "__main__":
     if summary:
         print(f"Total shots processed: {summary.get('successful_shots', 0)}/{summary.get('total_shots', 0)}")
         print(f"Video generation: {'ENABLED' if summary.get('video_generation_enabled') else 'DISABLED'}")
+        
+        # Print final video URL if available
+        final_video_url = result.get('final_video_url')
+        if final_video_url:
+            print("\n🎬 Final Concatenated Video:")
+            print(f"  {final_video_url}")
         
         final_outputs = result.get('final_outputs', [])
         for output in final_outputs:

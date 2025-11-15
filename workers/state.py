@@ -38,6 +38,9 @@ class WorkflowState(TypedDict, total=False):
     aggregated_summary: Dict[str, Any]  # Summary of all results
     final_outputs: List[Dict[str, Any]]  # Final outputs for each shot
     
+    # === Final video ===
+    final_video_url: str  # URL of concatenated final video (only if generate_video=True)
+    
     # === Message logs ===
     # Use Annotated with add operator to accumulate messages
     messages: Annotated[List[str], add]

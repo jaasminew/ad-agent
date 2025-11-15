@@ -57,15 +57,18 @@ python examples/run_ad_workflow.py
 
 ## Workflow Steps
 
-The workflow consists of 7 steps:
+The workflow consists of 8 main steps:
 
-1. **Script Writer** - Generate ad script with shots
-2. **Style Searcher** - Find style reference images
-3. **Palette Extractor** - Extract dominant colors
-4. **Midjourney Generator** - Generate scene images
-5. **Distortion Checker** - Validate image quality (with retry)
-6. **Product Composer** - Compose product into scene
-7. **Video Generator** - Generate final video
+1. **Script Writer** - Generate ad script with shots (max 3)
+2. **Style Searcher** - Find style reference images (per shot, concurrent)
+3. **Palette Extractor** - Extract dominant colors (per shot, concurrent)
+4. **Midjourney Generator** - Generate scene images (per shot, concurrent)
+5. **Distortion Checker** - Validate image quality with retry (per shot, concurrent)
+6. **Product Composer** - Replace product in scene (per shot, concurrent)
+7. **Video Generator** - Generate video or prompt (per shot, concurrent)
+8. **Video Concatenator** - Concatenate all videos into final video (if enabled)
+
+**Note**: Steps 2-7 run concurrently for each shot for better performance.
 
 ## Output
 
@@ -73,16 +76,65 @@ The workflow returns a dictionary containing:
 
 ```python
 {
-    "shots": ["shot1", "shot2", ...],
-    "style_image_url": "https://...",
-    "palette": [(r, g, b), ...],
-    "midjourney_image_url": "https://...",
-    "nanobanana_image_url": "https://...",
-    "video_url": "https://...",  # Final video
-    "messages": ["Step 1 done", "Step 2 done", ...],
-    "distortion_retry_count": 0,
-    # ... other intermediate results
+    # Aggregated results
+    "aggregated_summary": {
+        "total_shots": 3,
+        "successful_shots": 3,
+        "failed_shots": 0,
+        "total_distortion_retries": 1,
+        "video_generation_enabled": False
+    },
+    
+    # Individual shot outputs
+    "final_outputs": [
+        {
+            "shot_index": 1,
+            "shot_description": "...",
+            "style_image_url": "https://...",
+            "midjourney_image_url": "https://...",
+            "composed_image_url": "https://...",
+            "video_prompt": "...",  # Always present
+            "video_url": "https://...",  # Only if generate_video=True
+            "status": "completed"
+        },
+        # ... more shots
+    ],
+    
+    # Final concatenated video (only if generate_video=True)
+    "final_video_url": "https://...",
+    
+    # Process logs
+    "messages": ["Step 1 done", "Step 2 done", ...]
 }
+```
+
+## Usage Examples
+
+### Generate only images and prompts (faster, no video)
+
+```python
+result = run_ad_workflow(
+    product_name="Polaroid Camera",
+    brand_identity="Nostalgia, Artistic, Instant Sharing",
+    product_images="https://example.com/product.jpg",
+    must_have_shots="Scenes of friends sharing photos",
+    generate_video=False  # Default
+)
+```
+
+### Generate and concatenate videos (slower, full workflow)
+
+```python
+result = run_ad_workflow(
+    product_name="Polaroid Camera",
+    brand_identity="Nostalgia, Artistic, Instant Sharing",
+    product_images="https://example.com/product.jpg",
+    must_have_shots="Scenes of friends sharing photos",
+    generate_video=True  # Enable video generation and concatenation
+)
+
+# Access final video
+final_video = result['final_video_url']
 ```
 
 ## Visualize Workflow
