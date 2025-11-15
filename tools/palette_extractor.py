@@ -210,7 +210,7 @@ def extract_color_palette(image_url: str, num_colors: int = 4) -> str:
     logger.info(f"🎨 [extract_color_palette] Called - URL: '{image_url}'")
     
     try:
-        clean_image_url = image_url.strip()
+        clean_image_url = image_url.strip().strip('"').strip("'")
         extractor = get_palette_extractor()
         palette = extractor.extract_palette(clean_image_url, num_colors=num_colors or 4)
         

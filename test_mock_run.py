@@ -61,12 +61,12 @@ def main():
                 shot_description="A young professional sits by a large sunlit window in a cozy coffee shop",
                 action="Opens their laptop and smiles while reading an email"
             ),
-            Beat(
-                beat=2,
-                heading="Focused Work Session",
-                shot_description="Close-up of hands typing on laptop with a coffee cup beside",
-                action="Types intently while taking a sip of coffee, looking productive"
-            ),
+            # Beat(
+            #     beat=2,
+            #     heading="Focused Work Session",
+            #     shot_description="Close-up of hands typing on laptop with a coffee cup beside",
+            #     action="Types intently while taking a sip of coffee, looking productive"
+            # ),
         ]
     )
     
