@@ -1,4 +1,4 @@
-# tools/cos_uploader.py
+# utils/cos_uploader.py
 """
 Tencent Cloud COS (Cloud Object Storage) uploader utility.
 

@@ -153,7 +153,7 @@ if __name__ == "__main__":
 .
 ├── pyproject.toml           # Project configuration
 ├── main.py                  # Main program
-├── tools/                   # Tool definitions
+├── tools/                   # LangChain tool definitions
 │   ├── __init__.py         # Tools package
 │   ├── web_search.py       # Web search tool
 │   ├── memory.py           # Remember/recall tools
@@ -161,8 +161,10 @@ if __name__ == "__main__":
 │   ├── pixelhub.py         # PixelHub image search
 │   ├── nanobanana.py       # Google Gemini text+image generation
 │   ├── veo_video.py        # Google Veo 3.1 image+text to video generation
-│   ├── cos_uploader.py     # Tencent Cloud COS uploader
 │   └── distortion_checker/ # Image distortion detection module
+├── utils/                   # Utility modules
+│   ├── __init__.py         # Utils package
+│   └── cos_uploader.py     # Tencent Cloud COS uploader
 ├── distortion_checker/      # Distortion checker module
 │   └── src/                # Source code for detection
 ├── tests/                   # Test files

@@ -6,16 +6,6 @@ from .pixelhub import list_tags, search_images_by_tags
 from .nanobanana import nanobanana_generate
 from .veo_video import veo_generate_video
 
-# COS uploader (optional, requires COS credentials)
-try:
-    from .cos_uploader import COSUploader, get_cos_uploader, is_cos_available
-    COS_AVAILABLE = True
-except ImportError:
-    COS_AVAILABLE = False
-    COSUploader = None
-    get_cos_uploader = None
-    is_cos_available = None
-
 # Distortion checker tools (optional, requires mediapipe)
 try:
     from .distortion_checker import (
@@ -40,10 +30,6 @@ __all__ = [
     "search_images_by_tags",
     "nanobanana_generate",
     "veo_generate_video",
-    "COSUploader",
-    "get_cos_uploader",
-    "is_cos_available",
-    "COS_AVAILABLE",
     "check_image_distortion",
     "get_distortion_labels",
     "get_distortion_stats",
