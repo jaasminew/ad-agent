@@ -60,6 +60,12 @@ Please create an advertising shot list for this product:""")
     shots_text = response.content.strip()
     shots = [line.strip() for line in shots_text.split("\n") if line.strip()]
     
+    # Limit to maximum 3 shots
+    max_shots = 3
+    if len(shots) > max_shots:
+        logger.info(f"Generated {len(shots)} shots, limiting to {max_shots}")
+        shots = shots[:max_shots]
+    
     logger.info(f"Generated {len(shots)} shots:")
     for i, shot in enumerate(shots, 1):
         logger.info(f"  {i}. {shot}")

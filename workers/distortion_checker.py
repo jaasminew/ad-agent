@@ -5,12 +5,12 @@ import os
 import tempfile
 import requests
 from tools.distortion_checker.checker import DistortionChecker
-from .state import WorkflowState
+from .state import ShotState
 
 logger = logging.getLogger(__name__)
 
 
-def check_distortion(state: WorkflowState) -> dict:
+def check_distortion(state: ShotState) -> dict:
     """
     Check generated image for anatomical distortions.
     

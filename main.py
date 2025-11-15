@@ -1,11 +1,13 @@
 """AD Agent Workflow - Generate advertising videos using AI"""
 
+import os
 import logging
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START, END
 
 from workers import (
     WorkflowState,
+    ShotState,
     write_ad_script,
     search_style_image,
     extract_palette,
@@ -13,6 +15,7 @@ from workers import (
     check_distortion,
     compose_with_product,
     generate_video,
+    aggregate_results,
 )
 
 # Configure logging
@@ -29,57 +32,20 @@ logger.info("=" * 80)
 logger.info("AD Agent Workflow - Generate Advertising Videos")
 logger.info("=" * 80)
 
+# Get environment variable for video generation
+GENERATE_VIDEO = os.getenv("GENERATE_VIDEO", "false").lower() == "true"
+logger.info(f"Video generation: {'ENABLED' if GENERATE_VIDEO else 'DISABLED'}")
 
-# ==================== Conditional Edge Functions ====================
 
-def should_retry_midjourney(state: WorkflowState) -> str:
+# ==================== Single Shot Workflow ====================
+
+def build_shot_workflow() -> StateGraph:
     """
-    Decide whether to retry Midjourney generation based on distortion check.
-    
-    Returns:
-        - "retry": If distortion detected and retry count < max retries
-        - "compose": If no distortion or max retries reached
+    Build workflow for processing a single shot (steps 2-7).
     """
-    max_retries = 3
-    retry_count = state.get("distortion_retry_count", 0)
-    check_result = state.get("distortion_check_result", {})
-    has_distortion = check_result.get("has_distortion", False)
+    graph = StateGraph(ShotState)
     
-    if has_distortion and retry_count < max_retries:
-        logger.warning("Distortion detected, retrying Midjourney (attempt %d/%d)", retry_count, max_retries)
-        return "retry"
-    elif has_distortion and retry_count >= max_retries:
-        logger.warning("Max retries reached, proceeding despite distortion")
-        return "compose"
-    else:
-        logger.info("No distortion detected, proceeding to composition")
-        return "compose"
-
-
-# ==================== Build Workflow Graph ====================
-
-def build_workflow() -> StateGraph:
-    """
-    Build the AD Agent workflow graph.
-    
-    Workflow steps:
-    1. write_ad_script: Generate advertising script with shots
-    2. search_style_image: Search for style reference image
-    3. extract_palette: Extract dominant colors from style image
-    4. generate_midjourney_image: Generate scene image with Midjourney
-    5. check_distortion: Check for anatomical distortions
-       - If distortion detected: retry from step 4 (max 3 times)
-       - If clean or max retries: proceed to step 6
-    6. compose_with_product: Compose product into scene with Nanobanana
-    7. generate_video: Generate final video with Veo 3.1
-    """
-    logger.info("Building workflow graph...")
-    
-    # Create state graph
-    graph = StateGraph(WorkflowState)
-    
-    # Add nodes
-    graph.add_node("write_script", write_ad_script)
+    # Add nodes for single shot processing
     graph.add_node("search_style", search_style_image)
     graph.add_node("extract_palette", extract_palette)
     graph.add_node("generate_image", generate_midjourney_image)
@@ -88,41 +54,109 @@ def build_workflow() -> StateGraph:
     graph.add_node("generate_video", generate_video)
     
     # Build linear flow with conditional loop for distortion check
-    graph.add_edge(START, "write_script")
-    graph.add_edge("write_script", "search_style")
+    graph.add_edge(START, "search_style")
     graph.add_edge("search_style", "extract_palette")
     graph.add_edge("extract_palette", "generate_image")
     graph.add_edge("generate_image", "check_distortion")
     
     # Conditional edge: retry if distortion detected
+    def should_retry_midjourney(state: ShotState) -> str:
+        max_retries = 3
+        retry_count = state.get("distortion_retry_count", 0)
+        check_result = state.get("distortion_check_result", {})
+        has_distortion = check_result.get("has_distortion", False)
+        
+        if has_distortion and retry_count < max_retries:
+            logger.warning("Distortion detected, retrying Midjourney (attempt %d/%d)", retry_count, max_retries)
+            return "retry"
+        elif has_distortion and retry_count >= max_retries:
+            logger.warning("Max retries reached, proceeding despite distortion")
+            return "compose"
+        else:
+            logger.info("No distortion detected, proceeding to composition")
+            return "compose"
+    
     graph.add_conditional_edges(
         "check_distortion",
         should_retry_midjourney,
         {
-            "retry": "generate_image",  # Loop back to regenerate
-            "compose": "compose_product"  # Continue to next step
+            "retry": "generate_image",
+            "compose": "compose_product"
         }
     )
     
     graph.add_edge("compose_product", "generate_video")
     graph.add_edge("generate_video", END)
     
-    logger.info("✓ Workflow graph built successfully")
-    logger.info("  Flow: write_script -> search_style -> extract_palette")
-    logger.info("        -> generate_image -> check_distortion")
-    logger.info("        -> [retry loop if distortion]")
-    logger.info("        -> compose_product -> generate_video")
-    
     return graph
 
 
-# ==================== Main Execution ====================
+# ==================== Main Workflow with Fan-out/Fan-in ====================
+
+def process_shots_concurrently(state: WorkflowState) -> dict:
+    """
+    Fan-out: Process each shot concurrently using the shot workflow.
+    Fan-in: Collect all results.
+    """
+    logger.info("\n" + "=" * 80)
+    logger.info("Processing shots concurrently (Fan-out/Fan-in)")
+    logger.info("=" * 80)
+    
+    shots = state["shots"]
+    product_name = state["product_name"]
+    brand_identity = state["brand_identity"]
+    product_images = state["product_images"]
+    generate_video_flag = state["generate_video"]
+    
+    logger.info(f"Total shots to process: {len(shots)}")
+    logger.info(f"Video generation: {'ENABLED' if generate_video_flag else 'DISABLED'}")
+    
+    # Build shot workflow
+    shot_workflow = build_shot_workflow().compile()
+    
+    # Process each shot (currently sequential, can be made parallel with threading/async)
+    shot_results = []
+    for i, shot in enumerate(shots):
+        logger.info(f"\n{'=' * 80}")
+        logger.info(f"Processing Shot {i+1}/{len(shots)}")
+        logger.info(f"{'=' * 80}")
+        logger.info(f"Shot description: {shot}")
+        
+        # Create initial state for this shot
+        shot_state = {
+            "shot": shot,
+            "shot_index": i,
+            "product_name": product_name,
+            "brand_identity": brand_identity,
+            "product_images": product_images,
+            "generate_video": generate_video_flag,
+            "distortion_retry_count": 0,
+            "messages": [],
+        }
+        
+        # Execute shot workflow
+        result = shot_workflow.invoke(shot_state)
+        shot_results.append(result)
+        
+        logger.info(f"\n✓ Shot {i+1} completed")
+        if generate_video_flag and result.get("video_url"):
+            logger.info(f"  Video: {result.get('video_url')}")
+        else:
+            logger.info(f"  Video prompt: {result.get('video_prompt', 'N/A')}")
+            logger.info(f"  Composed image: {result.get('nanobanana_image_url', 'N/A')}")
+    
+    return {
+        "shot_results": shot_results,
+        "messages": [f"✓ Processed {len(shots)} shots concurrently"]
+    }
+
 
 def run_ad_workflow(
     product_name: str,
     brand_identity: str,
     product_images: str,
-    must_have_shots: str
+    must_have_shots: str,
+    generate_video: bool = None
 ) -> dict:
     """
     Run the complete AD Agent workflow.
@@ -132,9 +166,10 @@ def run_ad_workflow(
         brand_identity: Brand positioning/identity
         product_images: Product image URL
         must_have_shots: Required shots (comma-separated)
+        generate_video: Whether to generate video (None = use env var)
     
     Returns:
-        Final state dict containing all intermediate results and final video URL
+        Final state dict containing all shots' results
     """
     logger.info("\n" + "=" * 80)
     logger.info("Starting AD Agent Workflow")
@@ -143,10 +178,24 @@ def run_ad_workflow(
     logger.info(f"Brand Identity: {brand_identity}")
     logger.info(f"Product Images: {product_images}")
     logger.info(f"Must Have Shots: {must_have_shots}")
+    
+    # Use parameter or environment variable
+    if generate_video is None:
+        generate_video = GENERATE_VIDEO
+    logger.info(f"Generate Video: {generate_video}")
     logger.info("=" * 80 + "\n")
     
-    # Build and compile workflow
-    graph = build_workflow()
+    # Build main workflow
+    graph = StateGraph(WorkflowState)
+    graph.add_node("write_script", write_ad_script)
+    graph.add_node("process_shots", process_shots_concurrently)
+    graph.add_node("aggregate_results", aggregate_results)
+    
+    graph.add_edge(START, "write_script")
+    graph.add_edge("write_script", "process_shots")
+    graph.add_edge("process_shots", "aggregate_results")
+    graph.add_edge("aggregate_results", END)
+    
     app = graph.compile()
     
     # Initialize state
@@ -155,7 +204,7 @@ def run_ad_workflow(
         "brand_identity": brand_identity,
         "product_images": product_images,
         "must_have_shots": must_have_shots,
-        "distortion_retry_count": 0,
+        "generate_video": generate_video,
         "messages": [],
     }
     
@@ -170,18 +219,29 @@ def run_ad_workflow(
     
     # Print summary
     logger.info("\nWorkflow Summary:")
-    logger.info(f"  - Generated {len(final_state.get('shots', []))} shots")
-    logger.info(f"  - Style image: {final_state.get('style_image_url', 'N/A')}")
-    logger.info(f"  - Midjourney image: {final_state.get('midjourney_image_url', 'N/A')}")
-    logger.info(f"  - Distortion retries: {final_state.get('distortion_retry_count', 0)}")
-    logger.info(f"  - Composed image: {final_state.get('nanobanana_image_url', 'N/A')}")
-    logger.info(f"  - Final video: {final_state.get('video_url', 'N/A')}")
+    logger.info("  - Generated %d shots", len(final_state.get('shots', [])))
+    logger.info("  - Processed %d shots", len(final_state.get('shot_results', [])))
     
-    # Print messages
-    if final_state.get("messages"):
-        logger.info("\nStep-by-step Messages:")
-        for msg in final_state["messages"]:
-            logger.info(f"  {msg}")
+    # Print aggregated summary
+    summary = final_state.get('aggregated_summary', {})
+    if summary:
+        logger.info("\nAggregated Summary:")
+        logger.info("  - Total shots: %d", summary.get('total_shots', 0))
+        logger.info("  - Successful: %d", summary.get('successful_shots', 0))
+        logger.info("  - Total distortion retries: %d", summary.get('total_distortion_retries', 0))
+        logger.info("  - Video generation: %s", 'ENABLED' if summary.get('video_generation_enabled') else 'DISABLED')
+    
+    # Print each shot's final output
+    final_outputs = final_state.get('final_outputs', [])
+    if final_outputs:
+        logger.info("\nFinal Outputs:")
+        for output in final_outputs:
+            logger.info(f"\n  Shot {output['shot_index']}: {output['shot_description'][:60]}...")
+            logger.info(f"    - Composed image: {output['composed_image_url']}")
+            if output.get('video_url'):
+                logger.info(f"    - Video: {output['video_url']}")
+            else:
+                logger.info(f"    - Video prompt: {output['video_prompt'][:80]}...")
     
     return final_state
 
@@ -198,5 +258,20 @@ if __name__ == "__main__":
     print("\n" + "=" * 80)
     print("🎬 Final Output")
     print("=" * 80)
-    print(f"Video URL: {result.get('video_url')}")
+    
+    summary = result.get('aggregated_summary', {})
+    if summary:
+        print(f"Total shots processed: {summary.get('successful_shots', 0)}/{summary.get('total_shots', 0)}")
+        print(f"Video generation: {'ENABLED' if summary.get('video_generation_enabled') else 'DISABLED'}")
+        
+        final_outputs = result.get('final_outputs', [])
+        for output in final_outputs:
+            print(f"\nShot {output['shot_index']}:")
+            print(f"  Description: {output['shot_description']}")
+            print(f"  Composed image: {output['composed_image_url']}")
+            if output.get('video_url'):
+                print(f"  Video: {output['video_url']}")
+            else:
+                print(f"  Video prompt: {output['video_prompt'][:100]}...")
+    
     print("=" * 80)

@@ -4,19 +4,19 @@ import logging
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from tools.midjourney import get_midjourney_client
-from .state import WorkflowState
+from .state import ShotState
 
 logger = logging.getLogger(__name__)
 
 
-def generate_midjourney_image(state: WorkflowState) -> dict:
+def generate_midjourney_image(state: ShotState) -> dict:
     """
     Generate image using Midjourney with style reference and color palette.
     
     Inputs:
     - style_image_url: Style reference image URL
     - palette: Dominant color palette
-    - shots: List of shot descriptions
+    - shot: Single shot description
     
     Outputs:
     - midjourney_task_id: Midjourney task ID
@@ -26,7 +26,7 @@ def generate_midjourney_image(state: WorkflowState) -> dict:
     
     style_image_url = state["style_image_url"]
     palette = state["palette"]
-    shots = state["shots"]
+    shot = state["shot"]
     
     # Step 1: Use LLM to generate Midjourney prompt
     logger.info("Step 1: Generating Midjourney prompt")
@@ -36,7 +36,7 @@ def generate_midjourney_image(state: WorkflowState) -> dict:
     colors_text = ", ".join(color_hex_list)
     
     prompt_template = ChatPromptTemplate.from_messages([
-        ("system", """You are a professional Midjourney prompt engineer. Generate high-quality Midjourney prompts based on advertising shots and color schemes.
+        ("system", """You are a professional Midjourney prompt engineer. Generate high-quality Midjourney prompts based on the advertising shot and color schemes.
 
 Requirements:
 1. Write prompt in English
@@ -45,8 +45,8 @@ Requirements:
 4. Incorporate the given color scheme
 5. Output only the prompt text without additional explanations
 6. Do NOT include -- parameters in the prompt, only describe the visual content"""),
-        ("user", """Ad shot (using first one):
-{first_shot}
+        ("user", """Ad shot:
+{shot}
 
 Color scheme: {colors}
 
@@ -56,10 +56,8 @@ Please generate Midjourney prompt (pure English, no parameters):""")
     llm = ChatOpenAI(model="gpt-4", temperature=0.7)
     chain = prompt_template | llm
     
-    first_shot = shots[0] if shots else "product showcase"
-    
     response = chain.invoke({
-        "first_shot": first_shot,
+        "shot": shot,
         "colors": colors_text,
     })
     

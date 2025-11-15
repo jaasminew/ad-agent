@@ -4,19 +4,19 @@ import logging
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from tools.nanobanana import get_nanobanana_client
-from .state import WorkflowState
+from .state import ShotState
 
 logger = logging.getLogger(__name__)
 
 
-def compose_with_product(state: WorkflowState) -> dict:
+def compose_with_product(state: ShotState) -> dict:
     """
     Compose product image into Midjourney generated scene using Nanobanana.
     
     Inputs:
     - midjourney_image_url: Midjourney generated scene image URL
     - product_images: Product image URL
-    - shots: List of shot descriptions (for prompt generation)
+    - shot: Shot description (for prompt generation)
     
     Outputs:
     - nanobanana_image_url: Composed image URL (with product in scene)
@@ -25,7 +25,7 @@ def compose_with_product(state: WorkflowState) -> dict:
     
     midjourney_image_url = state["midjourney_image_url"]
     product_images = state["product_images"]
-    shots = state["shots"]
+    shot = state["shot"]
     
     # Step 1: Generate composition prompt using LLM
     logger.info("Step 1: Generating composition prompt")
@@ -44,8 +44,8 @@ CRITICAL REQUIREMENTS:
 
 Example good prompt: "Add the product naturally in the foreground while keeping all existing scene elements intact"
 Example bad prompt: "Replace the items with the product" (This is wrong!)"""),
-        ("user", """Ad shot description (using first one):
-{first_shot}
+        ("user", """Ad shot description:
+{shot}
 
 Generate a prompt that ADDS the product to this scene while KEEPING all existing elements (people, objects, atmosphere) completely unchanged:""")
     ])
@@ -53,10 +53,8 @@ Generate a prompt that ADDS the product to this scene while KEEPING all existing
     llm = ChatOpenAI(model="gpt-4", temperature=0.5)
     chain = prompt_template | llm
     
-    first_shot = shots[0] if shots else "product showcase in scene"
-    
     response = chain.invoke({
-        "first_shot": first_shot,
+        "shot": shot,
     })
     
     composition_prompt = response.content.strip()

@@ -5,17 +5,17 @@ import json
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from tools.pixelhub import get_pixelhub_client
-from .state import WorkflowState
+from .state import ShotState
 
 logger = logging.getLogger(__name__)
 
 
-def search_style_image(state: WorkflowState) -> dict:
+def search_style_image(state: ShotState) -> dict:
     """
     Search for style reference image from PixelHub.
     
     Inputs:
-    - shots: List of shot descriptions
+    - shot: Single shot description
     - product_name: Product name
     - brand_identity: Brand positioning
     
@@ -24,7 +24,7 @@ def search_style_image(state: WorkflowState) -> dict:
     """
     logger.info("=== Style Searcher: Finding style reference image ===")
     
-    shots = state["shots"]
+    shot = state["shot"]
     product_name = state["product_name"]
     brand_identity = state["brand_identity"]
     
@@ -52,7 +52,7 @@ def search_style_image(state: WorkflowState) -> dict:
     logger.info("Step 2: Using LLM to select relevant tags")
     
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a professional visual designer. Based on advertising shots, product information, and brand positioning, 
+        ("system", """You are a professional visual designer. Based on the advertising shot description, product information, and brand positioning, 
 select the most appropriate style tags from the given tag list.
 
 Requirements:
@@ -65,8 +65,8 @@ Requirements:
 
 Product name: {product_name}
 Brand positioning: {brand_identity}
-Ad shots:
-{shots}
+Ad shot:
+{shot}
 
 Please select 3-5 most appropriate tags and output as JSON array:""")
     ])
@@ -74,13 +74,11 @@ Please select 3-5 most appropriate tags and output as JSON array:""")
     llm = ChatOpenAI(model="gpt-4", temperature=0.3)
     chain = prompt | llm
     
-    shots_text = "\n".join([f"- {shot}" for shot in shots])
-    
     response = chain.invoke({
         "all_tags": json.dumps(all_tags[:200], ensure_ascii=False),  # Only first 200 tags to avoid token limit
         "product_name": product_name,
         "brand_identity": brand_identity,
-        "shots": shots_text,
+        "shot": shot,
     })
     
     # Parse selected tags

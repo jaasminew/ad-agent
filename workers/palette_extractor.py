@@ -2,12 +2,12 @@
 
 import logging
 from tools.palette_extractor import get_palette_extractor
-from .state import WorkflowState
+from .state import ShotState
 
 logger = logging.getLogger(__name__)
 
 
-def extract_palette(state: WorkflowState) -> dict:
+def extract_palette(state: ShotState) -> dict:
     """
     Extract dominant color palette from style image.
     
