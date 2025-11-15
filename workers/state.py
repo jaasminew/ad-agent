@@ -70,6 +70,7 @@ class ShotState(TypedDict, total=False):
     palette: List[Tuple[int, int, int]]
     midjourney_task_id: str
     midjourney_image_url: str
+    midjourney_retry_count: int  # Number of retries due to sensitive words
     distortion_check_result: dict
     distortion_retry_count: int
     nanobanana_image_url: str

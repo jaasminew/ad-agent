@@ -13,44 +13,74 @@ def generate_midjourney_image(state: ShotState) -> dict:
     """
     Generate image using Midjourney with style reference and color palette.
     
+    Supports automatic retry if sensitive words are detected.
+    
     Inputs:
     - style_image_url: Style reference image URL
     - palette: Dominant color palette
     - shot: Single shot description
+    - midjourney_retry_count: Number of retries due to sensitive words (optional)
     
     Outputs:
     - midjourney_task_id: Midjourney task ID
     - midjourney_image_url: Generated and upscaled image URL
+    - midjourney_retry_count: Updated retry count
     """
     logger.info("=== Midjourney Generator: Creating image ===")
     
     style_image_url = state["style_image_url"]
     palette = state["palette"]
     shot = state["shot"]
+    retry_count = state.get("midjourney_retry_count", 0)
+    max_retries = 3
     
     # Step 1: Use LLM to generate Midjourney prompt
-    logger.info("Step 1: Generating Midjourney prompt")
+    logger.info(f"Step 1: Generating Midjourney prompt (attempt {retry_count + 1}/{max_retries + 1})")
     
     # Convert colors to hex
     color_hex_list = [f"#{r:02x}{g:02x}{b:02x}" for r, g, b in palette]
     colors_text = ", ".join(color_hex_list)
     
+    # Build system prompt with sensitivity warning if retrying
+    sensitivity_warning = ""
+    if retry_count > 0:
+        sensitivity_warning = """
+CRITICAL: The previous prompt was rejected due to sensitive words. 
+Please avoid words that might be considered sensitive, especially:
+- Words related to intimacy or personal closeness
+- Any potentially controversial terms
+- Use alternative, neutral descriptions instead
+For example, use "warm", "friendly", "personal" instead of "intimate"."""
+    
     prompt_template = ChatPromptTemplate.from_messages([
-        ("system", """You are a professional Midjourney prompt engineer. Generate high-quality Midjourney prompts based on the advertising shot and color schemes.
+        ("system", f"""You are a professional Midjourney prompt engineer. Generate high-quality Midjourney prompts based on the advertising shot and color schemes.
 
-Requirements:
+CRITICAL REQUIREMENTS:
 1. Write prompt in English
-2. Description should be concise and clear, highlighting visual focus
-3. Can include style keywords (e.g., cinematic, professional photography, 8k, etc.)
-4. Incorporate the given color scheme
-5. Output only the prompt text without additional explanations
-6. Do NOT include -- parameters in the prompt, only describe the visual content"""),
-        ("user", """Ad shot:
-{shot}
+2. The SCENE and CONTENT must follow the shot description, NOT the reference image
+3. The reference image is ONLY for STYLE inspiration (lighting, mood, tone) - ignore its actual content/scene
+4. The color scheme defines the COLOR ATMOSPHERE and MOOD - these are NOT objects to draw
+   - Colors should influence lighting, ambiance, and overall tone
+   - DO NOT mention "color palette", "color scheme", or draw actual color swatches
+   - Instead, describe the mood: "warm golden atmosphere", "cool blue ambiance", "earthy tones"
+5. Can include style keywords (e.g., cinematic, professional photography, 8k, etc.)
+6. Output only the prompt text without additional explanations
+7. Do NOT include -- parameters in the prompt, only describe the visual content
+8. Use safe, neutral language that won't trigger content filters{sensitivity_warning}
 
-Color scheme: {colors}
+Example approach:
+- Given colors: #98462a (warm brown), #efd0bc (soft peach) 
+- Good: "...bathed in warm, golden-hour lighting with soft peachy tones..."
+- Bad: "...with a color palette showing #98462a and #efd0bc..." ❌
 
-Please generate Midjourney prompt (pure English, no parameters):""")
+Remember: Reference image = STYLE only. Shot description = ACTUAL SCENE."""),
+        ("user", """Ad shot (THIS is what to show):
+{{shot}}
+
+Color scheme (use for ATMOSPHERE/MOOD, not as objects):
+{{colors}}
+
+Generate a Midjourney prompt that shows the SHOT SCENE with the COLOR ATMOSPHERE:""")
     ])
     
     llm = ChatOpenAI(model="gpt-4", temperature=0.7)
@@ -75,6 +105,24 @@ Please generate Midjourney prompt (pure English, no parameters):""")
     
     submit_response = client.submit_imagine(full_prompt)
     code = submit_response.get("code")
+    
+    # Check for sensitive word error (code 24)
+    if code == 24:
+        banned_word = submit_response.get("properties", {}).get("bannedWord", 'unknown')
+        logger.warning(f"Midjourney rejected prompt due to sensitive word: {banned_word}")
+        
+        if retry_count < max_retries:
+            logger.info(f"Retrying with new prompt (attempt {retry_count + 2}/{max_retries + 1})...")
+            # Increment retry count and recursively call this function
+            new_state = state.copy()
+            new_state["midjourney_retry_count"] = retry_count + 1
+            return generate_midjourney_image(new_state)
+        else:
+            raise RuntimeError(
+                f"Midjourney prompt rejected after {max_retries + 1} attempts. "
+                f"Last banned word: {banned_word}. "
+                f"Please modify the shot description or brand identity to use more neutral language."
+            )
     
     if code not in [1, 21, 22]:
         raise RuntimeError(f"Midjourney imagine submission failed: {submit_response}")
@@ -105,9 +153,16 @@ Please generate Midjourney prompt (pure English, no parameters):""")
     
     logger.info(f"Upscale complete: {upscaled_image_url}")
     
-    return {
+    result = {
         "midjourney_task_id": upscale_task_id,
         "midjourney_image_url": upscaled_image_url,
         "messages": [f"✓ Midjourney Generator: Created image {upscaled_image_url}"]
     }
+    
+    # Include retry count if there were retries
+    if retry_count > 0:
+        result["midjourney_retry_count"] = retry_count
+        result["messages"].append(f"  (Retried {retry_count} time(s) due to sensitive words)")
+    
+    return result
 

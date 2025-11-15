@@ -139,6 +139,7 @@ def process_shots_concurrently(state: WorkflowState) -> dict:
             "previous_shot": previous_shot,  # For smooth transitions
             "next_shot": next_shot,  # For planning camera movement
             "distortion_retry_count": 0,
+            "midjourney_retry_count": 0,  # For sensitive word retries
             "messages": [],
         }
         
