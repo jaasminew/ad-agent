@@ -119,6 +119,15 @@ def process_shots_concurrently(state: WorkflowState) -> dict:
         logger.info(f"{'=' * 80}")
         logger.info(f"Shot description: {shot}")
         
+        # Determine previous and next shots for smooth transitions
+        previous_shot = shots[i-1] if i > 0 else None
+        next_shot = shots[i+1] if i < len(shots) - 1 else None
+        
+        if previous_shot:
+            logger.info(f"  Previous shot: {previous_shot[:60]}...")
+        if next_shot:
+            logger.info(f"  Next shot: {next_shot[:60]}...")
+        
         # Create initial state for this shot
         shot_state = {
             "shot": shot,
@@ -127,6 +136,8 @@ def process_shots_concurrently(state: WorkflowState) -> dict:
             "brand_identity": brand_identity,
             "product_images": product_images,
             "generate_video": generate_video_flag,
+            "previous_shot": previous_shot,  # For smooth transitions
+            "next_shot": next_shot,  # For planning camera movement
             "distortion_retry_count": 0,
             "messages": [],
         }

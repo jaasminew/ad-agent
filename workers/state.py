@@ -61,6 +61,10 @@ class ShotState(TypedDict, total=False):
     product_images: str
     generate_video: bool  # Whether to generate video
     
+    # === Context for smooth transitions ===
+    previous_shot: str  # Previous shot description (if exists)
+    next_shot: str  # Next shot description (if exists)
+    
     # === Intermediate states ===
     style_image_url: str
     palette: List[Tuple[int, int, int]]

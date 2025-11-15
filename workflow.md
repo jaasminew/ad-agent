@@ -113,13 +113,19 @@
 输入：
 - nanobanana_image: 该 shot 的合成图片
 - **shot**: 该分镜描述
+- **previous_shot**: 上一个分镜描述（如果存在，用于确保过渡连贯）
+- **next_shot**: 下一个分镜描述（如果存在，用于规划镜头走向）
 - generate_video: 是否生成视频的控制标志
 
 1. 使用 LLM 生成视频提示词（video_prompt）
+   - 考虑当前 shot 的场景和动作
+   - 如果有 previous_shot，考虑如何从上一个镜头平滑过渡进来
+   - 如果有 next_shot，考虑如何为下一个镜头做准备（镜头运动方向、结束状态等）
+   - 生成能够确保镜头间连贯性的提示词
 2. 如果 generate_video 为 true，调用工具 veo_generate_video 生成视频；否则只生成提示词
 
 输出：
-- video_prompt: 该 shot 的视频提示词（总是生成）
+- video_prompt: 该 shot 的视频提示词（总是生成，包含过渡信息）
 - veo3_video: 该 shot 的最终视频（仅当 generate_video=true 时）
 
 ---

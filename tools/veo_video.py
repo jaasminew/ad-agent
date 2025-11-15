@@ -103,8 +103,40 @@ class VeoVideoClient:
                 time.sleep(poll_interval)
                 operation = self.client.operations.get(operation)
 
+            # Check if operation completed successfully or with error
+            logger.info("Video generation operation completed")
+            
+            # Check for errors first
+            if hasattr(operation, 'error') and operation.error:
+                error_msg = f"Veo API error (code {operation.error.code}): {operation.error.message}"
+                logger.error(error_msg)
+                return {
+                    "success": False,
+                    "error": error_msg,
+                }
+            
             # Extract generated video
-            logger.info("Video generation completed!")
+            logger.info("Video generation successful!")
+            
+            # Debug: Check operation response structure
+            logger.info(f"Operation response type: {type(operation.response)}")
+            
+            # Check if response exists
+            if not operation.response:
+                logger.error("Operation response is None")
+                return {
+                    "success": False,
+                    "error": "Operation response is None - video may have been generated but response format unexpected",
+                }
+            
+            # Check if generated_videos exists
+            if not hasattr(operation.response, 'generated_videos'):
+                logger.error(f"Operation response has no 'generated_videos' attribute. Available attributes: {dir(operation.response)}")
+                return {
+                    "success": False,
+                    "error": f"Response missing 'generated_videos' attribute. Response type: {type(operation.response)}",
+                }
+            
             video = operation.response.generated_videos[0]
 
             # Download the video
