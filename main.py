@@ -1,341 +1,202 @@
-# ad_script_generator.py
-import os
+"""AD Agent Workflow - Generate advertising videos using AI"""
+
 import logging
-from typing import TypedDict, Optional
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
-from langchain.agents import create_react_agent, AgentExecutor
-from langchain_core.prompts import PromptTemplate
-from tools import web_search, remember, recall
+
+from workers import (
+    WorkflowState,
+    write_ad_script,
+    search_style_image,
+    extract_palette,
+    generate_midjourney_image,
+    check_distortion,
+    compose_with_product,
+    generate_video,
+)
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
+    format='%(asctime)s [%(levelname)s] %(name)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
-logger.info("="*60)
-logger.info("Starting LangGraph ReAct Agent")
-logger.info("="*60)
-
-# ---------- State ----------
-class ScriptState(TypedDict):
-    product: str
-    brand_identity: str
-    draft: Optional[str]
-    critique: Optional[str]
-    final: Optional[str]
-    pass_status: bool  # Track if critique passed
-    iteration: int  # Track number of revisions
-    max_iterations: int  # Prevent infinite loops
-
-# ---------- Models ----------
-logger.info("Initializing LLM models...")
-writer_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-critic_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
-react_llm  = ChatOpenAI(model="gpt-4o-mini", temperature=0.6)
-logger.info("✓ LLM models initialized")
-
-# ---------- Prompts ----------
-WRITER = PromptTemplate.from_template("""
-You are a seasoned ad screenwriter.
-Write a clear, slightly dramatic 60s product script in 8-10 beats. I want it to have an engaging storyline and message.
-Return JSON:
-{{
- "title": "...",
- "logline": "...",
- "beats": [
-  {{"beat":1,"heading":"...","shot description":"...","action":"..."}},
-  {{"beat":2,...}}, {{"beat":3,...}}, {{"beat":4,...}}, {{"beat":5,...}}
- ]}}
-Product: {product}
-Brand Identity: {brand_identity}
-""")
-
-CRITIC = PromptTemplate.from_template("""
-Evaluate the draft. Score and diagnose; keep output compact.
-
-Scoring (0–2 each; integers only):
-- coherence in narrative structure, creative_storytelling, emotional_impact, visual_appeal, pacing, product_presence
-Pass if total ≥ 11 AND no individual score is 0.
-
-Diagnostics:
-- issues: 3–6 items, each prefixed with tags like [coherence][beat2] or [visual_appeal]. Be specific and refer to beats when possible.
-- must_fix: one imperative sentence (≤ 25 words) that, if applied, most increases the score next iteration.
-- needs_research: 0–2 relevant screenwriting techniques to research in depth or "" if none. Make them specific (who/what/where/metric).
-
-Constraints:
-- No rewriting.
-- No preambles or extra keys.
-- If an area is solid, don’t invent problems.
-
-Return JSON exactly in this shape:
-{{
-  "scores": {{
-    "coherence": 0|1|2,
-    "creative_storytelling": 0|1|2,
-    "emotional_impact": 0|1|2,
-    "visual_appeal": 0|1|2,
-    "pacing": 0|1|2,
-    "product_presence": 0|1|2
-  }},
-  "pass": true|false,
-  "issues": ["..."],
-  "must_fix": "...",
-  "needs_research": "..."
-}}
-
-Script:
-{draft}
-""")
-
-REACT_PROMPT = PromptTemplate.from_template("""
-You are an autonomous ReAct agent improving an ad script. You will be receiving some critique from a creative director. You MUST analyze the critique and tailor some search queries to use web_search to help you gather techniques to improve the script.
-
-Available tools: {tool_names}
-
-{tools}
-
-Critique from director: {critique}
-Current draft (to be improved): {draft}
-Product: {product}
-Brand Identity: {brand_identity}
-Tone: clear, slightly dramatic
-
-WORKFLOW - Follow this exact sequence:
-1) Use web_search: Analyze the critique and produce search queries to help you improve the script
-2) Use remember: Store key findings from your searches
-3) Use recall: Review your stored notes to prepare for revision
-4) Final Answer: Take the CURRENT DRAFT and improve it by:
-   - Incorporating specific techniques you found via web_search
-   - Addressing all issues mentioned in the critique
-   - Keeping the same structure
-   - Maintaining the dramatic tone
-
-CRITICAL INSTRUCTIONS:
-- You have ONLY 3 tools: web_search, remember, recall
-- There is NO "revise" or "update" tool - you revise the script yourself in the Final Answer
-- After using web_search/remember/recall, directly output your improved script in Final Answer
-- Your Final Answer should be the REVISED script, not a summary or explanation
-
-FORMAT RULES:
-- Keep each Thought concise (1-2 sentences max)
-- After each Thought, either specify an Action OR give the Final Answer
-- Do NOT output long explanations between Thought and Action
-- The Final Answer must be valid JSON only, no extra text
-
-Use this format EXACTLY:
-
-Question: the input question you must answer
-Thought: you should always think about what to do
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I have gathered enough information, now I will revise the script
-Final Answer: {{"title": "...", "logline": "...", "beats": [{{"beat":1,...}},{{"beat":2,...}},{{"beat":3,...}},{{"beat":4,...}},{{"beat":5,...}}...]}}
+logger.info("=" * 80)
+logger.info("AD Agent Workflow - Generate Advertising Videos")
+logger.info("=" * 80)
 
 
-Begin!
+# ==================== Conditional Edge Functions ====================
 
-Question: {input}
-Thought:{agent_scratchpad}""")
-
-# ---------- Nodes ----------
-def write_node(state: ScriptState):
-    logger.info("\n" + "="*60)
-    logger.info("📝 Step 1: Writer Node - Generate Draft")
-    logger.info("="*60)
-    logger.info(f"Product: {state['product']}")
-    logger.info(f"Brand Identity: {state['brand_identity']}")
+def should_retry_midjourney(state: WorkflowState) -> str:
+    """
+    Decide whether to retry Midjourney generation based on distortion check.
     
-    msg = WRITER.format(product=state["product"], brand_identity=state["brand_identity"])
-    logger.info("Calling Writer LLM...")
-    out = writer_llm.invoke(msg).content
-    state["draft"] = out
+    Returns:
+        - "retry": If distortion detected and retry count < max retries
+        - "compose": If no distortion or max retries reached
+    """
+    max_retries = 3
+    retry_count = state.get("distortion_retry_count", 0)
+    check_result = state.get("distortion_check_result", {})
+    has_distortion = check_result.get("has_distortion", False)
     
-    logger.info(f"✓ Draft generated (length: {len(out)} chars)")
-    logger.info(f"Full draft:\n{out}")
-    return state
-
-def critique_node(state: ScriptState):
-    logger.info("\n" + "="*60)
-    logger.info(f"🔍 Step 2: Critic Node - Evaluate Script (Iteration {state.get('iteration', 0)})")
-    logger.info("="*60)
-    
-    msg = CRITIC.format(draft=state["draft"])
-    logger.info("Calling Critic LLM...")
-    out = critic_llm.invoke(msg).content
-    state["critique"] = out
-    
-    # Parse the critique to extract pass status
-    import json
-    try:
-        critique_data = json.loads(out)
-        state["pass_status"] = critique_data.get("pass", False)
-        total_score = sum(critique_data.get("scores", {}).values())
-        logger.info(f"✓ Critique completed - Pass: {state['pass_status']}, Total Score: {total_score}/12")
-    except json.JSONDecodeError:
-        logger.warning("⚠️  Failed to parse critique JSON, assuming not passed")
-        state["pass_status"] = False
-    
-    logger.info(f"Critique:\n{out}")
-    return state
-
-# ReAct agent with tools
-logger.info("\nInitializing ReAct Agent and tools...")
-tools = [web_search, remember, recall]
-logger.info(f"Available tools: {[t.name for t in tools]}")
-react_agent = create_react_agent(react_llm, tools, prompt=REACT_PROMPT)
-react_exec  = AgentExecutor(
-    agent=react_agent, 
-    tools=tools, 
-    verbose=True, 
-    max_iterations=10,
-    handle_parsing_errors=True  # Handle parsing errors, let Agent retry
-)
-logger.info("✓ ReAct Agent initialized")
-
-def react_revise_node(state: ScriptState):
-    iteration = state.get("iteration", 0) + 1
-    state["iteration"] = iteration
-    
-    logger.info("\n" + "="*60)
-    logger.info(f"🤖 Step 3: ReAct Agent - Iterative Improvement (Iteration {iteration})")
-    logger.info("="*60)
-    logger.info("Starting ReAct Agent (verbose=True)...")
-    logger.info("Agent will show full reasoning (Thought/Action/Observation)")
-    logger.info("-"*60)
-    
-    # Build input question, explicitly requiring web_search
-    question = f"""You MUST improve this ad script by FIRST using web_search to gather facts.
-
-Product: {state["product"]}
-Brand Identity: {state["brand_identity"]}
-
-Critique from director:
-{state["critique"]}
-
-Current Draft:
-{state["draft"]}
-
-Your task:
-1. Use web_search to find real information about the product and brand identity
-2. Use remember to store key facts
-3. Then revise the script with researched information
-4. Return the improved version in JSON format
-
-Start by searching for information!"""
-    
-    logger.info(f"Input question:\n{question[:300]}...")
-    logger.info("-"*60)
-    logger.info("⚠️  Note: Agent should use web_search tool first")
-    logger.info("Starting ReAct reasoning loop...\n")
-    
-    out = react_exec.invoke({
-        "input": question,
-        "product": state["product"],
-        "brand_identity": state["brand_identity"],
-        "draft": state["draft"],
-        "critique": state["critique"],
-    })["output"]
-    
-    logger.info("\n" + "-"*60)
-    logger.info("✓ ReAct Agent completed")
-    logger.info(f"Final output length: {len(out)} chars")
-    
-    # Update the draft with the revised version for next iteration
-    state["draft"] = out
-    logger.info("✓ Draft updated with revised version for next critique")
-    
-    return state
-
-# ---------- Decision Logic ----------
-def should_continue(state: ScriptState) -> str:
-    """Decide whether to continue revising or end the loop."""
-    pass_status = state.get("pass_status", False)
-    iteration = state.get("iteration", 0)
-    max_iterations = state.get("max_iterations", 3)
-    
-    if pass_status:
-        logger.info(f"✅ Script passed critique! Moving to finalize.")
-        return "finalize"
-    elif iteration >= max_iterations:
-        logger.info(f"⚠️  Max iterations ({max_iterations}) reached. Moving to finalize.")
-        return "finalize"
+    if has_distortion and retry_count < max_retries:
+        logger.warning("Distortion detected, retrying Midjourney (attempt %d/%d)", retry_count, max_retries)
+        return "retry"
+    elif has_distortion and retry_count >= max_retries:
+        logger.warning("Max retries reached, proceeding despite distortion")
+        return "compose"
     else:
-        logger.info(f"🔄 Script needs improvement. Starting revision cycle {iteration + 1}...")
-        return "revise"
+        logger.info("No distortion detected, proceeding to composition")
+        return "compose"
 
-def finalize_node(state: ScriptState):
-    """Finalize the script and store in final field."""
-    logger.info("\n" + "="*60)
-    logger.info("🎯 Finalizing Script")
-    logger.info("="*60)
+
+# ==================== Build Workflow Graph ====================
+
+def build_workflow() -> StateGraph:
+    """
+    Build the AD Agent workflow graph.
     
-    state["final"] = state["draft"]
+    Workflow steps:
+    1. write_ad_script: Generate advertising script with shots
+    2. search_style_image: Search for style reference image
+    3. extract_palette: Extract dominant colors from style image
+    4. generate_midjourney_image: Generate scene image with Midjourney
+    5. check_distortion: Check for anatomical distortions
+       - If distortion detected: retry from step 4 (max 3 times)
+       - If clean or max retries: proceed to step 6
+    6. compose_with_product: Compose product into scene with Nanobanana
+    7. generate_video: Generate final video with Veo 3.1
+    """
+    logger.info("Building workflow graph...")
     
-    if state.get("pass_status", False):
-        logger.info("✅ Script passed all criteria!")
-    else:
-        logger.info("⚠️  Script did not pass, but max iterations reached. Using best version.")
+    # Create state graph
+    graph = StateGraph(WorkflowState)
     
-    return state
+    # Add nodes
+    graph.add_node("write_script", write_ad_script)
+    graph.add_node("search_style", search_style_image)
+    graph.add_node("extract_palette", extract_palette)
+    graph.add_node("generate_image", generate_midjourney_image)
+    graph.add_node("check_distortion", check_distortion)
+    graph.add_node("compose_product", compose_with_product)
+    graph.add_node("generate_video", generate_video)
+    
+    # Build linear flow with conditional loop for distortion check
+    graph.add_edge(START, "write_script")
+    graph.add_edge("write_script", "search_style")
+    graph.add_edge("search_style", "extract_palette")
+    graph.add_edge("extract_palette", "generate_image")
+    graph.add_edge("generate_image", "check_distortion")
+    
+    # Conditional edge: retry if distortion detected
+    graph.add_conditional_edges(
+        "check_distortion",
+        should_retry_midjourney,
+        {
+            "retry": "generate_image",  # Loop back to regenerate
+            "compose": "compose_product"  # Continue to next step
+        }
+    )
+    
+    graph.add_edge("compose_product", "generate_video")
+    graph.add_edge("generate_video", END)
+    
+    logger.info("✓ Workflow graph built successfully")
+    logger.info("  Flow: write_script -> search_style -> extract_palette")
+    logger.info("        -> generate_image -> check_distortion")
+    logger.info("        -> [retry loop if distortion]")
+    logger.info("        -> compose_product -> generate_video")
+    
+    return graph
 
-# ---------- Graph ----------
-logger.info("\nBuilding LangGraph workflow...")
-graph = StateGraph(ScriptState)
-graph.add_node("write", write_node)
-graph.add_node("critique", critique_node)
-graph.add_node("revise", react_revise_node)
-graph.add_node("finalize", finalize_node)
 
-# Build the flow with conditional loop
-graph.add_edge(START, "write")
-graph.add_edge("write", "critique")
-graph.add_conditional_edges("critique", should_continue, {"revise": "revise", "finalize": "finalize"})
-graph.add_edge("revise", "critique")  # Loop back to critique after revision
-graph.add_edge("finalize", END)
+# ==================== Main Execution ====================
 
-app = graph.compile()
-logger.info("✓ Workflow built: write -> critique -> [revise -> critique loop] -> finalize")
+def run_ad_workflow(
+    product_name: str,
+    brand_identity: str,
+    product_images: str,
+    must_have_shots: str
+) -> dict:
+    """
+    Run the complete AD Agent workflow.
+    
+    Args:
+        product_name: Product name
+        brand_identity: Brand positioning/identity
+        product_images: Product image URL
+        must_have_shots: Required shots (comma-separated)
+    
+    Returns:
+        Final state dict containing all intermediate results and final video URL
+    """
+    logger.info("\n" + "=" * 80)
+    logger.info("Starting AD Agent Workflow")
+    logger.info("=" * 80)
+    logger.info(f"Product: {product_name}")
+    logger.info(f"Brand Identity: {brand_identity}")
+    logger.info(f"Product Images: {product_images}")
+    logger.info(f"Must Have Shots: {must_have_shots}")
+    logger.info("=" * 80 + "\n")
+    
+    # Build and compile workflow
+    graph = build_workflow()
+    app = graph.compile()
+    
+    # Initialize state
+    initial_state = {
+        "product_name": product_name,
+        "brand_identity": brand_identity,
+        "product_images": product_images,
+        "must_have_shots": must_have_shots,
+        "distortion_retry_count": 0,
+        "messages": [],
+    }
+    
+    # Execute workflow
+    logger.info("Executing workflow...\n")
+    final_state = app.invoke(initial_state)
+    
+    # Log completion
+    logger.info("\n" + "=" * 80)
+    logger.info("Workflow Completed Successfully!")
+    logger.info("=" * 80)
+    
+    # Print summary
+    logger.info("\nWorkflow Summary:")
+    logger.info(f"  - Generated {len(final_state.get('shots', []))} shots")
+    logger.info(f"  - Style image: {final_state.get('style_image_url', 'N/A')}")
+    logger.info(f"  - Midjourney image: {final_state.get('midjourney_image_url', 'N/A')}")
+    logger.info(f"  - Distortion retries: {final_state.get('distortion_retry_count', 0)}")
+    logger.info(f"  - Composed image: {final_state.get('nanobanana_image_url', 'N/A')}")
+    logger.info(f"  - Final video: {final_state.get('video_url', 'N/A')}")
+    
+    # Print messages
+    if final_state.get("messages"):
+        logger.info("\nStep-by-step Messages:")
+        for msg in final_state["messages"]:
+            logger.info(f"  {msg}")
+    
+    return final_state
+
 
 if __name__ == "__main__":
-    logger.info("\n" + "="*60)
-    logger.info("Starting workflow execution")
-    logger.info("="*60)
+    # Example usage
+    result = run_ad_workflow(
+        product_name="Polaroid Camera",
+        brand_identity="Nostalgia, Artistic, Instant Sharing, Creativity, Authenticity",
+        product_images="https://m.media-amazon.com/images/I/71a0-JzaiEL._AC_SL1500_.jpg",
+        must_have_shots="Scenes of friends instantly sharing photos"
+    )
     
-    init = {
-        "product": "Polaroid Camera Now+ model", 
-        "brand_identity": "Creative, expressive, rebellious",
-        "iteration": 0,
-        "max_iterations": 3,
-        "pass_status": False
-    }
-    logger.info(f"Input parameters: {init}")
-    logger.info(f"Max iterations allowed: {init['max_iterations']}")
-    
-    out = app.invoke(init)
-    
-    logger.info("\n" + "="*60)
-    logger.info("Workflow execution completed")
-    logger.info("="*60)
-    
-    print("\n" + "="*60)
-    print("🎬 Final Script Output")
-    print("="*60)
-    print(out["final"])
-    print("="*60)
-    
-    logger.info(f"\nSummary:")
-    logger.info(f"  - Total iterations: {out.get('iteration', 0)}")
-    logger.info(f"  - Final pass status: {out.get('pass_status', False)}")
-    logger.info(f"  - Draft length: {len(out.get('draft', ''))} chars")
-    logger.info(f"  - Critique length: {len(out.get('critique', ''))} chars")
-    logger.info(f"  - Final version length: {len(out.get('final', ''))} chars")
-
+    print("\n" + "=" * 80)
+    print("🎬 Final Output")
+    print("=" * 80)
+    print(f"Video URL: {result.get('video_url')}")
+    print("=" * 80)

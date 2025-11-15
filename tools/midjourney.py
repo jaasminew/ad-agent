@@ -23,6 +23,11 @@ class MidjourneyClient:
         self.base_url = base_url or os.environ.get("MIDJOURNEY_PROXY_BASE_URL")
         if not self.base_url:
             raise ValueError("MIDJOURNEY_PROXY_BASE_URL environment variable is not set")
+        
+        # Add https:// if no scheme is present
+        if not self.base_url.startswith(("http://", "https://")):
+            self.base_url = f"https://{self.base_url}"
+        
         self.base_url = self.base_url.rstrip("/")
         self.poll_interval = MIDJOURNEY_CONFIG["poll_interval"]
         self.max_poll_time = MIDJOURNEY_CONFIG["max_poll_time"]
