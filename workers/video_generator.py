@@ -1,10 +1,11 @@
-"""Video Generator Worker - Generate video using Veo 3 or Kling AI"""
+"""Video Generator Worker - Generate video using Veo 3, Kling AI, or SeeDance"""
 
 import logging
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from tools.veo_video import get_veo_video_client
 from tools.kling_video import get_kling_video_client
+from tools.seedance_video import get_seedance_video_client
 from .state import ShotState
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,31 @@ Generate a video animation prompt that ensures smooth transitions with adjacent 
             logger.info(f"Kling video generation complete: {video_url}")
             result["video_url"] = video_url
             result["messages"] = [f"✓ Video Generator: Created video with Kling AI: {video_url}"]
+        
+        elif video_model == "seedance":
+            # Use SeeDance for video generation
+            logger.info("Using Doubao SeeDance for video generation")
+            client = get_seedance_video_client()
+            
+            seedance_result = client.generate_video(
+                prompt=video_prompt,
+                image_url=nanobanana_image_url,
+                resolution="1080p",
+                duration=5,
+                camera_fixed=False,
+                watermark=True,
+                upload_to_cos=True
+            )
+            
+            if not seedance_result["success"]:
+                raise RuntimeError(f"SeeDance video generation failed: {seedance_result.get('error')}")
+            
+            # Get video URL (COS URL if available, else local path)
+            video_url = seedance_result.get("cos_url") or seedance_result.get("local_path")
+            
+            logger.info(f"SeeDance video generation complete: {video_url}")
+            result["video_url"] = video_url
+            result["messages"] = [f"✓ Video Generator: Created video with SeeDance: {video_url}"]
             
         else:  # Default to "veo"
             # Use Veo 3.1 for video generation

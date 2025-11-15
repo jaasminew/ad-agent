@@ -104,9 +104,11 @@ def process_shots_concurrently(state: WorkflowState) -> dict:
     brand_identity = state["brand_identity"]
     product_images = state["product_images"]
     generate_video_flag = state["generate_video"]
+    video_model = state.get("video_model", "veo")  # Get video_model from state
     
     logger.info(f"Total shots to process: {len(shots)}")
     logger.info(f"Video generation: {'ENABLED' if generate_video_flag else 'DISABLED'}")
+    logger.info(f"Video model: {video_model.upper()}")
     
     # Build shot workflow
     shot_workflow = build_shot_workflow().compile()
@@ -136,6 +138,7 @@ def process_shots_concurrently(state: WorkflowState) -> dict:
             "brand_identity": brand_identity,
             "product_images": product_images,
             "generate_video": generate_video_flag,
+            "video_model": video_model,  # Pass video_model to shot state
             "previous_shot": previous_shot,  # For smooth transitions
             "next_shot": next_shot,  # For planning camera movement
             "distortion_retry_count": 0,
@@ -177,7 +180,7 @@ def run_ad_workflow(
         product_images: Product image URL
         must_have_shots: Required shots (comma-separated)
         generate_video: Whether to generate video (default: False)
-        video_model: Which video generation model to use ("veo" or "kling", default: "veo")
+        video_model: Which video generation model to use ("veo", "kling", or "seedance", default: "veo")
     
     Returns:
         Final state dict containing all shots' results
@@ -271,7 +274,7 @@ if __name__ == "__main__":
         product_images="https://m.media-amazon.com/images/I/71a0-JzaiEL._AC_SL1500_.jpg",
         must_have_shots="Scenes of friends instantly sharing photos",
         generate_video=True,  # Set to True to generate and concatenate videos
-        video_model="kling"     # Choose "veo" (default) or "kling"
+        video_model="seedance"     # Choose "veo", "kling", or "seedance"
     )
     
     print("\n" + "=" * 80)
