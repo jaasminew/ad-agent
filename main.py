@@ -165,7 +165,8 @@ def run_ad_workflow(
     brand_identity: str,
     product_images: str,
     must_have_shots: str,
-    generate_video: bool = False
+    generate_video: bool = False,
+    video_model: str = "kling"
 ) -> dict:
     """
     Run the complete AD Agent workflow.
@@ -176,6 +177,7 @@ def run_ad_workflow(
         product_images: Product image URL
         must_have_shots: Required shots (comma-separated)
         generate_video: Whether to generate video (default: False)
+        video_model: Which video generation model to use ("veo" or "kling", default: "veo")
     
     Returns:
         Final state dict containing all shots' results
@@ -188,6 +190,7 @@ def run_ad_workflow(
     logger.info(f"Product Images: {product_images}")
     logger.info(f"Must Have Shots: {must_have_shots}")
     logger.info(f"Generate Video: {generate_video}")
+    logger.info(f"Video Model: {video_model.upper()}")
     logger.info("=" * 80 + "\n")
     
     # Build main workflow
@@ -212,6 +215,7 @@ def run_ad_workflow(
         "product_images": product_images,
         "must_have_shots": must_have_shots,
         "generate_video": generate_video,
+        "video_model": video_model,
         "messages": [],
     }
     
@@ -266,7 +270,8 @@ if __name__ == "__main__":
         brand_identity="Nostalgia, Artistic, Instant Sharing, Creativity, Authenticity",
         product_images="https://m.media-amazon.com/images/I/71a0-JzaiEL._AC_SL1500_.jpg",
         must_have_shots="Scenes of friends instantly sharing photos",
-        generate_video=True  # Set to True to generate and concatenate videos
+        generate_video=True,  # Set to True to generate and concatenate videos
+        video_model="kling"     # Choose "veo" (default) or "kling"
     )
     
     print("\n" + "=" * 80)

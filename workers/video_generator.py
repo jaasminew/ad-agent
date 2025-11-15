@@ -1,9 +1,10 @@
-"""Video Generator Worker - Generate video using Veo 3"""
+"""Video Generator Worker - Generate video using Veo 3 or Kling AI"""
 
 import logging
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from tools.veo_video import get_veo_video_client
+from tools.kling_video import get_kling_video_client
 from .state import ShotState
 
 logger = logging.getLogger(__name__)
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 def generate_video(state: ShotState) -> dict:
     """
-    Generate video from composed image using Veo 3.1.
+    Generate video from composed image using Veo 3.1 or Kling AI.
     
     Inputs:
     - nanobanana_image_url: Composed image with product in scene
@@ -19,6 +20,7 @@ def generate_video(state: ShotState) -> dict:
     - previous_shot: Previous shot description (if exists, for smooth transitions)
     - next_shot: Next shot description (if exists, for planning camera movement)
     - generate_video: Whether to actually generate the video
+    - video_model: Which video generation model to use ("veo" or "kling", default: "veo")
     
     Outputs:
     - video_prompt: Video prompt (always generated, with transition info)
@@ -32,6 +34,7 @@ def generate_video(state: ShotState) -> dict:
     next_shot = state.get("next_shot")
     shot_index = state.get("shot_index", 0)
     generate_video_flag = state.get("generate_video", False)
+    video_model = state.get("video_model", "kling").lower()  # Default to "kling"
     
     # Step 1: Always generate video prompt with context
     logger.info("Step 1: Generating video prompt with transition context")
@@ -108,24 +111,52 @@ Generate a video animation prompt that ensures smooth transitions with adjacent 
     
     # Step 2: Optionally generate actual video
     if generate_video_flag:
-        logger.info("Step 2: Generating video with Veo 3.1 (generate_video=True)")
-        client = get_veo_video_client()
+        logger.info(f"Step 2: Generating video with {video_model.upper()} (generate_video=True)")
         
-        veo_result = client.generate_video(
-            prompt=video_prompt,
-            image_url=nanobanana_image_url,
-            upload_to_cos=True
-        )
-        
-        if not veo_result["success"]:
-            raise RuntimeError(f"Veo video generation failed: {veo_result.get('error')}")
-        
-        # Get video URL (COS URL if available, else local path)
-        video_url = veo_result.get("cos_url") or veo_result.get("local_path")
-        
-        logger.info(f"Video generation complete: {video_url}")
-        result["video_url"] = video_url
-        result["messages"] = [f"✓ Video Generator: Created video {video_url}"]
+        if video_model == "kling":
+            # Use Kling AI for video generation
+            logger.info("Using Kling AI for video generation")
+            client = get_kling_video_client()
+            
+            kling_result = client.generate_video(
+                image_url=nanobanana_image_url,
+                prompt=video_prompt,
+                duration="5",  # 5 seconds
+                mode="pro",    # High quality mode
+                cfg_scale=0.5,
+                upload_to_cos=True
+            )
+            
+            if not kling_result["success"]:
+                raise RuntimeError(f"Kling video generation failed: {kling_result.get('error')}")
+            
+            # Get video URL (COS URL if available, else local path)
+            video_url = kling_result.get("cos_url") or kling_result.get("local_path")
+            
+            logger.info(f"Kling video generation complete: {video_url}")
+            result["video_url"] = video_url
+            result["messages"] = [f"✓ Video Generator: Created video with Kling AI: {video_url}"]
+            
+        else:  # Default to "veo"
+            # Use Veo 3.1 for video generation
+            logger.info("Using Veo 3.1 for video generation")
+            client = get_veo_video_client()
+            
+            veo_result = client.generate_video(
+                prompt=video_prompt,
+                image_url=nanobanana_image_url,
+                upload_to_cos=True
+            )
+            
+            if not veo_result["success"]:
+                raise RuntimeError(f"Veo video generation failed: {veo_result.get('error')}")
+            
+            # Get video URL (COS URL if available, else local path)
+            video_url = veo_result.get("cos_url") or veo_result.get("local_path")
+            
+            logger.info(f"Veo video generation complete: {video_url}")
+            result["video_url"] = video_url
+            result["messages"] = [f"✓ Video Generator: Created video with Veo 3.1: {video_url}"]
     else:
         logger.info("Step 2: Skipping video generation (generate_video=False)")
         result["messages"] = [f"✓ Video Generator: Generated video prompt (video generation skipped)"]
