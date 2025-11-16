@@ -1,341 +1,271 @@
-# ad_script_generator.py
-import os
+"""Real integration test for the Storyboard Generation Agent.
+
+This example runs the agent with REAL external API calls:
+- PixelHub for reference images
+- MidJourney for storyboard generation
+- Distortion Checker for quality validation
+- Nanobanana for product integration
+
+Make sure you have:
+1. Set up necessary API keys/credentials
+2. Internet connection
+3. Sufficient API credits
+"""
+
 import logging
-from typing import TypedDict, Optional
+import json
+import sys
+import io
+import atexit
+from datetime import datetime
+from pathlib import Path
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
-from langgraph.graph import StateGraph, START, END
-from langchain.agents import create_react_agent, AgentExecutor
-from langchain_core.prompts import PromptTemplate
-from tools import web_search, remember, recall
+from storyboard_gen_agent import (
+    StoryboardAgent,
+    EpisodeConfig,
+    Beat,
+    ProductConfig,
+)
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
 logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv()
-logger.info("="*60)
-logger.info("Starting LangGraph ReAct Agent")
-logger.info("="*60)
-
-# ---------- State ----------
-class ScriptState(TypedDict):
-    product: str
-    brand_identity: str
-    draft: Optional[str]
-    critique: Optional[str]
-    final: Optional[str]
-    pass_status: bool  # Track if critique passed
-    iteration: int  # Track number of revisions
-    max_iterations: int  # Prevent infinite loops
-
-# ---------- Models ----------
-logger.info("Initializing LLM models...")
-writer_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-critic_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
-react_llm  = ChatOpenAI(model="gpt-4o-mini", temperature=0.6)
-logger.info("✓ LLM models initialized")
-
-# ---------- Prompts ----------
-WRITER = PromptTemplate.from_template("""
-You are a seasoned ad screenwriter.
-Write a clear, slightly dramatic 60s product script in 8-10 beats. I want it to have an engaging storyline and message.
-Return JSON:
-{{
- "title": "...",
- "logline": "...",
- "beats": [
-  {{"beat":1,"heading":"...","shot description":"...","action":"..."}},
-  {{"beat":2,...}}, {{"beat":3,...}}, {{"beat":4,...}}, {{"beat":5,...}}
- ]}}
-Product: {product}
-Brand Identity: {brand_identity}
-""")
-
-CRITIC = PromptTemplate.from_template("""
-Evaluate the draft. Score and diagnose; keep output compact.
-
-Scoring (0–2 each; integers only):
-- coherence in narrative structure, creative_storytelling, emotional_impact, visual_appeal, pacing, product_presence
-Pass if total ≥ 11 AND no individual score is 0.
-
-Diagnostics:
-- issues: 3–6 items, each prefixed with tags like [coherence][beat2] or [visual_appeal]. Be specific and refer to beats when possible.
-- must_fix: one imperative sentence (≤ 25 words) that, if applied, most increases the score next iteration.
-- needs_research: 0–2 relevant screenwriting techniques to research in depth or "" if none. Make them specific (who/what/where/metric).
-
-Constraints:
-- No rewriting.
-- No preambles or extra keys.
-- If an area is solid, don’t invent problems.
-
-Return JSON exactly in this shape:
-{{
-  "scores": {{
-    "coherence": 0|1|2,
-    "creative_storytelling": 0|1|2,
-    "emotional_impact": 0|1|2,
-    "visual_appeal": 0|1|2,
-    "pacing": 0|1|2,
-    "product_presence": 0|1|2
-  }},
-  "pass": true|false,
-  "issues": ["..."],
-  "must_fix": "...",
-  "needs_research": "..."
-}}
-
-Script:
-{draft}
-""")
-
-REACT_PROMPT = PromptTemplate.from_template("""
-You are an autonomous ReAct agent improving an ad script. You will be receiving some critique from a creative director. You MUST analyze the critique and tailor some search queries to use web_search to help you gather techniques to improve the script.
-
-Available tools: {tool_names}
-
-{tools}
-
-Critique from director: {critique}
-Current draft (to be improved): {draft}
-Product: {product}
-Brand Identity: {brand_identity}
-Tone: clear, slightly dramatic
-
-WORKFLOW - Follow this exact sequence:
-1) Use web_search: Analyze the critique and produce search queries to help you improve the script
-2) Use remember: Store key findings from your searches
-3) Use recall: Review your stored notes to prepare for revision
-4) Final Answer: Take the CURRENT DRAFT and improve it by:
-   - Incorporating specific techniques you found via web_search
-   - Addressing all issues mentioned in the critique
-   - Keeping the same structure
-   - Maintaining the dramatic tone
-
-CRITICAL INSTRUCTIONS:
-- You have ONLY 3 tools: web_search, remember, recall
-- There is NO "revise" or "update" tool - you revise the script yourself in the Final Answer
-- After using web_search/remember/recall, directly output your improved script in Final Answer
-- Your Final Answer should be the REVISED script, not a summary or explanation
-
-FORMAT RULES:
-- Keep each Thought concise (1-2 sentences max)
-- After each Thought, either specify an Action OR give the Final Answer
-- Do NOT output long explanations between Thought and Action
-- The Final Answer must be valid JSON only, no extra text
-
-Use this format EXACTLY:
-
-Question: the input question you must answer
-Thought: you should always think about what to do
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I have gathered enough information, now I will revise the script
-Final Answer: {{"title": "...", "logline": "...", "beats": [{{"beat":1,...}},{{"beat":2,...}},{{"beat":3,...}},{{"beat":4,...}},{{"beat":5,...}}...]}}
+_stdout_tee = None
+_stderr_tee = None
 
 
-Begin!
+class _StreamTee(io.TextIOBase):
+    """Mirror writes to original stream and a log file."""
 
-Question: {input}
-Thought:{agent_scratchpad}""")
+    def __init__(self, original: io.TextIOBase, log_path: Path):
+        self._original = original
+        self._log_file = open(log_path, "a", encoding="utf-8")
+        atexit.register(self._log_file.close)
 
-# ---------- Nodes ----------
-def write_node(state: ScriptState):
-    logger.info("\n" + "="*60)
-    logger.info("📝 Step 1: Writer Node - Generate Draft")
-    logger.info("="*60)
-    logger.info(f"Product: {state['product']}")
-    logger.info(f"Brand Identity: {state['brand_identity']}")
+    def write(self, message: str) -> int:
+        if not message:
+            return 0
+        self._original.write(message)
+        self._original.flush()
+        self._log_file.write(message)
+        self._log_file.flush()
+        return len(message)
+
+    def flush(self):
+        self._original.flush()
+        self._log_file.flush()
+
+    def __getattr__(self, name):
+        return getattr(self._original, name)
+
+
+def setup_storyboard_logging() -> Path:
+    """Configure per-session logging file capturing stdout/stderr as well."""
+    root_dir = Path(__file__).resolve().parent
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = root_dir / f"storyboard_gen_agent_{timestamp}.log"
+
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
+
+    root_logger = logging.getLogger()
+    root_logger.addHandler(file_handler)
+    root_logger.setLevel(logging.INFO)
+
+    global _stdout_tee, _stderr_tee
+    if _stdout_tee is None:
+        _stdout_tee = _StreamTee(sys.stdout, log_path)
+        sys.stdout = _stdout_tee
+    if _stderr_tee is None:
+        _stderr_tee = _StreamTee(sys.stderr, log_path)
+        sys.stderr = _stderr_tee
+
+    logger.info(f"🗂️ Storyboard agent logs will also be saved to: {log_path}")
+    return log_path
+
+
+def main():
+    """Run a real integration test of the storyboard generation agent."""
     
-    msg = WRITER.format(product=state["product"], brand_identity=state["brand_identity"])
-    logger.info("Calling Writer LLM...")
-    out = writer_llm.invoke(msg).content
-    state["draft"] = out
+    logger.info("="*80)
+    logger.info("🎬 Starting REAL Storyboard Generation Test")
+    logger.info("="*80)
+    setup_storyboard_logging()
+    logger.info("\n⚠️  WARNING: This will call REAL external APIs!")
+    logger.info("   - PixelHub API")
+    logger.info("   - MidJourney API")
+    logger.info("   - Distortion Checker")
+    logger.info("   - Nanobanana API")
+    logger.info("\n   Make sure you have proper credentials configured.\n")
     
-    logger.info(f"✓ Draft generated (length: {len(out)} chars)")
-    logger.info(f"Full draft:\n{out}")
-    return state
-
-def critique_node(state: ScriptState):
-    logger.info("\n" + "="*60)
-    logger.info(f"🔍 Step 2: Critic Node - Evaluate Script (Iteration {state.get('iteration', 0)})")
-    logger.info("="*60)
+    # Configure a simple test episode
+    episode = EpisodeConfig(
+        title="Morning Run - Real Momentum",
+        product_config=ProductConfig(
+            product_image_url="https://cdn.discordapp.com/attachments/1073330837912821780/1439534000434708523/7e037bea93156e1017ae3fd60ad8eb8d.jpg?ex=691ade02&is=69198c82&hm=51b9d20dc2ded19f649dbd376b2f577820bf47ee4f0505f471019a8a3ff80824",
+            target_object="sports_shoes"
+        ),
+        beats=[
+            Beat(
+                beat=1,
+                heading="Lace-Up Ritual",
+                shot_description="Early morning light hits a quiet outdoor track; a young runner kneels down to tie their shoes",
+                action="They pull the laces tight with a confident tug, tapping the heel to secure the fit"
+            ),
+            Beat(
+                beat=2,
+                heading="First Burst of Motion",
+                shot_description="Close-up of the shoes hitting the ground, dust lifting slightly as they accelerate",
+                action="They push off into a steady run, stride smooth and powerful, energy building with each step"
+            ),
+        ]
+    )
     
-    msg = CRITIC.format(draft=state["draft"])
-    logger.info("Calling Critic LLM...")
-    out = critic_llm.invoke(msg).content
-    state["critique"] = out
-    
-    # Parse the critique to extract pass status
-    import json
+    # Initialize LLM
+    logger.info("🤖 Initializing LLM...")
     try:
-        critique_data = json.loads(out)
-        state["pass_status"] = critique_data.get("pass", False)
-        total_score = sum(critique_data.get("scores", {}).values())
-        logger.info(f"✓ Critique completed - Pass: {state['pass_status']}, Total Score: {total_score}/12")
-    except json.JSONDecodeError:
-        logger.warning("⚠️  Failed to parse critique JSON, assuming not passed")
-        state["pass_status"] = False
+        from langchain_openai import ChatOpenAI
+        llm = ChatOpenAI(
+            model="gpt-4o-mini",
+            temperature=0.7,
+            max_tokens=4096,
+        )
+        logger.info("✓ Using OpenAI GPT-4o-mini")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize LLM: {e}")
+        logger.error("\nPlease set up your OpenAI API key:")
+        logger.error("  export OPENAI_API_KEY='your-key'")
+        return
     
-    logger.info(f"Critique:\n{out}")
-    return state
-
-# ReAct agent with tools
-logger.info("\nInitializing ReAct Agent and tools...")
-tools = [web_search, remember, recall]
-logger.info(f"Available tools: {[t.name for t in tools]}")
-react_agent = create_react_agent(react_llm, tools, prompt=REACT_PROMPT)
-react_exec  = AgentExecutor(
-    agent=react_agent, 
-    tools=tools, 
-    verbose=True, 
-    max_iterations=10,
-    handle_parsing_errors=True  # Handle parsing errors, let Agent retry
-)
-logger.info("✓ ReAct Agent initialized")
-
-def react_revise_node(state: ScriptState):
-    iteration = state.get("iteration", 0) + 1
-    state["iteration"] = iteration
+    # Initialize agent with REAL tools
+    logger.info("\n📦 Initializing Storyboard Agent with REAL tools...")
+    logger.info("   This will load all external API integrations...")
     
-    logger.info("\n" + "="*60)
-    logger.info(f"🤖 Step 3: ReAct Agent - Iterative Improvement (Iteration {iteration})")
-    logger.info("="*60)
-    logger.info("Starting ReAct Agent (verbose=True)...")
-    logger.info("Agent will show full reasoning (Thought/Action/Observation)")
-    logger.info("-"*60)
+    try:
+        agent = StoryboardAgent(
+            llm=llm,
+            verbose=True,
+            max_iterations=50,
+            max_execution_time=3600,  # 1 hour max
+        )
+        logger.info("✓ Agent initialized successfully")
+        logger.info(f"✓ Loaded {len(agent.tools)} tools")
+        
+        # List the tools
+        logger.info("\n🛠️  Available Tools:")
+        for i, tool in enumerate(agent.tools, 1):
+            logger.info(f"   {i}. {tool.name}")
+        
+    except Exception as e:
+        logger.error(f"\n❌ Failed to initialize agent: {e}", exc_info=True)
+        logger.error("\nPlease check:")
+        logger.error("  - All required dependencies are installed")
+        logger.error("  - API credentials are properly configured")
+        logger.error("  - Tool modules are accessible")
+        return
     
-    # Build input question, explicitly requiring web_search
-    question = f"""You MUST improve this ad script by FIRST using web_search to gather facts.
-
-Product: {state["product"]}
-Brand Identity: {state["brand_identity"]}
-
-Critique from director:
-{state["critique"]}
-
-Current Draft:
-{state["draft"]}
-
-Your task:
-1. Use web_search to find real information about the product and brand identity
-2. Use remember to store key facts
-3. Then revise the script with researched information
-4. Return the improved version in JSON format
-
-Start by searching for information!"""
+    # Process episode
+    logger.info(f"\n{'='*80}")
+    logger.info(f"🎥 Processing Episode: {episode.title}")
+    logger.info(f"{'='*80}")
+    logger.info(f"   Total beats: {len(episode.beats)}")
+    logger.info(f"   Product: {episode.product_config.target_object}")
+    logger.info(f"   Product Image: {episode.product_config.product_image_url}")
     
-    logger.info(f"Input question:\n{question[:300]}...")
-    logger.info("-"*60)
-    logger.info("⚠️  Note: Agent should use web_search tool first")
-    logger.info("Starting ReAct reasoning loop...\n")
+    try:
+        result = agent.process_episode(episode)
+        
+        # Print results
+        logger.info("\n" + "="*80)
+        logger.info("✅ EPISODE COMPLETED")
+        logger.info("="*80)
+        logger.info(f"Episode ID: {result.episode_id}")
+        logger.info(f"Title: {result.title}")
+        logger.info(f"Episode Palette: {result.episode_palette}")
+        
+        logger.info(f"\n📊 Statistics:")
+        logger.info(f"   Total beats: {result.total_beats}")
+        logger.info(f"   Successful: {result.successful_beats}")
+        logger.info(f"   Flagged for review: {result.flagged_beats}")
+        
+        logger.info(f"\n🎞️  Beat Results:")
+        for beat_result in result.beats:
+            logger.info(f"\n   {'='*70}")
+            logger.info(f"   Beat {beat_result.beat_number}:")
+            logger.info(f"   {'='*70}")
+            logger.info(f"      Shot: {beat_result.shot_text[:80]}...")
+            
+            if beat_result.reference_image_url:
+                logger.info(f"      Reference Image: {beat_result.reference_image_url}")
+            
+            if beat_result.color_palette:
+                logger.info(f"      Color Palette: {', '.join(beat_result.color_palette)}")
+            
+            logger.info(f"      Storyboard Image: {beat_result.storyboard_image_url}")
+            logger.info(f"      Final Image: {beat_result.final_image_url or 'N/A'}")
+            
+            logger.info(f"      Generation Attempts: {beat_result.total_attempts}")
+            logger.info(f"      Quality Check Passed: {'✓' if beat_result.quality_check_passed else '✗'}")
+            logger.info(f"      Product Integration: {'✓' if beat_result.product_replacement_success else '✗'}")
+            
+            if beat_result.attempts:
+                logger.info(f"      Attempt Details:")
+                for attempt in beat_result.attempts:
+                    logger.info(f"         - Attempt {attempt.attempt_number}:")
+                    logger.info(f"           Distortion Check: {'PASS' if attempt.distortion_check_passed else 'FAIL'}")
+                    if not attempt.distortion_check_passed:
+                        logger.info(f"           Distortions Found: {', '.join(attempt.distortion_labels)}")
+            
+            if beat_result.flagged_for_review:
+                logger.warning(f"      ⚠️  FLAGGED FOR REVIEW: {beat_result.review_reason}")
+            
+            if beat_result.product_replacement_error:
+                logger.warning(f"      ⚠️  Product Replacement Error: {beat_result.product_replacement_error}")
+        
+        # Export results to JSON
+        output_file = f"episode_result_{result.episode_id}.json"
+        logger.info(f"\n💾 Saving results to: {output_file}")
+        
+        with open(output_file, "w") as f:
+            json.dump(result.model_dump(), f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"✓ Results saved successfully")
+        
+        # Summary
+        logger.info("\n" + "="*80)
+        logger.info("🎉 Real integration test completed!")
+        logger.info("="*80)
+        
+        if result.successful_beats == result.total_beats:
+            logger.info("✅ All beats processed successfully!")
+        elif result.successful_beats > 0:
+            logger.info(f"⚠️  Partial success: {result.successful_beats}/{result.total_beats} beats successful")
+        else:
+            logger.warning("❌ No beats were processed successfully")
+        
+        if result.flagged_beats > 0:
+            logger.warning(f"⚠️  {result.flagged_beats} beat(s) flagged for manual review")
+        
+        logger.info(f"\n📄 Full results saved to: {output_file}")
+        
+    except Exception as e:
+        logger.error(f"\n❌ Episode processing failed: {e}", exc_info=True)
+        raise
     
-    out = react_exec.invoke({
-        "input": question,
-        "product": state["product"],
-        "brand_identity": state["brand_identity"],
-        "draft": state["draft"],
-        "critique": state["critique"],
-    })["output"]
-    
-    logger.info("\n" + "-"*60)
-    logger.info("✓ ReAct Agent completed")
-    logger.info(f"Final output length: {len(out)} chars")
-    
-    # Update the draft with the revised version for next iteration
-    state["draft"] = out
-    logger.info("✓ Draft updated with revised version for next critique")
-    
-    return state
+    logger.info("\n" + "="*80)
+    logger.info("🏁 Test Complete")
+    logger.info("="*80)
 
-# ---------- Decision Logic ----------
-def should_continue(state: ScriptState) -> str:
-    """Decide whether to continue revising or end the loop."""
-    pass_status = state.get("pass_status", False)
-    iteration = state.get("iteration", 0)
-    max_iterations = state.get("max_iterations", 3)
-    
-    if pass_status:
-        logger.info(f"✅ Script passed critique! Moving to finalize.")
-        return "finalize"
-    elif iteration >= max_iterations:
-        logger.info(f"⚠️  Max iterations ({max_iterations}) reached. Moving to finalize.")
-        return "finalize"
-    else:
-        logger.info(f"🔄 Script needs improvement. Starting revision cycle {iteration + 1}...")
-        return "revise"
-
-def finalize_node(state: ScriptState):
-    """Finalize the script and store in final field."""
-    logger.info("\n" + "="*60)
-    logger.info("🎯 Finalizing Script")
-    logger.info("="*60)
-    
-    state["final"] = state["draft"]
-    
-    if state.get("pass_status", False):
-        logger.info("✅ Script passed all criteria!")
-    else:
-        logger.info("⚠️  Script did not pass, but max iterations reached. Using best version.")
-    
-    return state
-
-# ---------- Graph ----------
-logger.info("\nBuilding LangGraph workflow...")
-graph = StateGraph(ScriptState)
-graph.add_node("write", write_node)
-graph.add_node("critique", critique_node)
-graph.add_node("revise", react_revise_node)
-graph.add_node("finalize", finalize_node)
-
-# Build the flow with conditional loop
-graph.add_edge(START, "write")
-graph.add_edge("write", "critique")
-graph.add_conditional_edges("critique", should_continue, {"revise": "revise", "finalize": "finalize"})
-graph.add_edge("revise", "critique")  # Loop back to critique after revision
-graph.add_edge("finalize", END)
-
-app = graph.compile()
-logger.info("✓ Workflow built: write -> critique -> [revise -> critique loop] -> finalize")
 
 if __name__ == "__main__":
-    logger.info("\n" + "="*60)
-    logger.info("Starting workflow execution")
-    logger.info("="*60)
-    
-    init = {
-        "product": "Polaroid Camera Now+ model", 
-        "brand_identity": "Creative, expressive, rebellious",
-        "iteration": 0,
-        "max_iterations": 3,
-        "pass_status": False
-    }
-    logger.info(f"Input parameters: {init}")
-    logger.info(f"Max iterations allowed: {init['max_iterations']}")
-    
-    out = app.invoke(init)
-    
-    logger.info("\n" + "="*60)
-    logger.info("Workflow execution completed")
-    logger.info("="*60)
-    
-    print("\n" + "="*60)
-    print("🎬 Final Script Output")
-    print("="*60)
-    print(out["final"])
-    print("="*60)
-    
-    logger.info(f"\nSummary:")
-    logger.info(f"  - Total iterations: {out.get('iteration', 0)}")
-    logger.info(f"  - Final pass status: {out.get('pass_status', False)}")
-    logger.info(f"  - Draft length: {len(out.get('draft', ''))} chars")
-    logger.info(f"  - Critique length: {len(out.get('critique', ''))} chars")
-    logger.info(f"  - Final version length: {len(out.get('final', ''))} chars")
-
+    main()
