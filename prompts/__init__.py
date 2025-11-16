@@ -1,0 +1,2 @@
+"""Prompts for all workers"""
+

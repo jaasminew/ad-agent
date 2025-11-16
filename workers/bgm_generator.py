@@ -8,6 +8,7 @@ from .state import WorkflowState
 from langchain_openai import ChatOpenAI
 from tools.suno_music import suno_generate_music
 from tools.video_add_bgm import add_bgm_to_video
+from prompts.bgm_generator import get_music_prompt_generation, get_style_detection_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -22,26 +23,7 @@ logger = logging.getLogger(__name__)
 )
 def _generate_music_prompt_with_retry(llm, product_name: str, brand_identity: str, shots_text: str) -> str:
     """Generate music prompt with retry mechanism."""
-    music_prompt_generation = f"""你是一位专业的广告音乐顾问。请根据以下广告内容,生成一个适合作为背景音乐的 Suno 提示词。
-
-商品名称: {product_name}
-品牌定位: {brand_identity}
-
-广告分镜:
-{shots_text}
-
-要求:
-1. 分析商品定位和品牌调性
-2. 结合所有分镜的情绪和节奏
-3. 生成符合广告氛围的音乐描述
-4. 确定音乐风格(如:轻快、舒缓、激昂、科技感、优雅、活力等)
-5. 这将是纯音乐(无歌词),适合作为广告背景音乐
-
-请直接输出音乐提示词,不要包含任何解释或额外文字。提示词应该简洁、具体,能够让 AI 音乐生成模型理解。
-
-示例格式: "一段轻快明亮的电子音乐,富有科技感和未来感,节奏感强烈但不嘈杂,适合科技产品广告"
-"""
-    
+    music_prompt_generation = get_music_prompt_generation(product_name, brand_identity, shots_text)
     response = llm.invoke(music_prompt_generation)
     return response.content.strip()
 
@@ -56,14 +38,7 @@ def _generate_music_prompt_with_retry(llm, product_name: str, brand_identity: st
 )
 def _detect_music_style_with_retry(llm, music_prompt: str) -> str:
     """Detect music style with retry mechanism."""
-    style_detection_prompt = f"""根据以下音乐描述,从以下选项中选择最合适的音乐风格标签:
-
-可选风格: 古典, 流行, 摇滚, 电子, 爵士, 轻音乐, 氛围音乐, 电影配乐, 新世纪, 放克, 雷鬼, 乡村, 布鲁斯
-
-音乐描述: {music_prompt}
-
-请只输出一个最合适的风格标签,不要包含任何其他文字。"""
-    
+    style_detection_prompt = get_style_detection_prompt(music_prompt)
     response = llm.invoke(style_detection_prompt)
     return response.content.strip()
 

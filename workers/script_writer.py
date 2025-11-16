@@ -5,6 +5,7 @@ from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from .state import WorkflowState
+from prompts.script_writer import SCRIPT_WRITER_SYSTEM_PROMPT, SCRIPT_WRITER_USER_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -21,22 +22,8 @@ def _generate_shots_with_retry(product_name: str, brand_identity: str, must_have
     """Generate shots with retry mechanism for LLM API calls."""
     # Create prompt template
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a professional advertising creative director who excels at writing compelling ad scripts.
-You need to create a creative shot list for advertisements based on product information and brand positioning.
-
-Requirements:
-1. Each shot should be concise and clear, describing specific visual content
-2. Shots must align with brand positioning and tone
-3. Must include user-specified required shots
-4. Usually contains 3-5 shots forming a complete story arc
-5. One shot per line, no numbering needed
-
-Please output the shot list directly, one shot per line, without any extra text."""),
-        ("user", """Product name: {product_name}
-Brand positioning: {brand_identity}
-Required shots: {must_have_shots}
-
-Please create an advertising shot list for this product:""")
+        ("system", SCRIPT_WRITER_SYSTEM_PROMPT),
+        ("user", SCRIPT_WRITER_USER_PROMPT)
     ])
     
     # Call LLM

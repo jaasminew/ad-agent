@@ -7,6 +7,7 @@ from langchain.prompts import ChatPromptTemplate
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from tools.pixelhub import get_pixelhub_client
 from .state import ShotState
+from prompts.style_searcher import STYLE_SEARCHER_SYSTEM_PROMPT, STYLE_SEARCHER_USER_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -35,23 +36,8 @@ def _list_tags_with_retry(client, page: int, limit: int) -> dict:
 def _select_tags_with_retry(all_tags: list, product_name: str, brand_identity: str, shot: str) -> list:
     """Select tags with retry mechanism for LLM API calls."""
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a professional visual designer. Based on the advertising shot description, product information, and brand positioning, 
-select the most appropriate style tags from the given tag list.
-
-Requirements:
-1. Select 3-5 tags that best represent the ad style and brand tone
-2. Tags MUST be selected from the provided tag list
-3. Prioritize tags that express emotion, atmosphere, and visual style
-4. Output as JSON array, e.g.: ["modern", "minimalist", "elegant"]"""),
-        ("user", """Available tags:
-{all_tags}
-
-Product name: {product_name}
-Brand positioning: {brand_identity}
-Ad shot:
-{shot}
-
-Please select 3-5 most appropriate tags and output as JSON array:""")
+        ("system", STYLE_SEARCHER_SYSTEM_PROMPT),
+        ("user", STYLE_SEARCHER_USER_PROMPT)
     ])
     
     llm = ChatOpenAI(model="gpt-4", temperature=0.3)

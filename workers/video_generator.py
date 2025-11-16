@@ -8,6 +8,7 @@ from tools.veo_video import get_veo_video_client
 from tools.kling_video import get_kling_video_client
 from tools.seedance_video import get_seedance_video_client
 from .state import ShotState
+from prompts.video_generator import VIDEO_GENERATOR_SYSTEM_PROMPT, VIDEO_GENERATOR_USER_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -23,34 +24,8 @@ logger = logging.getLogger(__name__)
 def _generate_video_prompt_with_retry(shot: str, context_info: str, position_hint: str) -> str:
     """Generate video prompt with retry mechanism for LLM API calls."""
     prompt_template = ChatPromptTemplate.from_messages([
-        ("system", """You are a professional video director specializing in seamless shot transitions. Generate a clear, cinematic prompt for animating a still image into a video.
-
-CRITICAL REQUIREMENTS for smooth transitions:
-1. Write prompt in English
-2. Consider the PREVIOUS and NEXT shots to create smooth transitions
-3. Camera movement should flow naturally between shots:
-   - For first shot: Start stable, end with movement direction toward next scene
-   - For middle shots: Continue camera momentum from previous, prepare for next
-   - For final shot: Continue from previous, end with a strong conclusion
-4. Match camera angles, speed, and direction for continuity
-5. Keep motion smooth and professional
-6. Suitable for short advertisement videos (5-10 seconds)
-7. Output only the prompt text
-
-Example good transitions:
-- "Camera slowly pans right, ending with momentum toward the next scene..."
-- "Continuing the rightward pan from previous shot, camera gradually slows and focuses on..."
-- "Following the previous zoom motion, camera pulls back and rotates to reveal..."
-"""),
-        ("user", """Current shot description:
-{shot}
-
-Context:
-{context}
-
-Position: {position}
-
-Generate a video animation prompt that ensures smooth transitions with adjacent shots:""")
+        ("system", VIDEO_GENERATOR_SYSTEM_PROMPT),
+        ("user", VIDEO_GENERATOR_USER_PROMPT)
     ])
     
     llm = ChatOpenAI(model="gpt-4", temperature=0.6)
