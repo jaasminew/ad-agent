@@ -7,7 +7,7 @@ LangChain tools for detecting anatomical distortions in images using Google Medi
 From the project root, install dependencies:
 
 ```bash
-uv pip install mediapipe opencv-python pillow numpy
+uv pip install mediapipe opencv-python pillow numpy requests
 ```
 
 **Note:** Requires Python ≤ 3.12 (MediaPipe not yet compatible with 3.13)
@@ -28,7 +28,9 @@ print(result)
 
 ### `check_image_distortion(image_path: str) -> str`
 
-Detects anatomical distortions in images.
+Detects anatomical distortions in images. Accepts local file paths, raw/base64
+inputs, and remote `http(s)` URLs (the tool will download the image
+automatically before analysis).
 
 **Detects:**
 - `extra_fingers` - More than 5 fingers on a hand
@@ -102,6 +104,7 @@ Managed by `pyproject.toml`:
 - opencv-python ≥ 4.8.0
 - Pillow ≥ 10.0.0
 - numpy ≥ 1.24.0
+- requests ≥ 2.31.0
 - pydantic ≥ 2.0.0
 - langchain ≥ 0.3.0
 

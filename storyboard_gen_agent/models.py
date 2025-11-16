@@ -1,6 +1,6 @@
 """Data models for storyboard generation."""
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -79,4 +79,10 @@ class EpisodeResult(BaseModel):
     total_beats: int = Field(..., description="Total number of beats processed")
     successful_beats: int = Field(default=0, description="Beats with successful product replacement")
     flagged_beats: int = Field(default=0, description="Beats flagged for review")
+    
+    # Global memory artifacts
+    product_url_memory: Dict[int, str] = Field(
+        default_factory=dict,
+        description="Mapping of beat numbers to final product-integrated URLs",
+    )
 

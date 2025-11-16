@@ -1,7 +1,7 @@
 {
   "tools_metadata": {
     "version": "1.0.0",
-    "last_updated": "2025-11-14",
+    "last_updated": "2025-11-15",
     "description": "Metadata documentation for all available tools in the storyboard generation agent",
     "tools": [
       {
@@ -106,7 +106,9 @@
           "Provide a valid image URL (supports http/https)",
           "Returns RGB and hex color codes",
           "Can extract from both local files and remote URLs",
-          "Use for maintaining color consistency across generated images"
+          "Use for maintaining color consistency across generated images",
+          "Right before invoking this tool, print `PALETTE_URL: <url>` on its own line so downstream logic can double-check the target",
+          "When calling the tool, ensure the Action Input is ONLY the bare URL string (no JSON, no extra text)"
         ],
         "inputs": {
           "image_url": {
@@ -220,6 +222,69 @@
         },
         "example_usage": "midjourney_upscale(task_id='1234567890', index=1)",
         "dependencies": ["MIDJOURNEY_PROXY_BASE_URL environment variable"]
+      },
+      {
+        "name": "midjourney_generate_upscaled",
+        "category": "image_generation",
+        "source_file": "tools/midjourney.py",
+        "function": "Run Midjourney imagine and upscale sequentially in a single call. Returns structured JSON with both task IDs and URLs.",
+        "usage_guidelines": [
+          "Preferred way to generate storyboard frames: pass the final Midjourney prompt and optional index (defaults to 1)",
+          "Always format prompts as `<reference_url> <description + palette>` before calling",
+          "If you need a different crop, set `index` to 1-4; the tool validates the range",
+          "Falls back to separate midjourney_imagine / midjourney_upscale only when you need manual control",
+          "Output is JSON – parse fields like `imagine_task_id`, `upscale_task_id`, and `upscaled_image_url` for downstream steps"
+        ],
+        "inputs": {
+          "prompt": {
+            "type": "str",
+            "required": true,
+            "description": "Midjourney prompt string in the required `<reference_url> <description>` format"
+          },
+          "index": {
+            "type": "int",
+            "required": false,
+            "default": 1,
+            "description": "Image index to upscale (1-4). Defaults to 1 if omitted."
+          }
+        },
+        "outputs": {
+          "type": "JSON string",
+          "structure": "{ \"prompt\": str, \"upscale_index\": int, \"imagine_task_id\": str, \"imagine_image_url\": str, \"upscale_task_id\": str, \"upscaled_image_url\": str, ... }"
+        },
+        "example_usage": "midjourney_generate_upscaled({\"prompt\": \"https://ref.jpg scene description --ar 16:9\", \"index\": 2})",
+        "dependencies": ["MIDJOURNEY_PROXY_BASE_URL environment variable"]
+      },
+      {
+        "name": "check_image_distortion",
+        "category": "quality_control",
+        "source_file": "tools/distortion_checker/tools.py",
+        "function": "Run the MediaPipe-based distortion checker on a generated storyboard image to ensure hands, limbs, and faces look anatomically correct.",
+        "usage_guidelines": [
+          "ALWAYS call immediately after each MidJourney upscale before moving to product replacement",
+          "Pass the storyboard image URL directly; the tool can also take local file paths or base64 data",
+          "If distortions are found, add the reported labels to the negative prompt list and retry",
+          "If all three attempts fail, pick the attempt with the fewest distortions and flag the beat for review"
+        ],
+        "inputs": {
+          "image_path": {
+            "type": "str",
+            "required": true,
+            "description": "Storyboard image identifier: supports http(s) URLs, local file paths, or base64 strings (data URI or 'base64:' prefix)."
+          }
+        },
+        "outputs": {
+          "type": "string",
+          "description": "Human-readable report with PASS/FAIL status, distortion details, and embedded JSON for parsing."
+        },
+        "example_usage": "check_image_distortion(\"https://cdn.discordapp.com/.../storyboard.png\")",
+        "dependencies": [
+          "mediapipe",
+          "opencv-python",
+          "pillow",
+          "numpy",
+          "requests"
+        ]
       },
       {
         "name": "remember",

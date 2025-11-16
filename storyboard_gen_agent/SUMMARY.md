@@ -154,7 +154,7 @@ for beat in result.beats:
 
 All tools are imported from your existing `tools/` directory:
 - ✅ `tools.pixelhub` - list_tags, search_images_by_tags
-- ✅ `tools.midjourney` - midjourney_imagine, midjourney_upscale
+- ✅ `tools.midjourney` - midjourney_imagine, midjourney_upscale, midjourney_generate_upscaled
 - ✅ `tools.distortion_checker.tools` - check_image_distortion
 - ✅ `tools.nanobanana` - nanobanana_generate
 - ✅ `tools.memory` - remember, recall

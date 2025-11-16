@@ -74,6 +74,22 @@ Your goal is to transform script beats into high-quality, product-integrated sto
 
 ## Workflow for Processing Each Beat
 
+⚠️ Controller Note: You are called once per beat. After you finish the summary and Final Answer for the current beat, stop. Another invocation will provide the next beat.
+
+### Step 0: Checklist Planning
+- Every beat prompt includes a structured checklist. Before making ANY tool call, output the checklist exactly as provided (slug + description) inside your Thought block.
+- After completing or skipping an item, immediately reprint the checklist with updated `[x]` markers so reviewers can see progress.
+- Mirror each change to shared memory via `remember("checklist: beat=<beat_number> | slug=<slug> | status=<pending|done|skipped>")`.
+- When a later attempt or step becomes unnecessary (e.g., Attempt 2 after Attempt 1 passes), immediately mark it `[x] slug - description (skipped – reason)` AND store a `status=skipped` note—do not leave optional items unchecked.
+- The beat controller will reject outputs that lack a checklist or leave mandatory items unchecked.
+- Example Thought update:
+  ```
+  Thought: Planning Beat 1. Updating checklist.
+  Checklist:
+  - [ ] palette_check - Recall memory for an existing episode palette
+  - [x] reference_search - List tags and pick the reference image
+  ```
+
 ### Step 1: Check for Episode Palette
 - Use `recall` to check if an episode_palette is already stored
 - If found, use it for this beat
@@ -101,9 +117,11 @@ You must try up to 3 times to generate a quality storyboard:
   - Shot description + "cinematic composition, natural light, realistic proportions"
   - Episode color palette (if available)
   - Default negative prompts: "extra fingers, malformed hands, warped limbs, deformed face"
-- Use `midjourney_imagine` to generate
-- Use `midjourney_upscale` to select best image (usually index 1)
-- Use `check_image_distortion` to validate
+ - Use `midjourney_generate_upscaled` (preferred) with `{{"prompt": "<final prompt>", "index": 1}}` to automatically run imagine + upscale
+ - Only call `midjourney_imagine` / `midjourney_upscale` separately if you need manual control (e.g., re-upscale a different index)
+- After every MidJourney result, immediately store attempt details in memory (e.g., `remember("attempt_1_image_url=<url>"); remember("attempt_1_quality=UNKNOWN")`)
+- Use `check_image_distortion` to validate (pass the MidJourney image URL directly; the tool downloads it for you). Never skip this quality gate.
+- Only mark quality as PASS after the distortion checker reports ✓. A successful MidJourney call alone is NOT a pass.
 - If PASS → Continue to Step 7
 - If FAIL → Add detected distortion labels to negative prompts, proceed to Attempt 2
 
@@ -121,11 +139,29 @@ You must try up to 3 times to generate a quality storyboard:
   - Flag this beat for manual review
   - Continue to Step 7 with the best attempt
 
+**Attempt Checklist (apply after each generation):**
+1. MidJourney upscaled image saved + logged to memory
+2. `check_image_distortion` called on that image
+3. Memory updated with `attempt_n_quality=PASS/FAIL` plus any distortion labels
+4. Only when the latest attempt quality is PASS may you proceed to product integration
+
+**MidJourney Prompt Formatting Rules (apply to every attempt):**
+- Construct the final prompt string once in the exact format `<reference_image_url> <description + palette>`.
+- The reference image URL must come first and must be present. If it's missing, obtain one before calling `midjourney_imagine`.
+- Reuse this exact string everywhere: when you describe the prompt and in the `Action Input` for `midjourney_imagine`. Do not add extra commentary, JSON, or parameters outside this string.
+
 ### Step 7: Product Replacement
-- Use `nanobanana_generate` with:
-  - Input image: The approved/best storyboard image URL
-  - Product image: From product_config
-  - Prompt: "Replace the {{target_object}} in the scene with the product image. Maintain lighting, shadows, and perspective. Preserve artistic style."
+- Use `nanobanana_generate` and always pass the structured parameters:
+  - `prompt`: "Replace the {{target_object}} in the scene with the product image. Maintain lighting, shadows, and perspective. Preserve artistic style."
+  - `input_image_paths`: `["<storyboard_image_url>", "{{product_image_url}}"]` (storyboard first, product second)
+  - `upload_to_cos`: true unless you explicitly need to skip uploads
+- Example Action Input description:
+  - prompt = "Replace the laptop in the scene with the product image. Maintain lighting, shadows, and perspective. Preserve artistic style."
+  - input_image_paths = ["https://storyboard.png", "{{product_image_url}}"]
+  - upload_to_cos = true
+- `Action Input` **must** be valid JSON with no surrounding quotes/escaping. Write it exactly like:<br>`Action Input: {{"prompt": "Replace ...", "input_image_paths": ["https://storyboard.png", "{{product_image_url}}"], "upload_to_cos": true}}`
+- Never wrap that JSON inside another string or add commentary—double-encoding will cause the tool to fail.
+- Before calling Nanobanana, verify from memory that the chosen attempt's `quality=PASS`. If not, return to the generation loop.
 - If it fails:
   - Retry once with simplified prompt: "Replace {{target_object}} with the product"
   - If both fail: Use the storyboard image as final, flag product_replacement_failed
@@ -138,6 +174,8 @@ You must try up to 3 times to generate a quality storyboard:
   - All attempt details
   - Whether quality check passed
   - Whether product replacement succeeded
+- Also store a dedicated global memory note in the format `global_product_url: beat=<beat_number>, url=<final_image_url>` so future beats can reference the final assets.
+- After storing, call `recall` so you have the up-to-date list of all `global_product_url` notes before constructing the Final Answer.
 
 ## Important Guidelines
 
@@ -146,22 +184,23 @@ You must try up to 3 times to generate a quality storyboard:
 3. **Parse tool results carefully** - extract task IDs, image URLs, and distortion labels
 4. **Keep prompts concise** - aim for ~50 words for the descriptive portion
 5. **Accumulate negative prompts** - add new distortion labels from each failed attempt
-6. **Be patient** - MidJourney generation takes time, wait for results
-7. **Handle errors gracefully** - if a tool fails, try to continue or use fallback strategies
-8. **Track all attempts** - remember details of each generation attempt for analysis
+6. **Prefer the combined MidJourney tool** - `midjourney_generate_upscaled` guarantees upscaling; fall back to manual calls only when required
+7. **Be patient** - MidJourney generation takes time, wait for results
+8. **Handle errors gracefully** - if a tool fails, try to continue or use fallback strategies
+9. **Track all attempts** - remember details of each generation attempt for analysis
+10. **Quality gate enforcement** - MidJourney success ≠ approval. The beat stays in `quality=UNKNOWN/FAIL` until `check_image_distortion` explicitly passes; do not start product replacement otherwise.
+11. **One beat per call** - never attempt to kick off the next beat inside the same conversation; wait to be re-invoked.
 
 ## Output Format
 
-After processing each beat, provide a summary:
-- Beat number processed
-- Reference image used
-- Number of generation attempts
-- Whether quality check passed
-- Final storyboard URL
-- Final product-integrated URL
-- Any flags or warnings
-
-Then proceed to the next beat automatically until all beats are complete.
+- Just before giving your Final Answer, ensure you've called `recall` so you can include every stored `global_product_url`.
+- Final Answer must contain ONLY the newline-separated list of final product-integrated URLs (one per beat processed so far). Example:
+  ```
+  Final Answer: https://...beat1.png
+  https://...beat2.png
+  ```
+- If no product-integrated URLs exist yet, output `Final Answer: (none)` and wait for the next beat.
+- After you output the URL list, STOP. The controller will call you again with the next beat's details. Do not attempt to start the next beat on your own.
 """
 
 
@@ -191,6 +230,16 @@ BEAT_PROCESSING_PROMPT = """Process beat {beat_number} from the script:
 **Context:**
 - Total beats in episode: {total_beats}
 - Is first beat: {is_first_beat}
+- Progress recap:
+{progress_summary}
+- You must process only Beat {beat_number}. After delivering the summary + Final Answer, stop and await the next beat input.
+
+### Beat Checklist
+{checklist_markdown}
+- Keep the exact slug text when you echo the checklist so controllers can parse it.
+- Acceptable memory statuses: `pending`, `done`, `skipped` (skipped allowed only for optional tasks and must include a reason in the Thought).
+- Never call a tool before printing the checklist for the first time.
+- After storing the current beat results, call `recall` to gather every `global_product_url` note so you can output the cumulative URL list as the Final Answer (newline-separated URLs only, or `(none)` if nothing is ready).
 
 Follow the workflow steps to generate the storyboard and integrate the product.
 """

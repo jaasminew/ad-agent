@@ -1,16 +1,22 @@
 # tools/nanobanana.py
-import os
+import json
 import logging
+import os
 import tempfile
-from typing import Optional, Union, List
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from typing import List, Optional, Union
+from urllib.parse import urlparse
 from google import genai
 from google.genai import types
 from PIL import Image
 from langchain.tools import tool
+from pydantic import BaseModel, Field, model_validator
 
 logger = logging.getLogger(__name__)
+
+# Discord hosts we expect storyboard links to use.
+_DISCORD_CDN_HOSTS = {"cdn.discordapp.com", "media.discordapp.net"}
 
 # ==================== Configuration ====================
 NANOBANANA_CONFIG = {
@@ -183,8 +189,161 @@ def get_nanobanana_client() -> NanobananaClient:
 
 # ==================== LangChain Tools ====================
 
-@tool("nanobanana_generate")
-def nanobanana_generate(prompt: str, input_image_paths: Union[str, List[str]], upload_to_cos: bool = True) -> str:
+
+class NanobananaToolInput(BaseModel):
+    """Custom args schema with guardrails for malformed Action Inputs."""
+
+    prompt: str = Field(..., description="Text description for the image generation.")
+    input_image_paths: Optional[Union[str, List[str]]] = Field(
+        default=None,
+        description="Path or URL to the input reference image, or list of paths/URLs.",
+    )
+    upload_to_cos: bool = Field(
+        default=True, description="Whether to upload the generated image to COS."
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def guard_and_normalize(cls, value):
+        """Detect double-encoded payloads and enforce required keys."""
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError as exc:
+                logger.warning(
+                    "nanobanana_generate guard rejected non-JSON string payload: %s",
+                    exc,
+                )
+                raise ValueError(
+                    "Action Input must be a JSON object, not a plain string."
+                ) from exc
+
+        if not isinstance(value, dict):
+            raise ValueError(
+                "Action Input must be a JSON object with prompt/input_image_paths."
+            )
+
+        payload = dict(value)
+
+        # Attempt to auto-correct double-encoded payloads where prompt holds JSON.
+        needs_paths = "input_image_paths" not in payload or not payload.get(
+            "input_image_paths"
+        )
+        prompt_value = payload.get("prompt")
+        if needs_paths and isinstance(prompt_value, str):
+            stripped_prompt = prompt_value.strip()
+            if stripped_prompt.startswith("{") and stripped_prompt.endswith("}"):
+                try:
+                    nested = json.loads(stripped_prompt)
+                except json.JSONDecodeError:
+                    pass
+                else:
+                    if "input_image_paths" in nested:
+                        logger.warning(
+                            "nanobanana_generate guard detected double-encoded Action Input; auto-extracting fields."
+                        )
+                        payload.setdefault("upload_to_cos", nested.get("upload_to_cos", True))
+                        payload["input_image_paths"] = nested.get("input_image_paths")
+                        payload["prompt"] = nested.get("prompt", prompt_value)
+
+        # Allow input_image_paths provided as JSON stringified list.
+        paths_value = payload.get("input_image_paths")
+        if isinstance(paths_value, str):
+            trimmed = paths_value.strip()
+            if trimmed.startswith("[") and trimmed.endswith("]"):
+                try:
+                    payload["input_image_paths"] = json.loads(trimmed)
+                except json.JSONDecodeError:
+                    logger.warning(
+                        "nanobanana_generate guard could not parse input_image_paths list: %s",
+                        paths_value,
+                    )
+
+        paths = payload.get("input_image_paths")
+        if isinstance(paths, list):
+            normalized_paths = []
+            for idx, path in enumerate(paths):
+                if not isinstance(path, str) or not path.strip():
+                    raise ValueError(
+                        f"input_image_paths[{idx}] must be a non-empty string."
+                    )
+                normalized_paths.append(path.strip())
+        elif isinstance(paths, str):
+            if not paths.strip():
+                raise ValueError("input_image_paths cannot be an empty string.")
+            normalized_paths = [paths.strip()]
+        else:
+            normalized_paths = []
+
+        if not normalized_paths:
+            logger.warning(
+                "nanobanana_generate guard rejected payload: missing input_image_paths. Payload keys: %s",
+                list(payload.keys()),
+            )
+            raise ValueError(
+                "nanobanana_generate requires `input_image_paths`. "
+                "Ensure Action Input is raw JSON like "
+                '{"prompt": "...", "input_image_paths": ["storyboard_url", "product_url"], "upload_to_cos": true}.'
+            )
+
+        _validate_storyboard_path(normalized_paths[0])
+
+        payload["input_image_paths"] = normalized_paths
+        return payload
+
+
+def _recover_payload_from_prompt(prompt_value: Optional[str]):
+    """
+    Attempt to recover structured fields from a prompt string that actually holds
+    JSON (common when the LLM double-encodes the Action Input).
+    """
+    if not isinstance(prompt_value, str):
+        return None
+
+    stripped_prompt = prompt_value.strip()
+    if not (stripped_prompt.startswith("{") and stripped_prompt.endswith("}")):
+        return None
+
+    try:
+        nested = json.loads(stripped_prompt)
+    except json.JSONDecodeError:
+        return None
+
+    if "input_image_paths" not in nested:
+        return None
+
+    return nested
+
+
+def _validate_storyboard_path(storyboard_url: str) -> None:
+    """
+    Ensure storyboard URL uses the full Discord attachments pattern so
+    we don't lose the channel ID required for downloads.
+    """
+    parsed = urlparse(storyboard_url)
+    if not parsed.scheme or not parsed.netloc:
+        return
+
+    host = parsed.netloc.lower()
+    if host not in _DISCORD_CDN_HOSTS:
+        return
+
+    segments = [segment for segment in parsed.path.split("/") if segment]
+    # Expected: attachments/<channel_id>/<attachment_id>/<filename>
+    if len(segments) < 4 or segments[0] != "attachments":
+        raise ValueError(
+            "Discord storyboard URL must include both channel_id and attachment_id, "
+            "e.g., https://cdn.discordapp.com/attachments/<channel>/<attachment>/<file>. "
+            "Copy the Final Storyboard URL exactly."
+        )
+
+
+@tool("nanobanana_generate", args_schema=NanobananaToolInput)
+def nanobanana_generate(
+    prompt: str,
+    input_image_paths: Optional[Union[str, List[str]]] = None,
+    upload_to_cos: bool = True,
+) -> str:
     """Generate an image based on text prompt and reference image(s) using Google Gemini.
     The generated image will be saved locally and optionally uploaded to Tencent Cloud COS.
 
@@ -201,6 +360,31 @@ def nanobanana_generate(prompt: str, input_image_paths: Union[str, List[str]], u
     Returns:
         The URL of the uploaded image (if COS is enabled) or the local file path.
     """
+    # Attempt to recover arguments if the agent double-encoded the payload.
+    if not input_image_paths:
+        recovered = _recover_payload_from_prompt(prompt)
+        if recovered:
+            logger.warning(
+                "nanobanana_generate recovered structured payload from prompt; "
+                "ensure Action Input is raw JSON to avoid this fallback."
+            )
+            prompt = recovered.get("prompt", prompt)
+            input_image_paths = recovered.get("input_image_paths")
+            upload_to_cos = recovered.get("upload_to_cos", upload_to_cos)
+
+    # Validate image paths before proceeding. This is defensive—under normal
+    # circumstances the Pydantic args schema already guarantees a value, but
+    # we still guard here so that even malformed double-encoded payloads won't
+    # crash with a TypeError before we can surface a useful error message.
+    if not input_image_paths:
+        error_msg = (
+            "nanobanana_generate requires `input_image_paths`. Ensure the Action "
+            "Input is proper JSON like "
+            '{"prompt": "...", "input_image_paths": ["storyboard_url", "product_url"]}.'
+        )
+        logger.error(f"❌ [nanobanana_generate] {error_msg}")
+        return f"Error: {error_msg}"
+
     # Format image paths for logging
     if isinstance(input_image_paths, str):
         image_info = f"Image: '{input_image_paths}'"

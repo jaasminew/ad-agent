@@ -159,8 +159,8 @@ for ep in episodes:
 3. Extract/Store Color Palette (first beat only)
    ↓
 4-6. Generation Loop (max 3 attempts):
-   ├─ Generate with MidJourney
-   ├─ Upscale best image
+   ├─ Generate + upscale with `midjourney_generate_upscaled`
+   ├─ (Optional) Re-upscale specific indices if needed
    ├─ Check for distortions
    └─ Retry with negative prompts if needed
    ↓

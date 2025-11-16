@@ -49,24 +49,24 @@ def main():
     
     # Configure a simple test episode
     episode = EpisodeConfig(
-        title="Coffee Shop Productivity - Real Test",
+        title="Chocolate Break - Real Delight",
         product_config=ProductConfig(
-            product_image_url="https://example.com/product-laptop.png",
-            target_object="laptop"
+            product_image_url="https://example.com/chocolate-image.jpg",
+            target_object="chocolate_bar"
         ),
         beats=[
             Beat(
                 beat=1,
-                heading="Morning Coffee Shop",
-                shot_description="A young professional sits by a large sunlit window in a cozy coffee shop",
-                action="Opens their laptop and smiles while reading an email"
+                heading="Afternoon Pause",
+                shot_description="A cozy living room bathed in golden light; a young woman sits curled up on a soft armchair",
+                action="She unwraps a chocolate bar slowly, the foil crinkling as she smiles in anticipation"
             ),
-            # Beat(
-            #     beat=2,
-            #     heading="Focused Work Session",
-            #     shot_description="Close-up of hands typing on laptop with a coffee cup beside",
-            #     action="Types intently while taking a sip of coffee, looking productive"
-            # ),
+            Beat(
+                beat=2,
+                heading="First Bite Moment",
+                shot_description="Close-up of her hand holding the chocolate; rich texture visible under the warm light",
+                action="She takes a bite, eyes closing as the flavor melts — relaxation softens her entire expression"
+            ),
         ]
     )
     

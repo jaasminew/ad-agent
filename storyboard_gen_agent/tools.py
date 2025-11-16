@@ -36,8 +36,12 @@ def get_storyboard_tools() -> List[BaseTool]:
     
     # Import MidJourney tools
     try:
-        from tools.midjourney import midjourney_imagine, midjourney_upscale
-        tools.extend([midjourney_imagine, midjourney_upscale])
+        from tools.midjourney import (
+            midjourney_imagine,
+            midjourney_upscale,
+            midjourney_generate_upscaled,
+        )
+        tools.extend([midjourney_imagine, midjourney_upscale, midjourney_generate_upscaled])
         logger.info("✓ Loaded MidJourney tools")
     except ImportError as e:
         logger.error(f"Failed to import MidJourney tools: {e}")

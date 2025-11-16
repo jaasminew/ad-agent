@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from typing import Optional, List
+from typing import Dict, List, Optional
 try:
     # Try newer langchain structure
     from langchain_classic.agents import AgentExecutor, create_react_agent
@@ -25,7 +25,15 @@ from .models import (
 )
 from .tools import get_storyboard_tools
 from .prompt_templates import SYSTEM_PROMPT, BEAT_PROCESSING_PROMPT
-from .utils import normalize_beat, extract_color_palette
+from .utils import normalize_beat
+from .checklist import (
+    ChecklistItem,
+    build_checklist,
+    format_checklist_markdown,
+    extract_checklist_statuses,
+    find_checklist_gaps,
+)
+from tools.memory import MEM
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +108,8 @@ class StoryboardAgent:
         self.episode_palette: Optional[List[str]] = None
         self.episode_config: Optional[EpisodeConfig] = None
         self.beat_results: List[BeatResult] = []
+        self.global_product_urls: Dict[int, str] = {}
+        self.beat_summaries: List[str] = []
     
     def _create_react_agent(self):
         """Create the ReAct agent with system prompt."""
@@ -181,6 +191,9 @@ Thought: {{agent_scratchpad}}
         self.episode_config = episode_config
         self.episode_palette = None
         self.beat_results = []
+        self.global_product_urls = {}
+        self.beat_summaries = []
+        self._clear_agent_memory()
         
         logger.info(f"🎬 Starting episode: {episode_config.title}")
         logger.info(f"   Episode ID: {self.episode_id}")
@@ -198,6 +211,7 @@ Thought: {{agent_scratchpad}}
                     product_config=episode_config.product_config,
                     is_first_beat=(idx == 0),
                     total_beats=len(episode_config.beats),
+                    progress_summary=self._format_progress_summary(),
                 )
                 self.beat_results.append(beat_result)
                 
@@ -217,6 +231,8 @@ Thought: {{agent_scratchpad}}
                     review_reason=f"Processing error: {str(e)}",
                 )
                 self.beat_results.append(beat_result)
+            finally:
+                self._post_process_beat(beat_result)
         
         # Create episode result
         episode_result = EpisodeResult(
@@ -227,6 +243,7 @@ Thought: {{agent_scratchpad}}
             total_beats=len(episode_config.beats),
             successful_beats=sum(1 for b in self.beat_results if b.product_replacement_success),
             flagged_beats=sum(1 for b in self.beat_results if b.flagged_for_review),
+            product_url_memory=self.global_product_urls.copy(),
         )
         
         logger.info(f"\n{'='*60}")
@@ -235,6 +252,8 @@ Thought: {{agent_scratchpad}}
         logger.info(f"   Successful: {episode_result.successful_beats}")
         logger.info(f"   Flagged: {episode_result.flagged_beats}")
         logger.info(f"{'='*60}\n")
+
+        self._emit_final_product_urls(episode_result.product_url_memory)
         
         return episode_result
     
@@ -244,6 +263,7 @@ Thought: {{agent_scratchpad}}
         product_config: ProductConfig,
         is_first_beat: bool = False,
         total_beats: int = 1,
+        progress_summary: Optional[str] = None,
     ) -> BeatResult:
         """
         Process a single beat using the ReAct agent.
@@ -258,6 +278,9 @@ Thought: {{agent_scratchpad}}
             BeatResult with all generation details
         """
         # Build input prompt for agent
+        checklist_items = build_checklist(is_first_beat=is_first_beat)
+        checklist_markdown = format_checklist_markdown(checklist_items)
+
         input_prompt = BEAT_PROCESSING_PROMPT.format(
             beat_number=beat.beat,
             heading=beat.heading,
@@ -267,6 +290,8 @@ Thought: {{agent_scratchpad}}
             product_image_url=product_config.product_image_url,
             total_beats=total_beats,
             is_first_beat=is_first_beat,
+            progress_summary=progress_summary or "No beats completed yet.",
+            checklist_markdown=checklist_markdown,
         )
         
         logger.debug(f"Agent input prompt: {input_prompt}")
@@ -277,6 +302,12 @@ Thought: {{agent_scratchpad}}
             
             logger.info(f"Agent execution completed for beat {beat.beat}")
             logger.debug(f"Agent output: {result.get('output', '')[:200]}...")
+
+            self._validate_checklist_progress(
+                beat_number=beat.beat,
+                checklist_items=checklist_items,
+                agent_output=result,
+            )
             
             # Parse the result from agent memory
             # TODO: Implement proper result parsing from agent's memory/recall
@@ -341,10 +372,163 @@ Thought: {{agent_scratchpad}}
         self.episode_palette = None
         self.episode_config = None
         self.beat_results = []
+        self.global_product_urls = {}
+        self.beat_summaries = []
         
-        # Clear memory
-        from tools.memory import MEM
-        MEM.clear()
+        self._clear_agent_memory()
         
         logger.info("🔄 Agent state reset")
+
+    # ------------------------------------------------------------------ #
+    # Internal helpers for memory + progress management
+    # ------------------------------------------------------------------ #
+
+    ESSENTIAL_MEMORY_PREFIXES = ("episode_palette:", "global_product_url:")
+
+    def _clear_agent_memory(self):
+        """Completely clear shared tool memory."""
+        MEM.clear()
+        logger.debug("🧹 Cleared shared agent memory")
+
+    def _refresh_episode_palette_from_memory(self):
+        """Update cached episode palette from memory notes."""
+        for note in reversed(MEM):
+            if note.startswith("episode_palette:"):
+                palette_text = note.split(":", 1)[1].strip()
+                if not palette_text:
+                    return
+                palette = [color.strip() for color in palette_text.split(",") if color.strip()]
+                if palette:
+                    self.episode_palette = palette
+                return
+
+    def _record_product_url_memory(self, beat_result: BeatResult):
+        """Persist final product URL to global state and memory."""
+        final_url = beat_result.final_image_url
+        if not final_url:
+            return
+        self.global_product_urls[beat_result.beat_number] = final_url
+        prefix = f"global_product_url: beat={beat_result.beat_number}"
+        note = f"{prefix}, url={final_url}"
+        self._upsert_memory_note(prefix, note)
+
+    def _capture_beat_summary(self, beat_result: BeatResult) -> str:
+        """Create a concise summary for internal context passing."""
+        summary = (
+            f"Beat {beat_result.beat_number}: "
+            f"storyboard={beat_result.storyboard_image_url or 'N/A'}, "
+            f"final={beat_result.final_image_url or 'N/A'}, "
+            f"quality={'PASS' if beat_result.quality_check_passed else 'FAIL'}, "
+            f"product={'YES' if beat_result.product_replacement_success else 'NO'}"
+        )
+        self.beat_summaries.append(summary)
+        return summary
+
+    def _format_progress_summary(self) -> str:
+        """Return a short textual recap for prompt context."""
+        if not self.beat_summaries:
+            return "No beats completed yet."
+        recent = self.beat_summaries[-2:]
+        return "\n".join(recent)
+
+    def _trim_memory_for_next_beat(self):
+        """Reduce tool memory to essential elements only."""
+        if not MEM:
+            return
+        essential_notes = [
+            note for note in MEM if self._is_essential_memory(note)
+        ]
+        MEM.clear()
+        MEM.extend(essential_notes)
+
+    def _is_essential_memory(self, note: str) -> bool:
+        """Check whether a memory note should persist across beats."""
+        return any(note.startswith(prefix) for prefix in self.ESSENTIAL_MEMORY_PREFIXES)
+
+    def _upsert_memory_note(self, prefix: str, note: str):
+        """Insert or replace a memory note with the same prefix."""
+        for idx, existing in enumerate(MEM):
+            if existing.startswith(prefix):
+                MEM[idx] = note
+                return
+        MEM.append(note)
+
+    def _post_process_beat(self, beat_result: BeatResult):
+        """Handle memory + summary updates after each beat."""
+        self._refresh_episode_palette_from_memory()
+        self._record_product_url_memory(beat_result)
+        summary = self._capture_beat_summary(beat_result)
+        logger.debug(f"Stored beat summary: {summary}")
+        self._trim_memory_for_next_beat()
+
+    def _emit_final_product_urls(self, product_url_memory: Dict[int, str]) -> None:
+        """
+        Print the final product-integrated URL list as the episode's closing summary.
+        Outputs URLs only, one per line, sorted by beat number. If none exist, prints nothing.
+        """
+
+        if not product_url_memory:
+            return
+
+        ordered_urls = [
+            url for _, url in sorted(product_url_memory.items(), key=lambda item: item[0])
+            if url
+        ]
+
+        if not ordered_urls:
+            return
+
+        summary = "\n".join(ordered_urls)
+        print(summary)
+
+    # ------------------------------------------------------------------ #
+    # Checklist enforcement helpers
+    # ------------------------------------------------------------------ #
+
+    def _validate_checklist_progress(
+        self,
+        beat_number: int,
+        checklist_items: List[ChecklistItem],
+        agent_output: dict,
+    ) -> None:
+        """Confirm the agent honored the checklist contract."""
+
+        self._ensure_checklist_rendered(agent_output)
+
+        statuses = extract_checklist_statuses(list(MEM), beat_number)
+        missing, unresolved_optional = find_checklist_gaps(statuses, checklist_items)
+
+        errors = []
+        if missing:
+            errors.append(
+                f"missing DONE status for mandatory items: {', '.join(missing)}"
+            )
+        if unresolved_optional:
+            errors.append(
+                "optional items must be DONE or SKIPPED: "
+                + ", ".join(unresolved_optional)
+            )
+
+        if errors:
+            raise RuntimeError(
+                f"Checklist incomplete for beat {beat_number}: " + "; ".join(errors)
+            )
+
+    def _ensure_checklist_rendered(self, agent_output: dict) -> None:
+        """Ensure the first thought included the checklist before any action."""
+
+        steps = agent_output.get("intermediate_steps") or []
+        if not steps:
+            raise RuntimeError("Agent produced no intermediate steps; checklist missing.")
+
+        first = steps[0]
+        if isinstance(first, tuple):
+            first_log = getattr(first[0], "log", "")
+        else:
+            first_log = getattr(first, "log", "")
+
+        if "Checklist" not in (first_log or ""):
+            raise RuntimeError(
+                "Agent must print the checklist before its first tool call."
+            )
 

@@ -46,9 +46,10 @@ def check_image_distortion(image_path: str) -> str:
     - Details: Human-readable description
     
     Args:
-        image_path: Path to the image file to check. Supported formats include
-                   JPEG, PNG, WebP, and BMP. Can also be a base64-encoded image
-                   string (with 'data:image/...' prefix or 'base64:...' prefix).
+        image_path: Path/identifier for the image to check. This can be:
+                   - Local file path (JPEG/PNG/WebP/BMP)
+                   - Remote HTTP(S) URL (automatically downloaded)
+                   - Base64-encoded string (data URI or 'base64:' prefix)
     
     Returns:
         A detailed string report of detected distortions including:
