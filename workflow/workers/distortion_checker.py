@@ -5,7 +5,7 @@ import os
 import tempfile
 import requests
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from tools.distortion_checker.checker import DistortionChecker
+from workflow.tools.distortion_checker.checker import DistortionChecker
 from .state import ShotState
 
 logger = logging.getLogger(__name__)

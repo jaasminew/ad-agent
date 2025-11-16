@@ -2,11 +2,11 @@
 
 import logging
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from tools.nanobanana import get_nanobanana_client
+from workflow.tools.nanobanana import get_nanobanana_client
 from .state import ShotState
-from prompts.product_composer import PRODUCT_COMPOSER_SYSTEM_PROMPT, PRODUCT_COMPOSER_USER_PROMPT
+from workflow.prompts.product_composer import PRODUCT_COMPOSER_SYSTEM_PROMPT, PRODUCT_COMPOSER_USER_PROMPT
 
 logger = logging.getLogger(__name__)
 

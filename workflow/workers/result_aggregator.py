@@ -35,12 +35,15 @@ def aggregate_results(state: WorkflowState) -> dict:
         logger.info(f"\nShot {i} Summary:")
         logger.info(f"  Description: {shot}")
         
+        # Get composed image URL - check both old and new field names
+        composed_image_url = result.get("source_image_url") or result.get("nanobanana_image_url")
+        
         output = {
             "shot_index": i,
             "shot_description": shot,
             "style_image_url": result.get("style_image_url"),
             "midjourney_image_url": result.get("midjourney_image_url"),
-            "composed_image_url": result.get("nanobanana_image_url"),
+            "composed_image_url": composed_image_url,
             "video_prompt": result.get("video_prompt"),
             "distortion_retries": result.get("distortion_retry_count", 1) - 1,
         }

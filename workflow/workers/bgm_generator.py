@@ -6,9 +6,9 @@ from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from .state import WorkflowState
 from langchain_openai import ChatOpenAI
-from tools.suno_music import suno_generate_music
-from tools.video_add_bgm import add_bgm_to_video
-from prompts.bgm_generator import get_music_prompt_generation, get_style_detection_prompt
+from workflow.tools.suno_music import suno_generate_music
+from workflow.tools.video_add_bgm import add_bgm_to_video
+from workflow.prompts.bgm_generator import get_music_prompt_generation, get_style_detection_prompt
 
 logger = logging.getLogger(__name__)
 

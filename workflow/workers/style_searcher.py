@@ -3,11 +3,11 @@
 import logging
 import json
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from tools.pixelhub import get_pixelhub_client
+from workflow.tools.pixelhub import get_pixelhub_client
 from .state import ShotState
-from prompts.style_searcher import STYLE_SEARCHER_SYSTEM_PROMPT, STYLE_SEARCHER_USER_PROMPT
+from workflow.prompts.style_searcher import STYLE_SEARCHER_SYSTEM_PROMPT, STYLE_SEARCHER_USER_PROMPT
 
 logger = logging.getLogger(__name__)
 

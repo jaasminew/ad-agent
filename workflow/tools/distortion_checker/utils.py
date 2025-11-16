@@ -3,8 +3,21 @@
 import base64
 import io
 from typing import Tuple, Union, List
+
 import numpy as np
+import requests
 from PIL import Image
+
+
+REMOTE_DOWNLOAD_TIMEOUT = 30  # seconds
+
+
+def _image_from_bytes(image_bytes: bytes) -> Tuple[np.ndarray, int, int]:
+    """Convert raw image bytes to numpy array plus dimensions."""
+    img = Image.open(io.BytesIO(image_bytes))
+    img = img.convert("RGB")
+    width, height = img.size
+    return np.array(img), width, height
 
 
 def load_image(image_input: Union[str, bytes]) -> Tuple[np.ndarray, int, int]:
@@ -24,38 +37,48 @@ def load_image(image_input: Union[str, bytes]) -> Tuple[np.ndarray, int, int]:
     """
     # If bytes, load directly
     if isinstance(image_input, bytes):
-        img = Image.open(io.BytesIO(image_input))
-        img = img.convert("RGB")
-        width, height = img.size
-        return np.array(img), width, height
+        return _image_from_bytes(image_input)
     
     # If string, check if it's base64 or file path
     if isinstance(image_input, str):
+        # Normalize whitespace or stray quotes that may come from agent formatting
+        normalized_input = image_input.strip()
+        if normalized_input and normalized_input[0] in {"'", '"'}:
+            normalized_input = normalized_input[1:]
+        if normalized_input and normalized_input[-1] in {"'", '"'}:
+            normalized_input = normalized_input[:-1]
+        normalized_input = normalized_input.strip()
+        image_input = normalized_input
+        
+        # Check for remote URL
+        if image_input.startswith(("http://", "https://")):
+            try:
+                response = requests.get(image_input, timeout=REMOTE_DOWNLOAD_TIMEOUT)
+                response.raise_for_status()
+            except requests.RequestException as exc:
+                raise ValueError(
+                    f"Failed to download image from URL '{image_input}': {exc}"
+                ) from exc
+            return _image_from_bytes(response.content)
+
         # Check for data URI format
         if image_input.startswith("data:"):
             # Format: data:image/png;base64,<base64_data>
             header, b64_data = image_input.split(",", 1)
             image_bytes = base64.b64decode(b64_data)
-            img = Image.open(io.BytesIO(image_bytes))
-            img = img.convert("RGB")
-            width, height = img.size
-            return np.array(img), width, height
+            return _image_from_bytes(image_bytes)
         
         # Check for base64: prefix
-        elif image_input.startswith("base64:"):
+        if image_input.startswith("base64:"):
             b64_data = image_input[7:]  # Remove 'base64:' prefix
             image_bytes = base64.b64decode(b64_data)
-            img = Image.open(io.BytesIO(image_bytes))
-            img = img.convert("RGB")
-            width, height = img.size
-            return np.array(img), width, height
+            return _image_from_bytes(image_bytes)
         
         # Otherwise treat as file path
-        else:
-            img = Image.open(image_input)
-            img = img.convert("RGB")
-            width, height = img.size
-            return np.array(img), width, height
+        img = Image.open(image_input)
+        img = img.convert("RGB")
+        width, height = img.size
+        return np.array(img), width, height
     
     raise ValueError(f"Unsupported image input type: {type(image_input)}")
 

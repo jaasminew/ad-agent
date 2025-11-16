@@ -1,0 +1,45 @@
+[project]
+name = "ad-agent"
+version = "0.1.0"
+description = "AI-powered advertising video generation workflow with Storyboard Agent"
+readme = "workflow.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # LangChain & LangGraph
+    "langchain>=0.3.0",
+    "langchain-community>=0.3.0",
+    "langchain-openai>=0.3.0",
+    "langchain-anthropic>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langgraph>=0.2.0",
+    
+    # AI APIs & Tools
+    "tavily-python>=0.5.0",
+    "google-genai>=1.0.0",
+    "volcengine-python-sdk[ark]>=1.0.0",
+    
+    # Image Processing
+    "pillow>=10.0.0",
+    "mediapipe>=0.10.0",
+    "opencv-python>=4.8.0",
+    "numpy>=1.24.0",
+    "colorthief>=0.2.1",
+    
+    # Cloud Storage & APIs
+    "cos-python-sdk-v5>=1.9.0",
+    "requests>=2.31.0",
+    "pyjwt>=2.8.0",
+    
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "tenacity>=8.0.0",
+    "pydantic>=2.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+

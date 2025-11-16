@@ -7,7 +7,7 @@ import subprocess
 from typing import List
 from pathlib import Path
 import requests
-from utils.cos_uploader import get_cos_uploader
+from workflow.utils.cos_uploader import get_cos_uploader
 
 logger = logging.getLogger(__name__)
 

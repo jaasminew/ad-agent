@@ -7,14 +7,9 @@ from langgraph.graph import StateGraph, START, END
 
 from workers import (
     WorkflowState,
-    ShotState,
     write_ad_script,
-    search_style_image,
-    extract_palette,
-    generate_midjourney_image,
-    check_distortion,
-    compose_with_product,
-    generate_video,
+    run_storyboard_agent,
+    generate_videos_sequentially,
     aggregate_results,
     concatenate_videos,
     generate_and_add_bgm,
@@ -35,134 +30,7 @@ logger.info("AD Agent Workflow - Generate Advertising Videos")
 logger.info("=" * 80)
 
 
-# ==================== Single Shot Workflow ====================
-
-def build_shot_workflow() -> StateGraph:
-    """
-    Build workflow for processing a single shot (steps 2-7).
-    """
-    graph = StateGraph(ShotState)
-    
-    # Add nodes for single shot processing
-    graph.add_node("search_style", search_style_image)
-    graph.add_node("extract_palette", extract_palette)
-    graph.add_node("generate_image", generate_midjourney_image)
-    graph.add_node("check_distortion", check_distortion)
-    graph.add_node("compose_product", compose_with_product)
-    graph.add_node("generate_video", generate_video)
-    
-    # Build linear flow with conditional loop for distortion check
-    graph.add_edge(START, "search_style")
-    graph.add_edge("search_style", "extract_palette")
-    graph.add_edge("extract_palette", "generate_image")
-    graph.add_edge("generate_image", "check_distortion")
-    
-    # Conditional edge: retry if distortion detected
-    def should_retry_midjourney(state: ShotState) -> str:
-        max_retries = 3
-        retry_count = state.get("distortion_retry_count", 0)
-        check_result = state.get("distortion_check_result", {})
-        has_distortion = check_result.get("has_distortion", False)
-        
-        if has_distortion and retry_count < max_retries:
-            logger.warning("Distortion detected, retrying Midjourney (attempt %d/%d)", retry_count, max_retries)
-            return "retry"
-        elif has_distortion and retry_count >= max_retries:
-            logger.warning("Max retries reached, proceeding despite distortion")
-            return "compose"
-        else:
-            logger.info("No distortion detected, proceeding to composition")
-            return "compose"
-    
-    graph.add_conditional_edges(
-        "check_distortion",
-        should_retry_midjourney,
-        {
-            "retry": "generate_image",
-            "compose": "compose_product"
-        }
-    )
-    
-    graph.add_edge("compose_product", "generate_video")
-    graph.add_edge("generate_video", END)
-    
-    return graph
-
-
-# ==================== Main Workflow with Fan-out/Fan-in ====================
-
-def process_shots_concurrently(state: WorkflowState) -> dict:
-    """
-    Fan-out: Process each shot concurrently using the shot workflow.
-    Fan-in: Collect all results.
-    """
-    logger.info("\n" + "=" * 80)
-    logger.info("Processing shots concurrently (Fan-out/Fan-in)")
-    logger.info("=" * 80)
-    
-    shots = state["shots"]
-    product_name = state["product_name"]
-    brand_identity = state["brand_identity"]
-    product_images = state["product_images"]
-    generate_video_flag = state["generate_video"]
-    video_model = state.get("video_model", "veo")  # Get video_model from state
-    
-    logger.info(f"Total shots to process: {len(shots)}")
-    logger.info(f"Video generation: {'ENABLED' if generate_video_flag else 'DISABLED'}")
-    logger.info(f"Video model: {video_model.upper()}")
-    
-    # Build shot workflow
-    shot_workflow = build_shot_workflow().compile()
-    
-    # Process each shot (currently sequential, can be made parallel with threading/async)
-    shot_results = []
-    for i, shot in enumerate(shots):
-        logger.info(f"\n{'=' * 80}")
-        logger.info(f"Processing Shot {i+1}/{len(shots)}")
-        logger.info(f"{'=' * 80}")
-        logger.info(f"Shot description: {shot}")
-        
-        # Determine previous and next shots for smooth transitions
-        previous_shot = shots[i-1] if i > 0 else None
-        next_shot = shots[i+1] if i < len(shots) - 1 else None
-        
-        if previous_shot:
-            logger.info(f"  Previous shot: {previous_shot[:60]}...")
-        if next_shot:
-            logger.info(f"  Next shot: {next_shot[:60]}...")
-        
-        # Create initial state for this shot
-        shot_state = {
-            "shot": shot,
-            "shot_index": i,
-            "product_name": product_name,
-            "brand_identity": brand_identity,
-            "product_images": product_images,
-            "generate_video": generate_video_flag,
-            "video_model": video_model,  # Pass video_model to shot state
-            "previous_shot": previous_shot,  # For smooth transitions
-            "next_shot": next_shot,  # For planning camera movement
-            "distortion_retry_count": 0,
-            "midjourney_retry_count": 0,  # For sensitive word retries
-            "messages": [],
-        }
-        
-        # Execute shot workflow
-        result = shot_workflow.invoke(shot_state)
-        shot_results.append(result)
-        
-        logger.info(f"\n✓ Shot {i+1} completed")
-        if generate_video_flag and result.get("video_url"):
-            logger.info(f"  Video: {result.get('video_url')}")
-        else:
-            logger.info(f"  Video prompt: {result.get('video_prompt', 'N/A')}")
-            logger.info(f"  Composed image: {result.get('nanobanana_image_url', 'N/A')}")
-    
-    return {
-        "shot_results": shot_results,
-        "messages": [f"✓ Processed {len(shots)} shots concurrently"]
-    }
-
+# ==================== Main Workflow with Storyboard Agent ====================
 
 def run_ad_workflow(
     product_name: str,
@@ -173,7 +41,15 @@ def run_ad_workflow(
     video_model: str = "kling"
 ) -> dict:
     """
-    Run the complete AD Agent workflow.
+    Run the complete AD Agent workflow with integrated Storyboard Agent.
+    
+    Workflow:
+    1. Write ad script (shots list)
+    2. Run Storyboard Agent (replaces old steps 2-6)
+    3. Generate videos sequentially (with transitions)
+    4. Aggregate results
+    5. Concatenate videos
+    6. Generate and add BGM
     
     Args:
         product_name: Product name
@@ -181,13 +57,13 @@ def run_ad_workflow(
         product_images: Product image URL
         must_have_shots: Required shots (comma-separated)
         generate_video: Whether to generate video (default: False)
-        video_model: Which video generation model to use ("veo", "kling", or "seedance", default: "veo")
+        video_model: Which video generation model to use ("veo", "kling", or "seedance", default: "kling")
     
     Returns:
-        Final state dict containing all shots' results
+        Final state dict containing all results
     """
     logger.info("\n" + "=" * 80)
-    logger.info("Starting AD Agent Workflow")
+    logger.info("Starting AD Agent Workflow with Storyboard Agent")
     logger.info("=" * 80)
     logger.info(f"Product: {product_name}")
     logger.info(f"Brand Identity: {brand_identity}")
@@ -199,15 +75,20 @@ def run_ad_workflow(
     
     # Build main workflow
     graph = StateGraph(WorkflowState)
+    
+    # Add nodes
     graph.add_node("write_script", write_ad_script)
-    graph.add_node("process_shots", process_shots_concurrently)
+    graph.add_node("run_storyboard_agent", run_storyboard_agent)
+    graph.add_node("generate_videos", generate_videos_sequentially)
     graph.add_node("aggregate_results", aggregate_results)
     graph.add_node("concatenate_videos", concatenate_videos)
     graph.add_node("generate_bgm", generate_and_add_bgm)
     
+    # Add edges
     graph.add_edge(START, "write_script")
-    graph.add_edge("write_script", "process_shots")
-    graph.add_edge("process_shots", "aggregate_results")
+    graph.add_edge("write_script", "run_storyboard_agent")
+    graph.add_edge("run_storyboard_agent", "generate_videos")
+    graph.add_edge("generate_videos", "aggregate_results")
     graph.add_edge("aggregate_results", "concatenate_videos")
     graph.add_edge("concatenate_videos", "generate_bgm")
     graph.add_edge("generate_bgm", END)
@@ -237,7 +118,14 @@ def run_ad_workflow(
     # Print summary
     logger.info("\nWorkflow Summary:")
     logger.info("  - Generated %d shots", len(final_state.get('shots', [])))
-    logger.info("  - Processed %d shots", len(final_state.get('shot_results', [])))
+    
+    episode_result = final_state.get('episode_result')
+    if episode_result:
+        logger.info("  - Storyboard Agent processed %d beats", episode_result.total_beats)
+        logger.info("  - Successful images: %d", episode_result.successful_beats)
+        logger.info("  - Flagged for review: %d", episode_result.flagged_beats)
+    
+    logger.info("  - Processed %d videos", len(final_state.get('shot_results', [])))
     
     # Print aggregated summary
     summary = final_state.get('aggregated_summary', {})
@@ -245,7 +133,6 @@ def run_ad_workflow(
         logger.info("\nAggregated Summary:")
         logger.info("  - Total shots: %d", summary.get('total_shots', 0))
         logger.info("  - Successful: %d", summary.get('successful_shots', 0))
-        logger.info("  - Total distortion retries: %d", summary.get('total_distortion_retries', 0))
         logger.info("  - Video generation: %s", 'ENABLED' if summary.get('video_generation_enabled') else 'DISABLED')
     
     # Print final video URL if available

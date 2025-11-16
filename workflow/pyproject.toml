@@ -21,4 +21,5 @@ dependencies = [
     "numpy>=1.24.0",
     "volcengine-python-sdk[ark]>=1.0.0",
     "tenacity>=8.0.0",
+    "colorthief>=0.2.1",
 ]

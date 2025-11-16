@@ -7,7 +7,7 @@ import subprocess
 from typing import Optional
 from datetime import datetime
 import requests
-from utils.cos_uploader import get_cos_uploader
+from workflow.utils.cos_uploader import get_cos_uploader
 from langchain.tools import tool
 
 logger = logging.getLogger(__name__)

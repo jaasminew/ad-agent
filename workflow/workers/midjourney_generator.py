@@ -2,11 +2,11 @@
 
 import logging
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from tools.midjourney import get_midjourney_client
+from workflow.tools.midjourney import get_midjourney_client
 from .state import ShotState
-from prompts.midjourney_generator import get_midjourney_system_prompt, MIDJOURNEY_USER_PROMPT
+from workflow.prompts.midjourney_generator import get_midjourney_system_prompt, MIDJOURNEY_USER_PROMPT
 
 logger = logging.getLogger(__name__)
 

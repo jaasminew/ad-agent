@@ -17,7 +17,9 @@ class WorkflowState(TypedDict, total=False):
     
     Intermediate states:
     - shots: List of shot descriptions
-    - shot_results: List of results for each shot (each is a ShotState dict)
+    - episode_result: EpisodeResult from Storyboard Agent (NEW)
+    - nanobanana_images: List of final composed image URLs (NEW)
+    - shot_results: List of results for each shot (for video generation)
     
     Messages for logging/debugging:
     - messages: List of workflow messages (logs output from each step)
@@ -32,7 +34,9 @@ class WorkflowState(TypedDict, total=False):
     
     # === Intermediate states ===
     shots: List[str]
-    shot_results: List[Dict[str, Any]]  # Each shot's complete result
+    episode_result: Any  # EpisodeResult from Storyboard Agent (step 2)
+    nanobanana_images: List[str]  # Final composed images from Storyboard Agent
+    shot_results: List[Dict[str, Any]]  # Each shot's video result (step 3)
     
     # === Aggregated results ===
     aggregated_summary: Dict[str, Any]  # Summary of all results

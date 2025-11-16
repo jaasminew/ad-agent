@@ -2,13 +2,13 @@
 
 import logging
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from tools.veo_video import get_veo_video_client
-from tools.kling_video import get_kling_video_client
-from tools.seedance_video import get_seedance_video_client
+from workflow.tools.veo_video import get_veo_video_client
+from workflow.tools.kling_video import get_kling_video_client
+from workflow.tools.seedance_video import get_seedance_video_client
 from .state import ShotState
-from prompts.video_generator import VIDEO_GENERATOR_SYSTEM_PROMPT, VIDEO_GENERATOR_USER_PROMPT
+from workflow.prompts.video_generator import VIDEO_GENERATOR_SYSTEM_PROMPT, VIDEO_GENERATOR_USER_PROMPT
 
 logger = logging.getLogger(__name__)
 

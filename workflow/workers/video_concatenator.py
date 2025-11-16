@@ -6,7 +6,7 @@ from typing import List, Dict, Any
 from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from .state import WorkflowState
-from tools.video_concat import concat_videos
+from workflow.tools.video_concat import concat_videos
 
 logger = logging.getLogger(__name__)
 

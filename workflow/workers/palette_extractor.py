@@ -2,7 +2,7 @@
 
 import logging
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from tools.palette_extractor import get_palette_extractor
+from workflow.tools.palette_extractor import get_palette_extractor
 from .state import ShotState
 
 logger = logging.getLogger(__name__)
