@@ -14,6 +14,11 @@ Make sure you have:
 
 import logging
 import json
+import sys
+import io
+import atexit
+from datetime import datetime
+from pathlib import Path
 from dotenv import load_dotenv
 from storyboard_gen_agent import (
     StoryboardAgent,
@@ -32,6 +37,61 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+_stdout_tee = None
+_stderr_tee = None
+
+
+class _StreamTee(io.TextIOBase):
+    """Mirror writes to original stream and a log file."""
+
+    def __init__(self, original: io.TextIOBase, log_path: Path):
+        self._original = original
+        self._log_file = open(log_path, "a", encoding="utf-8")
+        atexit.register(self._log_file.close)
+
+    def write(self, message: str) -> int:
+        if not message:
+            return 0
+        self._original.write(message)
+        self._original.flush()
+        self._log_file.write(message)
+        self._log_file.flush()
+        return len(message)
+
+    def flush(self):
+        self._original.flush()
+        self._log_file.flush()
+
+    def __getattr__(self, name):
+        return getattr(self._original, name)
+
+
+def setup_storyboard_logging() -> Path:
+    """Configure per-session logging file capturing stdout/stderr as well."""
+    root_dir = Path(__file__).resolve().parent
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = root_dir / f"storyboard_gen_agent_{timestamp}.log"
+
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
+
+    root_logger = logging.getLogger()
+    root_logger.addHandler(file_handler)
+    root_logger.setLevel(logging.INFO)
+
+    global _stdout_tee, _stderr_tee
+    if _stdout_tee is None:
+        _stdout_tee = _StreamTee(sys.stdout, log_path)
+        sys.stdout = _stdout_tee
+    if _stderr_tee is None:
+        _stderr_tee = _StreamTee(sys.stderr, log_path)
+        sys.stderr = _stderr_tee
+
+    logger.info(f"🗂️ Storyboard agent logs will also be saved to: {log_path}")
+    return log_path
 
 
 def main():
@@ -40,6 +100,7 @@ def main():
     logger.info("="*80)
     logger.info("🎬 Starting REAL Storyboard Generation Test")
     logger.info("="*80)
+    setup_storyboard_logging()
     logger.info("\n⚠️  WARNING: This will call REAL external APIs!")
     logger.info("   - PixelHub API")
     logger.info("   - MidJourney API")
@@ -49,23 +110,23 @@ def main():
     
     # Configure a simple test episode
     episode = EpisodeConfig(
-        title="Chocolate Break - Real Delight",
+        title="Morning Run - Real Momentum",
         product_config=ProductConfig(
-            product_image_url="https://example.com/chocolate-image.jpg",
-            target_object="chocolate_bar"
+            product_image_url="https://cdn.discordapp.com/attachments/1073330837912821780/1439534000434708523/7e037bea93156e1017ae3fd60ad8eb8d.jpg?ex=691ade02&is=69198c82&hm=51b9d20dc2ded19f649dbd376b2f577820bf47ee4f0505f471019a8a3ff80824",
+            target_object="sports_shoes"
         ),
         beats=[
             Beat(
                 beat=1,
-                heading="Afternoon Pause",
-                shot_description="A cozy living room bathed in golden light; a young woman sits curled up on a soft armchair",
-                action="She unwraps a chocolate bar slowly, the foil crinkling as she smiles in anticipation"
+                heading="Lace-Up Ritual",
+                shot_description="Early morning light hits a quiet outdoor track; a young runner kneels down to tie their shoes",
+                action="They pull the laces tight with a confident tug, tapping the heel to secure the fit"
             ),
             Beat(
                 beat=2,
-                heading="First Bite Moment",
-                shot_description="Close-up of her hand holding the chocolate; rich texture visible under the warm light",
-                action="She takes a bite, eyes closing as the flavor melts — relaxation softens her entire expression"
+                heading="First Burst of Motion",
+                shot_description="Close-up of the shoes hitting the ground, dust lifting slightly as they accelerate",
+                action="They push off into a steady run, stride smooth and powerful, energy building with each step"
             ),
         ]
     )

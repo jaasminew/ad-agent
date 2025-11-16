@@ -7,11 +7,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Union
 from urllib.parse import urlparse
+
 from google import genai
-from google.genai import types
 from PIL import Image
 from langchain.tools import tool
 from pydantic import BaseModel, Field, model_validator
+
+try:
+    from langchain_core.tools import ToolException
+except ImportError:  # pragma: no cover - older langchain versions
+    from langchain.tools.base import ToolException
+
+from .cos_uploader import COSUploader, is_cos_available
+from .upload_memory import register_uploaded_url
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +149,6 @@ class NanobananaClient:
                 try:
                     # Lazy import COS uploader
                     if self.cos_uploader is None:
-                        from .cos_uploader import COSUploader, is_cos_available
                         
                         if is_cos_available():
                             self.cos_uploader = COSUploader()
@@ -158,6 +165,7 @@ class NanobananaClient:
                         
                         cos_url = self.cos_uploader.upload_file(local_path, cos_key=cos_key)
                         result["cos_url"] = cos_url
+                        register_uploaded_url(cos_url)
                     else:
                         result["cos_upload_error"] = "COS credentials not configured"
                         
@@ -190,6 +198,38 @@ def get_nanobanana_client() -> NanobananaClient:
 # ==================== LangChain Tools ====================
 
 
+def _payload_with_validation_error(
+    payload: Optional[dict],
+    message: str,
+) -> dict:
+    """Ensure payload satisfies schema while surfacing validation error."""
+    safe_payload = dict(payload or {})
+    prompt_value = safe_payload.get("prompt")
+    if prompt_value is None:
+        safe_payload["prompt"] = ""
+    elif not isinstance(prompt_value, str):
+        safe_payload["prompt"] = str(prompt_value)
+
+    paths_value = safe_payload.get("input_image_paths")
+    if isinstance(paths_value, list):
+        normalized = [
+            path.strip()
+            for path in paths_value
+            if isinstance(path, str) and path.strip()
+        ]
+    elif isinstance(paths_value, str):
+        normalized = [paths_value.strip()] if paths_value.strip() else []
+    else:
+        normalized = []
+    safe_payload["input_image_paths"] = normalized
+
+    if "upload_to_cos" not in safe_payload:
+        safe_payload["upload_to_cos"] = True
+
+    safe_payload["validation_error"] = message
+    return safe_payload
+
+
 class NanobananaToolInput(BaseModel):
     """Custom args schema with guardrails for malformed Action Inputs."""
 
@@ -200,6 +240,10 @@ class NanobananaToolInput(BaseModel):
     )
     upload_to_cos: bool = Field(
         default=True, description="Whether to upload the generated image to COS."
+    )
+    validation_error: Optional[str] = Field(
+        default=None,
+        description="Internal guardrail message surfaced back to the agent when inputs are invalid.",
     )
 
     @model_validator(mode="before")
@@ -214,13 +258,21 @@ class NanobananaToolInput(BaseModel):
                     "nanobanana_generate guard rejected non-JSON string payload: %s",
                     exc,
                 )
-                raise ValueError(
-                    "Action Input must be a JSON object, not a plain string."
-                ) from exc
+                return _payload_with_validation_error(
+                    payload=None,
+                    message=(
+                        "Action Input must be a JSON object, not a plain string. "
+                        "Provide raw JSON like "
+                        '{"prompt": "...", "input_image_paths": ["storyboard_url", "product_url"]}.'
+                    ),
+                )
 
         if not isinstance(value, dict):
-            raise ValueError(
-                "Action Input must be a JSON object with prompt/input_image_paths."
+            return _payload_with_validation_error(
+                payload=None,
+                message=(
+                    "Action Input must be a JSON object with prompt/input_image_paths."
+                ),
             )
 
         payload = dict(value)
@@ -264,29 +316,44 @@ class NanobananaToolInput(BaseModel):
             normalized_paths = []
             for idx, path in enumerate(paths):
                 if not isinstance(path, str) or not path.strip():
-                    raise ValueError(
-                        f"input_image_paths[{idx}] must be a non-empty string."
+                    return _payload_with_validation_error(
+                        payload,
+                        f"input_image_paths[{idx}] must be a non-empty string.",
                     )
                 normalized_paths.append(path.strip())
         elif isinstance(paths, str):
             if not paths.strip():
-                raise ValueError("input_image_paths cannot be an empty string.")
+                return _payload_with_validation_error(
+                    payload, "input_image_paths cannot be an empty string."
+                )
             normalized_paths = [paths.strip()]
         else:
-            normalized_paths = []
+            return _payload_with_validation_error(
+                payload,
+                "input_image_paths must be a string or list of strings.",
+            )
 
         if not normalized_paths:
-            logger.warning(
-                "nanobanana_generate guard rejected payload: missing input_image_paths. Payload keys: %s",
-                list(payload.keys()),
-            )
-            raise ValueError(
+            error_msg = (
                 "nanobanana_generate requires `input_image_paths`. "
                 "Ensure Action Input is raw JSON like "
                 '{"prompt": "...", "input_image_paths": ["storyboard_url", "product_url"], "upload_to_cos": true}.'
             )
+            logger.warning(
+                "nanobanana_generate guard rejected payload: missing input_image_paths. Payload keys: %s",
+                list(payload.keys()),
+            )
+            return _payload_with_validation_error(payload, error_msg)
 
-        _validate_storyboard_path(normalized_paths[0])
+        try:
+            _validate_storyboard_path(normalized_paths[0])
+        except ValueError as exc:
+            logger.warning(
+                "nanobanana_generate guard rejected storyboard URL: %s",
+                exc,
+            )
+            payload["input_image_paths"] = normalized_paths
+            return _payload_with_validation_error(payload, str(exc))
 
         payload["input_image_paths"] = normalized_paths
         return payload
@@ -343,6 +410,7 @@ def nanobanana_generate(
     prompt: str,
     input_image_paths: Optional[Union[str, List[str]]] = None,
     upload_to_cos: bool = True,
+    validation_error: Optional[str] = None,
 ) -> str:
     """Generate an image based on text prompt and reference image(s) using Google Gemini.
     The generated image will be saved locally and optionally uploaded to Tencent Cloud COS.
@@ -360,6 +428,13 @@ def nanobanana_generate(
     Returns:
         The URL of the uploaded image (if COS is enabled) or the local file path.
     """
+    if validation_error:
+        logger.error(
+            "❌ [nanobanana_generate] Guard validation failed: %s",
+            validation_error,
+        )
+        raise ToolException(validation_error)
+
     # Attempt to recover arguments if the agent double-encoded the payload.
     if not input_image_paths:
         recovered = _recover_payload_from_prompt(prompt)

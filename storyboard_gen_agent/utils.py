@@ -1,8 +1,11 @@
 """Utility functions for storyboard generation."""
 
+import json
 import logging
 from typing import List, Optional
+
 from .models import Beat
+from tools.upload_memory import format_uploaded_urls_note
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +25,27 @@ def normalize_beat(beat: Beat) -> str:
     shot_text = f"{beat.heading} — {beat.shot_description}. Action: {beat.action}"
     logger.debug(f"Normalized beat {beat.beat} to: {shot_text}")
     return shot_text
+
+
+def format_global_memory_notes(notes: Optional[List[str]]) -> str:
+    """
+    Present global memory entries in a consistent, compact format for prompts.
+    """
+    if not notes:
+        return "(none)"
+    formatted = "\n".join(f"- {note.strip()}" for note in notes if note.strip())
+    return formatted or "(none)"
+
+
+def build_global_memory_with_uploaded_urls(
+    base_memory: Optional[List[str]], uploaded_urls: Optional[List[str]]
+) -> List[str]:
+    """
+    Prefix the controller's global memory with the uploaded URL note so it always
+    appears first when rendered or seeded into shot memory.
+    """
+    base = list(base_memory or [])
+    return [format_uploaded_urls_note(uploaded_urls)] + base
 
 
 def extract_color_palette(image_url: str, num_colors: int = 4) -> Optional[List[str]]:

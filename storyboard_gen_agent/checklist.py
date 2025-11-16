@@ -1,7 +1,7 @@
 """Checklist utilities for the storyboard generation agent."""
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 VALID_CHECKLIST_STATUSES = {"pending", "done", "skipped"}
 
@@ -23,7 +23,11 @@ def build_checklist(is_first_beat: bool) -> List[ChecklistItem]:
     """Return ordered checklist items for the current beat."""
 
     items: List[ChecklistItem] = [
-        ChecklistItem("palette_check", "Recall memory for an existing episode palette"),
+        ChecklistItem(
+            "palette_check",
+            "Recall memory for an existing episode palette",
+            mandatory=False,
+        ),
         ChecklistItem("reference_search", "List tags and pick the reference image"),
     ]
 
@@ -73,6 +77,10 @@ def build_checklist(is_first_beat: bool) -> List[ChecklistItem]:
                 "results_logging",
                 "Store storyboard + final URLs, attempt metadata, and flags in memory",
             ),
+            ChecklistItem(
+                "checklist_qa",
+                "Checklist QA: reprint statuses, confirm all mandatory slugs are DONE",
+            ),
         ]
     )
 
@@ -91,6 +99,8 @@ def format_checklist_markdown(items: List[ChecklistItem]) -> str:
         "- When a later step becomes unnecessary (e.g., Skip Attempt 2 after Attempt 1 passes), immediately mark it as `[x] slug - description (skipped – reason)` and log a `status=skipped` note.",
         "- Optional tasks must end in either DONE or SKIPPED with a justification; leaving them unchecked will fail validation.",
         "- After every update, store `remember(\"checklist: beat=<n> | slug=<slug> | status=<pending|done|skipped>\")`.",
+        "- `results_logging` is only complete when every mandatory slug shows `[x] DONE`; if anything is still pending, loop back and fix it immediately.",
+        "- During `checklist_qa`, print the full checklist again, explicitly call out missing items, and resolve them before Final Answer.",
         "",
     ]
 
@@ -145,27 +155,21 @@ def extract_checklist_statuses(notes: List[str], beat_number: int) -> Dict[str, 
     return statuses
 
 
-def find_checklist_gaps(
-    statuses: Dict[str, str], items: List[ChecklistItem]
-) -> Tuple[List[str], List[str]]:
+def find_checklist_gaps(statuses: Dict[str, str], items: List[ChecklistItem]) -> List[str]:
     """
-    Return two lists:
-    - mandatory items that never reached DONE
-    - optional items that never resolved to DONE or SKIPPED
+    Return mandatory items that never reached DONE.
+
+    Optional checklist entries are informational only and do not impact validation.
     """
 
     missing_mandatory: List[str] = []
-    unresolved_optional: List[str] = []
 
     for item in items:
-        status = statuses.get(item.slug)
-        if item.mandatory:
-            if status != "done":
-                missing_mandatory.append(item.slug)
-        else:
-            if status not in {"done", "skipped"}:
-                unresolved_optional.append(item.slug)
+        if not item.mandatory:
+            continue
+        if statuses.get(item.slug) != "done":
+            missing_mandatory.append(item.slug)
 
-    return missing_mandatory, unresolved_optional
+    return missing_mandatory
 
 

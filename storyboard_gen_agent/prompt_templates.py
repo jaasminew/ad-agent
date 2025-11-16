@@ -166,7 +166,7 @@ You must try up to 3 times to generate a quality storyboard:
   - Retry once with simplified prompt: "Replace {{target_object}} with the product"
   - If both fail: Use the storyboard image as final, flag product_replacement_failed
 
-### Step 8: Store Results
+### Step 8: Store Results & Confirm Checklist
 - Use `remember` to store all beat results:
   - beat_number
   - storyboard_image_url
@@ -175,7 +175,15 @@ You must try up to 3 times to generate a quality storyboard:
   - Whether quality check passed
   - Whether product replacement succeeded
 - Also store a dedicated global memory note in the format `global_product_url: beat=<beat_number>, url=<final_image_url>` so future beats can reference the final assets.
-- After storing, call `recall` so you have the up-to-date list of all `global_product_url` notes before constructing the Final Answer.
+- The `results_logging` checklist item is only DONE after you double-check that every mandatory slug is `[x]`. If something is still pending, explicitly say which slug needs more work and loop back to complete it before trying to finish the beat.
+- When everything is complete, log a note such as `remember("checklist: beat=<n> | slug=results_logging | status=done | note=Checklist complete")`.
+- After storing and confirming, you MUST call `recall` so you have the up-to-date list of all `global_product_url` notes before constructing the Final Answer. If the recall call fails, retry once; if it still fails, flag the beat for review rather than skipping the step.
+
+### Step 9: Checklist QA (No tools)
+- Reprint the full checklist one more time (same slug/description format) with final `[x]` statuses.
+- In the same Thought, explicitly state whether every mandatory slug is DONE. If any are not, call out the slug(s) and go fix them before continuing.
+- This step is tool-free: use your stored notes to reason. If you discover a gap, return to the missing slug, update the checklist, and only then re-run `checklist_qa`.
+- Once you can honestly say “Checklist complete,” proceed to the Final Answer.
 
 ## Important Guidelines
 
@@ -193,7 +201,7 @@ You must try up to 3 times to generate a quality storyboard:
 
 ## Output Format
 
-- Just before giving your Final Answer, ensure you've called `recall` so you can include every stored `global_product_url`.
+- Just before giving your Final Answer, ensure you've called `recall` so you can include every stored `global_product_url`. If you haven't, you must run `recall` before finalizing.
 - Final Answer must contain ONLY the newline-separated list of final product-integrated URLs (one per beat processed so far). Example:
   ```
   Final Answer: https://...beat1.png
@@ -232,6 +240,8 @@ BEAT_PROCESSING_PROMPT = """Process beat {beat_number} from the script:
 - Is first beat: {is_first_beat}
 - Progress recap:
 {progress_summary}
+- Global continuity memory (compact, curated facts only):
+{global_memory_notes}
 - You must process only Beat {beat_number}. After delivering the summary + Final Answer, stop and await the next beat input.
 
 ### Beat Checklist
@@ -239,9 +249,34 @@ BEAT_PROCESSING_PROMPT = """Process beat {beat_number} from the script:
 - Keep the exact slug text when you echo the checklist so controllers can parse it.
 - Acceptable memory statuses: `pending`, `done`, `skipped` (skipped allowed only for optional tasks and must include a reason in the Thought).
 - Never call a tool before printing the checklist for the first time.
-- After storing the current beat results, call `recall` to gather every `global_product_url` note so you can output the cumulative URL list as the Final Answer (newline-separated URLs only, or `(none)` if nothing is ready).
+- After storing the current beat results, you MUST call `recall` to gather every `global_product_url` note so you can output the cumulative URL list as the Final Answer (newline-separated URLs only, or `(none)` if nothing is ready). If you skipped `recall`, restart from the checklist.
 
 Follow the workflow steps to generate the storyboard and integrate the product.
+"""
+
+SHOT_MEMORY_SUMMARY_PROMPT = """You are a continuity supervisor. Your job is to compress one beat's outcome into reusable, high-level memory items for future beats.
+
+Guidelines:
+- Produce 1-5 short bullet strings capturing ONLY persistent facts (characters, palette, lighting, props, stylistic cues, product placement).
+- Never include detailed scratchpad logs, tool traces, or temporary checklist states.
+- Skip items that already appear in Existing Memory unless you have a materially new nuance.
+- Keep each item under 25 words.
+
+Return valid JSON exactly in this format (no prose, no markdown):
+{{"memory_items": ["...", "..."]}}
+
+Episode title: {episode_title}
+Beat number: {beat_number} ({beat_heading})
+Beat summary: {beat_summary}
+
+Agent final answer JSON:
+{final_answer}
+
+Agent per-shot notes:
+{agent_notes}
+
+Existing Memory:
+{existing_memory}
 """
 
 ERROR_RECOVERY_PROMPT = """An error occurred during processing: {error}

@@ -38,25 +38,20 @@ def test_extract_statuses_prefers_latest_and_validates():
     assert statuses["reference_search"] == "pending"
 
     items = build_checklist(is_first_beat=False)
-    missing, unresolved = find_checklist_gaps(statuses, items[:2])
+    missing = find_checklist_gaps(statuses, items[:2])
     assert missing == ["reference_search"]
-    assert unresolved == []
 
 
-def test_optional_items_must_be_marked_skipped_when_unused():
+def test_optional_items_do_not_block_validation():
     optional_item = ChecklistItem(
         slug="attempt2_generation",
         label="Run Attempt 2",
         mandatory=False,
     )
 
-    missing, unresolved = find_checklist_gaps({}, [optional_item])
+    missing = find_checklist_gaps({}, [optional_item])
     assert missing == []
-    assert unresolved == ["attempt2_generation"]
 
-    missing, unresolved = find_checklist_gaps(
-        {"attempt2_generation": "skipped"}, [optional_item]
-    )
+    missing = find_checklist_gaps({"attempt2_generation": "skipped"}, [optional_item])
     assert missing == []
-    assert unresolved == []
 

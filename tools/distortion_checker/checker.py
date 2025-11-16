@@ -14,12 +14,19 @@ class DistortionChecker:
     Main distortion checker that coordinates detection and analysis.
     """
     
-    def __init__(self):
-        """Initialize detectors and analyzers."""
+    def __init__(self, min_distortion_confidence: float = 0.82):
+        """
+        Initialize detectors and analyzers.
+        
+        Args:
+            min_distortion_confidence: Minimum confidence required for a detected
+                distortion to be surfaced in the final result.
+        """
         # Initialize detectors (lazy loading)
         self._hand_detector = None
         self._pose_detector = None
         self._face_detector = None
+        self.min_distortion_confidence = min_distortion_confidence
         
         # Initialize analyzers
         self.hand_analyzer = HandAnalyzer()
@@ -92,10 +99,16 @@ class DistortionChecker:
         # Calculate processing time
         processing_time = (time.time() - start_time) * 1000  # Convert to ms
         
+        # Filter low-confidence distortions before building the result
+        filtered_distortions = [
+            distortion for distortion in all_distortions
+            if distortion.confidence >= self.min_distortion_confidence
+        ]
+        
         # Build result
         result = DetectionResult(
-            has_distortion=len(all_distortions) > 0,
-            distortions=all_distortions,
+            has_distortion=len(filtered_distortions) > 0,
+            distortions=filtered_distortions,
             processing_time_ms=processing_time,
             image_width=width,
             image_height=height
