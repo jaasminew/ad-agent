@@ -157,9 +157,43 @@
 - aggregated_summary: 汇总统计信息
 - final_outputs: 每个 shot 的详细输出
 - final_video_url: 拼接后的完整视频 URL（仅当 generate_video=true 时）
+- video_duration: 拼接后视频的总时长（秒）（仅当 generate_video=true 时）
+
+下一步：9（如果 generate_video=true）
+
+---
+
+### 9. 生成背景音乐并合成（仅当 generate_video=true）
+
+输入：
+- final_video_url: 步骤 8 拼接后的完整视频
+- video_duration: 视频总时长（秒）
+- product_name: 商品名称
+- brand_identity: 品牌定位
+- shots: 所有分镜描述
+
+1. 利用 LLM 根据广告内容生成音乐提示词
+   - 分析商品定位和品牌调性
+   - 结合所有分镜的情绪和节奏
+   - 生成符合广告氛围的音乐描述
+   - 确定音乐风格（如：轻快、舒缓、激昂、科技感等）
+2. 调用工具 suno_generate_music 生成背景音乐
+   - 使用 LLM 生成的音乐提示词
+   - 设置 instrumental=true（纯音乐，无歌词）
+   - 音乐时长需要与 video_duration 匹配或稍长
+3. 调用工具 video_add_bgm 将背景音乐合成到视频中
+   - 如果音乐过长，自动裁剪到视频时长
+   - 如果音乐过短，可以循环播放或淡出
+   - 调整音量，确保不会盖过视频原声（如果有）
+4. 上传最终带音乐的视频到 COS
+
+输出：
+- music_prompt: BGM 提示词
+- bgm_url: 生成的背景音乐 URL
+- final_video_with_bgm_url: 合成背景音乐后的完整广告视频 URL
 
 ---
 
 **最终输出：**
-- 如果 generate_video=true: 一个完整的广告视频（所有 shots 拼接）
+- 如果 generate_video=true: 一个完整的广告视频（所有 shots 拼接 + 背景音乐）
 - 如果 generate_video=false: 所有 shots 的合成图片和视频提示词

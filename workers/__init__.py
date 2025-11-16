@@ -10,6 +10,7 @@ from .product_composer import compose_with_product
 from .video_generator import generate_video
 from .result_aggregator import aggregate_results
 from .video_concatenator import concatenate_videos
+from .bgm_generator import generate_and_add_bgm
 
 __all__ = [
     "WorkflowState",
@@ -23,4 +24,5 @@ __all__ = [
     "generate_video",
     "aggregate_results",
     "concatenate_videos",
+    "generate_and_add_bgm",
 ]

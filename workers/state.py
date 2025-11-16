@@ -40,6 +40,13 @@ class WorkflowState(TypedDict, total=False):
     
     # === Final video ===
     final_video_url: str  # URL of concatenated final video (only if generate_video=True)
+    video_duration: float  # Duration of final video in seconds
+    
+    # === BGM (Background Music) ===
+    music_prompt: str  # Generated music prompt
+    music_style: str  # Music style (e.g., "电子", "古典")
+    bgm_url: str  # URL of generated background music
+    final_video_with_bgm_url: str  # URL of final video with BGM
     
     # === Message logs ===
     # Use Annotated with add operator to accumulate messages

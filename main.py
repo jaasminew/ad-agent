@@ -17,6 +17,7 @@ from workers import (
     generate_video,
     aggregate_results,
     concatenate_videos,
+    generate_and_add_bgm,
 )
 
 # Configure logging
@@ -202,12 +203,14 @@ def run_ad_workflow(
     graph.add_node("process_shots", process_shots_concurrently)
     graph.add_node("aggregate_results", aggregate_results)
     graph.add_node("concatenate_videos", concatenate_videos)
+    graph.add_node("generate_bgm", generate_and_add_bgm)
     
     graph.add_edge(START, "write_script")
     graph.add_edge("write_script", "process_shots")
     graph.add_edge("process_shots", "aggregate_results")
     graph.add_edge("aggregate_results", "concatenate_videos")
-    graph.add_edge("concatenate_videos", END)
+    graph.add_edge("concatenate_videos", "generate_bgm")
+    graph.add_edge("generate_bgm", END)
     
     app = graph.compile()
     
@@ -247,8 +250,21 @@ def run_ad_workflow(
     
     # Print final video URL if available
     final_video_url = final_state.get('final_video_url')
-    if final_video_url:
-        logger.info("\n🎬 Final Video:")
+    final_video_with_bgm_url = final_state.get('final_video_with_bgm_url')
+    
+    if final_video_with_bgm_url:
+        logger.info("\n🎬 Final Video with BGM:")
+        logger.info("  %s", final_video_with_bgm_url)
+        
+        # Print BGM info
+        music_prompt = final_state.get('music_prompt')
+        music_style = final_state.get('music_style')
+        if music_prompt:
+            logger.info("\n🎵 Background Music:")
+            logger.info("  Style: %s", music_style or 'N/A')
+            logger.info("  Prompt: %s", music_prompt[:100] + '...' if len(music_prompt) > 100 else music_prompt)
+    elif final_video_url:
+        logger.info("\n🎬 Final Video (without BGM):")
         logger.info("  %s", final_video_url)
     
     # Print each shot's final output
@@ -287,9 +303,21 @@ if __name__ == "__main__":
         print(f"Video generation: {'ENABLED' if summary.get('video_generation_enabled') else 'DISABLED'}")
         
         # Print final video URL if available
+        final_video_with_bgm_url = result.get('final_video_with_bgm_url')
         final_video_url = result.get('final_video_url')
-        if final_video_url:
-            print("\n🎬 Final Concatenated Video:")
+        
+        if final_video_with_bgm_url:
+            print("\n🎬 Final Video with BGM:")
+            print(f"  {final_video_with_bgm_url}")
+            
+            music_prompt = result.get('music_prompt')
+            music_style = result.get('music_style')
+            if music_prompt:
+                print(f"\n🎵 Background Music:")
+                print(f"  Style: {music_style}")
+                print(f"  Prompt: {music_prompt[:100]}...")
+        elif final_video_url:
+            print("\n🎬 Final Video (without BGM):")
             print(f"  {final_video_url}")
         
         final_outputs = result.get('final_outputs', [])

@@ -1,12 +1,40 @@
 """Video Concatenator Worker - Concatenate all shot videos into final video"""
 
 import logging
+import subprocess
 from typing import List, Dict, Any
 from datetime import datetime
 from .state import WorkflowState
 from tools.video_concat import concat_videos
 
 logger = logging.getLogger(__name__)
+
+
+def get_video_duration(video_path: str) -> float:
+    """
+    Get video duration using ffprobe.
+    
+    Args:
+        video_path: Path or URL to the video file
+        
+    Returns:
+        Duration in seconds
+    """
+    try:
+        probe_cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            video_path
+        ]
+        
+        result = subprocess.run(probe_cmd, capture_output=True, text=True, check=True)
+        duration = float(result.stdout.strip())
+        return duration
+    except Exception as e:
+        logger.warning(f"Failed to get video duration: {e}")
+        return 0.0
 
 
 def concatenate_videos(state: WorkflowState) -> dict:
@@ -82,14 +110,19 @@ def concatenate_videos(state: WorkflowState) -> dict:
         # Concatenate videos
         final_video_url = concat_videos(video_urls, output_filename=output_filename)
         
+        # Get video duration
+        video_duration = get_video_duration(final_video_url)
+        
         logger.info("=" * 80)
         logger.info("✓ Video concatenation completed successfully!")
         logger.info(f"Final video URL: {final_video_url}")
+        logger.info(f"Video duration: {video_duration:.2f} seconds")
         logger.info("=" * 80)
         
         return {
             "final_video_url": final_video_url,
-            "messages": [f"✓ Video Concatenator: Created final video from {len(video_urls)} shots"]
+            "video_duration": video_duration,
+            "messages": [f"✓ Video Concatenator: Created final video from {len(video_urls)} shots ({video_duration:.1f}s)"]
         }
         
     except Exception as e:
