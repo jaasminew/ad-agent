@@ -1,10 +1,24 @@
 """Palette Extractor Worker - Extract dominant colors from style image"""
 
 import logging
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from tools.palette_extractor import get_palette_extractor
 from .state import ShotState
 
 logger = logging.getLogger(__name__)
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((Exception,)),
+    before_sleep=lambda retry_state: logger.warning(
+        f"Palette Extractor: Attempt {retry_state.attempt_number} failed, retrying in {retry_state.next_action.sleep} seconds..."
+    )
+)
+def _extract_palette_with_retry(extractor, style_image_url: str, num_colors: int) -> list:
+    """Extract palette with retry mechanism."""
+    return extractor.extract_palette(style_image_url, num_colors=num_colors)
 
 
 def extract_palette(state: ShotState) -> dict:
@@ -21,9 +35,9 @@ def extract_palette(state: ShotState) -> dict:
     
     style_image_url = state["style_image_url"]
     
-    # Use PaletteExtractor to extract colors
+    # Use PaletteExtractor to extract colors with retry
     extractor = get_palette_extractor()
-    palette = extractor.extract_palette(style_image_url, num_colors=4)
+    palette = _extract_palette_with_retry(extractor, style_image_url, num_colors=4)
     
     logger.info(f"Extracted {len(palette)} dominant colors:")
     for i, (r, g, b) in enumerate(palette, 1):

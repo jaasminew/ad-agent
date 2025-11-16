@@ -910,6 +910,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "tavily-python" },
+    { name = "tenacity" },
     { name = "volcengine-python-sdk", extra = ["ark"] },
 ]
 
@@ -929,6 +930,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "requests", specifier = ">=2.31.0" },
     { name = "tavily-python", specifier = ">=0.5.0" },
+    { name = "tenacity", specifier = ">=8.0.0" },
     { name = "volcengine-python-sdk", extras = ["ark"], specifier = ">=1.0.0" },
 ]
 

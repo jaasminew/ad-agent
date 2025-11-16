@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 # ==================== Configuration ====================
 NANOBANANA_CONFIG = {
     "model": "gemini-2.5-flash-image",
-    "timeout": 120,  # Timeout in seconds
+    "timeout": 180,  # Timeout in seconds (3 minutes) for image composition
 }
 
 

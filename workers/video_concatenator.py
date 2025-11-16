@@ -4,12 +4,21 @@ import logging
 import subprocess
 from typing import List, Dict, Any
 from datetime import datetime
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from .state import WorkflowState
 from tools.video_concat import concat_videos
 
 logger = logging.getLogger(__name__)
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=3, max=15),
+    retry=retry_if_exception_type((Exception,)),
+    before_sleep=lambda retry_state: logger.warning(
+        f"Video Concatenator (ffprobe): Attempt {retry_state.attempt_number} failed, retrying in {retry_state.next_action.sleep} seconds..."
+    )
+)
 def get_video_duration(video_path: str) -> float:
     """
     Get video duration using ffprobe.
@@ -35,6 +44,19 @@ def get_video_duration(video_path: str) -> float:
     except Exception as e:
         logger.warning(f"Failed to get video duration: {e}")
         return 0.0
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=5, max=30),
+    retry=retry_if_exception_type((Exception, RuntimeError)),
+    before_sleep=lambda retry_state: logger.warning(
+        f"Video Concatenator (concat): Attempt {retry_state.attempt_number} failed, retrying in {retry_state.next_action.sleep} seconds..."
+    )
+)
+def _concat_videos_with_retry(video_urls: list, output_filename: str) -> str:
+    """Concatenate videos with retry mechanism."""
+    return concat_videos(video_urls, output_filename=output_filename)
 
 
 def concatenate_videos(state: WorkflowState) -> dict:
@@ -107,8 +129,8 @@ def concatenate_videos(state: WorkflowState) -> dict:
     logger.info(f"Output filename: {output_filename}")
     
     try:
-        # Concatenate videos
-        final_video_url = concat_videos(video_urls, output_filename=output_filename)
+        # Concatenate videos with retry
+        final_video_url = _concat_videos_with_retry(video_urls, output_filename)
         
         # Get video duration
         video_duration = get_video_duration(final_video_url)

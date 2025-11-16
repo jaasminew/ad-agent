@@ -3,29 +3,22 @@
 import logging
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from .state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
 
-def write_ad_script(state: WorkflowState) -> dict:
-    """
-    Generate advertising script with shot list.
-    
-    Inputs:
-    - product_name: Product name
-    - brand_identity: Brand positioning
-    - must_have_shots: Required shots (comma-separated)
-    
-    Outputs:
-    - shots: List of shot descriptions
-    """
-    logger.info("=== Script Writer: Generating ad shots ===")
-    
-    product_name = state["product_name"]
-    brand_identity = state["brand_identity"]
-    must_have_shots = state["must_have_shots"]
-    
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((Exception,)),
+    before_sleep=lambda retry_state: logger.warning(
+        f"Script Writer: Attempt {retry_state.attempt_number} failed, retrying in {retry_state.next_action.sleep} seconds..."
+    )
+)
+def _generate_shots_with_retry(product_name: str, brand_identity: str, must_have_shots: str) -> str:
+    """Generate shots with retry mechanism for LLM API calls."""
     # Create prompt template
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a professional advertising creative director who excels at writing compelling ad scripts.
@@ -56,12 +49,35 @@ Please create an advertising shot list for this product:""")
         "must_have_shots": must_have_shots,
     })
     
+    return response.content.strip()
+
+
+def write_ad_script(state: WorkflowState) -> dict:
+    """
+    Generate advertising script with shot list.
+    
+    Inputs:
+    - product_name: Product name
+    - brand_identity: Brand positioning
+    - must_have_shots: Required shots (comma-separated)
+    
+    Outputs:
+    - shots: List of shot descriptions
+    """
+    logger.info("=== Script Writer: Generating ad shots ===")
+    
+    product_name = state["product_name"]
+    brand_identity = state["brand_identity"]
+    must_have_shots = state["must_have_shots"]
+    
+    # Call LLM with retry mechanism
+    shots_text = _generate_shots_with_retry(product_name, brand_identity, must_have_shots)
+    
     # Parse shot list
-    shots_text = response.content.strip()
     shots = [line.strip() for line in shots_text.split("\n") if line.strip()]
     
     # Limit to maximum 3 shots
-    max_shots = 1
+    max_shots = 3
     if len(shots) > max_shots:
         logger.info(f"Generated {len(shots)} shots, limiting to {max_shots}")
         shots = shots[:max_shots]

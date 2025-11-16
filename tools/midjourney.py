@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 # ==================== Configuration ====================
 MIDJOURNEY_CONFIG = {
     "poll_interval": 2,  # Poll interval in seconds
-    "max_poll_time": 300,  # Maximum poll time (5 minutes)
+    "max_poll_time": 180,  # Maximum poll time (3 minutes) for image generation
 }
 
 
@@ -75,15 +75,21 @@ class MidjourneyClient:
         logger.info(f"Fetching task status: {task_id}")
         return self._make_request("GET", f"/mj/task/{task_id}/fetch")
 
-    def poll_task_until_complete(self, task_id: str) -> Dict[str, Any]:
-        """Poll task until it's complete (SUCCESS or FAILURE)"""
+    def poll_task_until_complete(self, task_id: str, timeout: Optional[int] = None) -> Dict[str, Any]:
+        """Poll task until it's complete (SUCCESS or FAILURE)
+        
+        Args:
+            task_id: The task ID to poll
+            timeout: Maximum time to wait in seconds (default: self.max_poll_time)
+        """
         logger.info(f"Starting to poll task: {task_id}")
         start_time = time.time()
+        max_time = timeout if timeout is not None else self.max_poll_time
 
         while True:
             elapsed = time.time() - start_time
-            if elapsed > self.max_poll_time:
-                raise TimeoutError(f"Task {task_id} exceeded maximum poll time of {self.max_poll_time}s")
+            if elapsed > max_time:
+                raise TimeoutError(f"Task {task_id} exceeded maximum poll time of {max_time}s")
 
             task = self.fetch_task(task_id)
             if not task:

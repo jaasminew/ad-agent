@@ -3,12 +3,139 @@
 import logging
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from tools.veo_video import get_veo_video_client
 from tools.kling_video import get_kling_video_client
 from tools.seedance_video import get_seedance_video_client
 from .state import ShotState
 
 logger = logging.getLogger(__name__)
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((Exception,)),
+    before_sleep=lambda retry_state: logger.warning(
+        f"Video Generator (Prompt): Attempt {retry_state.attempt_number} failed, retrying in {retry_state.next_action.sleep} seconds..."
+    )
+)
+def _generate_video_prompt_with_retry(shot: str, context_info: str, position_hint: str) -> str:
+    """Generate video prompt with retry mechanism for LLM API calls."""
+    prompt_template = ChatPromptTemplate.from_messages([
+        ("system", """You are a professional video director specializing in seamless shot transitions. Generate a clear, cinematic prompt for animating a still image into a video.
+
+CRITICAL REQUIREMENTS for smooth transitions:
+1. Write prompt in English
+2. Consider the PREVIOUS and NEXT shots to create smooth transitions
+3. Camera movement should flow naturally between shots:
+   - For first shot: Start stable, end with movement direction toward next scene
+   - For middle shots: Continue camera momentum from previous, prepare for next
+   - For final shot: Continue from previous, end with a strong conclusion
+4. Match camera angles, speed, and direction for continuity
+5. Keep motion smooth and professional
+6. Suitable for short advertisement videos (5-10 seconds)
+7. Output only the prompt text
+
+Example good transitions:
+- "Camera slowly pans right, ending with momentum toward the next scene..."
+- "Continuing the rightward pan from previous shot, camera gradually slows and focuses on..."
+- "Following the previous zoom motion, camera pulls back and rotates to reveal..."
+"""),
+        ("user", """Current shot description:
+{shot}
+
+Context:
+{context}
+
+Position: {position}
+
+Generate a video animation prompt that ensures smooth transitions with adjacent shots:""")
+    ])
+    
+    llm = ChatOpenAI(model="gpt-4", temperature=0.6)
+    chain = prompt_template | llm
+    
+    response = chain.invoke({
+        "shot": shot,
+        "context": context_info,
+        "position": position_hint,
+    })
+    
+    return response.content.strip()
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=20),
+    retry=retry_if_exception_type((RuntimeError, ConnectionError, TimeoutError)),
+    before_sleep=lambda retry_state: logger.warning(
+        f"Video Generator (API): Attempt {retry_state.attempt_number} failed, retrying in {retry_state.next_action.sleep} seconds..."
+    )
+)
+def _generate_video_with_kling(client, nanobanana_image_url: str, video_prompt: str) -> dict:
+    """Generate video with Kling AI with retry mechanism."""
+    kling_result = client.generate_video(
+        image_url=nanobanana_image_url,
+        prompt=video_prompt,
+        duration="5",  # 5 seconds
+        mode="pro",    # High quality mode
+        cfg_scale=0.5,
+        upload_to_cos=True
+    )
+    
+    if not kling_result["success"]:
+        raise RuntimeError(f"Kling video generation failed: {kling_result.get('error')}")
+    
+    return kling_result
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=20),
+    retry=retry_if_exception_type((RuntimeError, ConnectionError, TimeoutError)),
+    before_sleep=lambda retry_state: logger.warning(
+        f"Video Generator (API): Attempt {retry_state.attempt_number} failed, retrying in {retry_state.next_action.sleep} seconds..."
+    )
+)
+def _generate_video_with_seedance(client, nanobanana_image_url: str, video_prompt: str) -> dict:
+    """Generate video with SeeDance with retry mechanism."""
+    seedance_result = client.generate_video(
+        prompt=video_prompt,
+        image_url=nanobanana_image_url,
+        resolution="1080p",
+        duration=5,
+        camera_fixed=False,
+        watermark=True,
+        upload_to_cos=True
+    )
+    
+    if not seedance_result["success"]:
+        raise RuntimeError(f"SeeDance video generation failed: {seedance_result.get('error')}")
+    
+    return seedance_result
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=20),
+    retry=retry_if_exception_type((RuntimeError, ConnectionError, TimeoutError)),
+    before_sleep=lambda retry_state: logger.warning(
+        f"Video Generator (API): Attempt {retry_state.attempt_number} failed, retrying in {retry_state.next_action.sleep} seconds..."
+    )
+)
+def _generate_video_with_veo(client, nanobanana_image_url: str, video_prompt: str) -> dict:
+    """Generate video with Veo 3.1 with retry mechanism."""
+    veo_result = client.generate_video(
+        prompt=video_prompt,
+        image_url=nanobanana_image_url,
+        upload_to_cos=True
+    )
+    
+    if not veo_result["success"]:
+        raise RuntimeError(f"Veo video generation failed: {veo_result.get('error')}")
+    
+    return veo_result
 
 
 def generate_video(state: ShotState) -> dict:
@@ -62,47 +189,8 @@ def generate_video(state: ShotState) -> dict:
     
     logger.info(f"Shot position: {position_hint}")
     
-    prompt_template = ChatPromptTemplate.from_messages([
-        ("system", """You are a professional video director specializing in seamless shot transitions. Generate a clear, cinematic prompt for animating a still image into a video.
-
-CRITICAL REQUIREMENTS for smooth transitions:
-1. Write prompt in English
-2. Consider the PREVIOUS and NEXT shots to create smooth transitions
-3. Camera movement should flow naturally between shots:
-   - For first shot: Start stable, end with movement direction toward next scene
-   - For middle shots: Continue camera momentum from previous, prepare for next
-   - For final shot: Continue from previous, end with a strong conclusion
-4. Match camera angles, speed, and direction for continuity
-5. Keep motion smooth and professional
-6. Suitable for short advertisement videos (5-10 seconds)
-7. Output only the prompt text
-
-Example good transitions:
-- "Camera slowly pans right, ending with momentum toward the next scene..."
-- "Continuing the rightward pan from previous shot, camera gradually slows and focuses on..."
-- "Following the previous zoom motion, camera pulls back and rotates to reveal..."
-"""),
-        ("user", """Current shot description:
-{shot}
-
-Context:
-{context}
-
-Position: {position}
-
-Generate a video animation prompt that ensures smooth transitions with adjacent shots:""")
-    ])
-    
-    llm = ChatOpenAI(model="gpt-4", temperature=0.6)
-    chain = prompt_template | llm
-    
-    response = chain.invoke({
-        "shot": shot,
-        "context": context_info,
-        "position": position_hint,
-    })
-    
-    video_prompt = response.content.strip()
+    # Generate video prompt with retry
+    video_prompt = _generate_video_prompt_with_retry(shot, context_info, position_hint)
     logger.info(f"Generated video prompt: {video_prompt}")
     
     result = {
@@ -119,17 +207,7 @@ Generate a video animation prompt that ensures smooth transitions with adjacent 
             logger.info("Using Kling AI for video generation")
             client = get_kling_video_client()
             
-            kling_result = client.generate_video(
-                image_url=nanobanana_image_url,
-                prompt=video_prompt,
-                duration="5",  # 5 seconds
-                mode="pro",    # High quality mode
-                cfg_scale=0.5,
-                upload_to_cos=True
-            )
-            
-            if not kling_result["success"]:
-                raise RuntimeError(f"Kling video generation failed: {kling_result.get('error')}")
+            kling_result = _generate_video_with_kling(client, nanobanana_image_url, video_prompt)
             
             # Get video URL (COS URL if available, else local path)
             video_url = kling_result.get("cos_url") or kling_result.get("local_path")
@@ -143,18 +221,7 @@ Generate a video animation prompt that ensures smooth transitions with adjacent 
             logger.info("Using Doubao SeeDance for video generation")
             client = get_seedance_video_client()
             
-            seedance_result = client.generate_video(
-                prompt=video_prompt,
-                image_url=nanobanana_image_url,
-                resolution="1080p",
-                duration=5,
-                camera_fixed=False,
-                watermark=True,
-                upload_to_cos=True
-            )
-            
-            if not seedance_result["success"]:
-                raise RuntimeError(f"SeeDance video generation failed: {seedance_result.get('error')}")
+            seedance_result = _generate_video_with_seedance(client, nanobanana_image_url, video_prompt)
             
             # Get video URL (COS URL if available, else local path)
             video_url = seedance_result.get("cos_url") or seedance_result.get("local_path")
@@ -168,14 +235,7 @@ Generate a video animation prompt that ensures smooth transitions with adjacent 
             logger.info("Using Veo 3.1 for video generation")
             client = get_veo_video_client()
             
-            veo_result = client.generate_video(
-                prompt=video_prompt,
-                image_url=nanobanana_image_url,
-                upload_to_cos=True
-            )
-            
-            if not veo_result["success"]:
-                raise RuntimeError(f"Veo video generation failed: {veo_result.get('error')}")
+            veo_result = _generate_video_with_veo(client, nanobanana_image_url, video_prompt)
             
             # Get video URL (COS URL if available, else local path)
             video_url = veo_result.get("cos_url") or veo_result.get("local_path")
