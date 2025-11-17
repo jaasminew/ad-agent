@@ -15,6 +15,7 @@
 
 ## 左栏：用户输入
 - 使用 `Card` 组织字段，`CardHeader` 放标题/描述，`CardContent` 放输入控件。
+- 支持手动收起/展开：在卡片头部放置折叠图标，收起时仅保留窄侧栏与 Generate 图标/状态。
 - 常用输入：
   - `Input`：视频标题或主题。
   - `Textarea`：长描述、脚本约束。
@@ -26,6 +27,7 @@
 
 ## 中栏：节点时间线
 - 外层 `Card` + `ScrollArea`，高度控制在 `calc(100vh - header)`。
+- 背景使用低对比度的点阵纹理（如 `bg-dot-pattern` 或 `bg-[radial-gradient(...)]`），营造控制面板质感且不影响可读性。
 - 无需进度条；改用节点状态体现节奏。
 - 节点垂直排列，顺序固定为：`Scripter → Storyboard Images → Video Generation → Video Concatenation → BGM`。
 - 每个节点可用子 `Card` 或自定义 `div`，内部包含：
@@ -40,10 +42,13 @@
 ## 右栏：最终输出
 - 仍然使用 `Card`，让内容按稳定顺序垂直排列：
   1. 标题（`CardHeader`）。
-  2. 最终视频：`AspectRatio` 包装 `<video controls>`，展示 MP4。
+  2. 最终视频：`AspectRatio` 包装 `<video controls>`，展示 MP4。需要提供“放大”操作（悬浮按钮或覆盖层），点击后在 Modal / Lightbox 中展示全屏，关闭时自动回到卡片中原有尺寸。
   3. 脚本文字：`ScrollArea` + `pre-wrap`，必要时提供复制按钮。
   4. `Separator`。
   5. **Regenerate**：`Button variant="outline"`，重新触发最终渲染。
+- 面板行为：
+  - 第一次视频尚未生成时，右栏保持收起（在右侧仅显示窄卡片 + 空状态提示），并禁用内部操作。
+  - 视频生成后自动展开，填充播放器与脚本；可视需要允许用户手动再次收起或展开。
 - 空状态：用 `Skeleton` 占位；失败时以 `Alert variant="destructive"` 提示。
 
 ## 交互与状态
@@ -54,7 +59,7 @@
 
 ## 响应式与无障碍
 - `md` 以下三列改为纵向 `flex`，按钮占满行。
-- 所有按钮与节点状态添加 `aria-live` / `aria-busy` 信息，视频组件提供字幕或文字稿。
+- 所有按钮与节点状态添加 `aria-live` / `aria-busy` 信息。
 - 注意在深色模式下仍然保持黑白主色 + `#6467F0` 点缀的对比度。
 
 ## 数据与状态管理

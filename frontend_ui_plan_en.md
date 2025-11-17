@@ -15,6 +15,7 @@
 
 ## Left Column – User Input Panel
 - Wrapper: `Card` with `CardHeader`, `CardContent`, `CardFooter`.
+- Panel can be manually collapsed/expanded via an icon button in the header; collapsed state peeks as a narrow rail with the Generate icon + badge.
 - Inputs (choose what's relevant to the workflow):
   - `Input` for title / prompt text.
   - `Textarea` for extended instructions.
@@ -26,6 +27,7 @@
 
 ## Middle Column – Node Timeline Panel
 - Wrapper: `Card` with `ScrollArea` (height `calc(100vh - header)` on desktop).
+- Apply a subtle dot-grid background (`bg-dot-pattern`, `bg-[radial-gradient(...)`) so the column feels like a control room panel; keep contrast low to maintain readability.
 - Title row contains the workflow name; remove the progress bar.
 - Nodes rendered as a vertical list:
   - When the workflow is running, the entire node stack is read-only—use `aria-disabled`, `pointer-events-none`, and `cursor-not-allowed` on hover to indicate nodes cannot be clicked.
@@ -47,10 +49,13 @@
 - Wrapper: `Card` with vertical spacing.
 - Content order:
   1. Title (`<h2>` styled via `CardHeader`).
-  2. Final video player: use native `<video controls>` nested inside `AspectRatio` (16:9). Source set to generated MP4 URL.
+  2. Final video player: use native `<video controls>` nested inside `AspectRatio` (16:9). Source set to generated MP4 URL. Add an “expand” affordance (icon button or overlay) so clicking the video opens it inside a modal/lightbox; closing the modal snaps the video back into the panel.
   3. Script text in `ScrollArea` with monospace font or `Prose` styling.
   4. `Separator`.
   5. `Button` labeled **Regenerate** (variant `outline`). This restarts only the final render logic.
+- Panel behavior:
+  - Before the first video exists, keep this card collapsed/peeked on the right edge and show an empty state (icon + helper text). Disable interactions while collapsed.
+  - When a video is produced, automatically expand the card to full width in the grid. Allow manual collapse/expand toggles afterward if desired.
 - Empty / loading states:
   - Use `Skeleton` blocks until video + script exist.
   - Display `Alert` with fallback message if the agent failed.
