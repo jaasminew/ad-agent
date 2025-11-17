@@ -16,6 +16,7 @@ import logging
 import json
 import sys
 import io
+import os
 import atexit
 from datetime import datetime
 from pathlib import Path
@@ -68,9 +69,10 @@ class _StreamTee(io.TextIOBase):
 
 def setup_storyboard_logging() -> Path:
     """Configure per-session logging file capturing stdout/stderr as well."""
-    root_dir = Path(__file__).resolve().parent
+    root_dir = Path(__file__).resolve().parents[1]
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = root_dir / f"storyboard_gen_agent_{timestamp}.log"
+    os.environ["AD_AGENT_SESSION_LOG"] = str(log_path)
 
     file_handler = logging.FileHandler(log_path, encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
@@ -96,11 +98,10 @@ def setup_storyboard_logging() -> Path:
 
 def main():
     """Run a real integration test of the storyboard generation agent."""
-    
+    setup_storyboard_logging()
     logger.info("="*80)
     logger.info("🎬 Starting REAL Storyboard Generation Test")
     logger.info("="*80)
-    setup_storyboard_logging()
     logger.info("\n⚠️  WARNING: This will call REAL external APIs!")
     logger.info("   - PixelHub API")
     logger.info("   - MidJourney API")

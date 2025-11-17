@@ -4,6 +4,8 @@ import os
 import sys
 import argparse
 import logging
+from datetime import datetime
+from pathlib import Path
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START, END
 
@@ -17,13 +19,27 @@ from workflow.workers import (
     generate_and_add_bgm,
 )
 
-# Configure logging
+# Configure session-based logging
+ROOT_DIR = Path(__file__).resolve().parent
+SESSION_TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+SESSION_LOG_PATH = ROOT_DIR / f"ad_agent_session_{SESSION_TIMESTAMP}.log"
+os.environ["AD_AGENT_SESSION_LOG"] = str(SESSION_LOG_PATH)
+
+LOG_FORMAT = '%(asctime)s [%(levelname)s] %(name)s - %(message)s'
+DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(name)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format=LOG_FORMAT,
+    datefmt=DATE_FORMAT,
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(SESSION_LOG_PATH, encoding="utf-8"),
+    ],
+    force=True,
 )
 logger = logging.getLogger(__name__)
+logger.info("Session logs will be written to %s", SESSION_LOG_PATH)
 
 # Load environment variables
 load_dotenv()
