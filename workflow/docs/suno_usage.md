@@ -81,7 +81,7 @@ export COS_REGION='ap-guangzhou'  # 或其他地区
 ### 1. 直接使用客户端
 
 ```python
-from tools.suno_music import SunoMusicClient
+from workflow.tools.suno_music import SunoMusicClient
 
 client = SunoMusicClient()
 
@@ -103,7 +103,7 @@ if result["success"]:
 ### 2. 作为 LangChain 工具
 
 ```python
-from tools.suno_music import suno_generate_music
+from workflow.tools.suno_music import suno_generate_music
 
 result = suno_generate_music.invoke({
     "prompt": "一段轻快的电子音乐，适合作为视频背景音乐",
@@ -116,7 +116,7 @@ print(result)
 ### 3. 视频添加 BGM
 
 ```python
-from tools.video_add_bgm import add_bgm_to_video
+from workflow.tools.video_add_bgm import add_bgm_to_video
 
 # 将音乐合成到视频
 video_url = add_bgm_to_video(

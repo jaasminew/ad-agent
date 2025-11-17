@@ -8,10 +8,11 @@ in different scenarios.
 import sys
 from pathlib import Path
 
-# Add parent directory to path to import tools
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add project root to path to import tools
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
-from tools import (
+from workflow.tools import (
     check_image_distortion,
     get_distortion_labels,
     get_distortion_stats,

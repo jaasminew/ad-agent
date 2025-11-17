@@ -13,7 +13,9 @@ class WorkflowState(TypedDict, total=False):
     - brand_identity: Brand positioning
     - product_images: Product image URL
     - must_have_shots: Required shots (comma-separated)
+    - num_shots: Number of shots to generate (default: 3)
     - generate_video: Whether to generate video (from environment variable)
+    - video_model: Which video model to use ("veo", "kling", "seedance")
     
     Intermediate states:
     - shots: List of shot descriptions
@@ -30,7 +32,9 @@ class WorkflowState(TypedDict, total=False):
     brand_identity: str
     product_images: str
     must_have_shots: str
+    num_shots: int  # Number of shots to generate
     generate_video: bool  # Control whether to generate video
+    video_model: str  # Video generation model
     
     # === Intermediate states ===
     shots: List[str]

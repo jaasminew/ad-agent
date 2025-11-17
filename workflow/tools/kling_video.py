@@ -190,7 +190,7 @@ class KlingVideoClient:
                 try:
                     # Lazy import COS uploader
                     if self.cos_uploader is None:
-                        from utils import COSUploader, is_cos_available
+                        from workflow.utils import COSUploader, is_cos_available
                         
                         if is_cos_available():
                             self.cos_uploader = COSUploader()

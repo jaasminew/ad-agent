@@ -3,19 +3,20 @@
 Simple example of using distortion checker tools.
 
 Usage (from project root):
-    uv run python tools/distortion_checker/example.py [image_path]
+    uv run python workflow/tools/distortion_checker/example.py [image_path]
     
 Example:
-    uv run python tools/distortion_checker/example.py /path/to/image.jpg
+    uv run python workflow/tools/distortion_checker/example.py /path/to/image.jpg
 """
 
 import sys
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
 
-from tools import check_image_distortion, get_distortion_labels
+from workflow.tools import check_image_distortion, get_distortion_labels
 
 
 def main():

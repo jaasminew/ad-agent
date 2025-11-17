@@ -29,7 +29,7 @@ load_dotenv()
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from tools.seedance_video import get_seedance_video_client
+from workflow.tools.seedance_video import get_seedance_video_client
 
 
 def test_text_to_video():

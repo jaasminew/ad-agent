@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
         f"Script Writer: Attempt {retry_state.attempt_number} failed, retrying in {retry_state.next_action.sleep} seconds..."
     )
 )
-def _generate_shots_with_retry(product_name: str, brand_identity: str, must_have_shots: str) -> str:
+def _generate_shots_with_retry(product_name: str, brand_identity: str, must_have_shots: str, num_shots: int = 3) -> str:
     """Generate shots with retry mechanism for LLM API calls."""
     # Create prompt template
     prompt = ChatPromptTemplate.from_messages([
@@ -34,6 +34,7 @@ def _generate_shots_with_retry(product_name: str, brand_identity: str, must_have
         "product_name": product_name,
         "brand_identity": brand_identity,
         "must_have_shots": must_have_shots,
+        "num_shots": num_shots,
     })
     
     return response.content.strip()
@@ -47,6 +48,7 @@ def write_ad_script(state: WorkflowState) -> dict:
     - product_name: Product name
     - brand_identity: Brand positioning
     - must_have_shots: Required shots (comma-separated)
+    - num_shots: Number of shots to generate (default: 3)
     
     Outputs:
     - shots: List of shot descriptions
@@ -56,20 +58,24 @@ def write_ad_script(state: WorkflowState) -> dict:
     product_name = state["product_name"]
     brand_identity = state["brand_identity"]
     must_have_shots = state["must_have_shots"]
+    num_shots = state.get("num_shots", 3)
+    
+    logger.info(f"Requested number of shots: {num_shots}")
     
     # Call LLM with retry mechanism
-    shots_text = _generate_shots_with_retry(product_name, brand_identity, must_have_shots)
+    shots_text = _generate_shots_with_retry(product_name, brand_identity, must_have_shots, num_shots)
     
     # Parse shot list
     shots = [line.strip() for line in shots_text.split("\n") if line.strip()]
     
-    # Limit to maximum 3 shots
-    max_shots = 3
-    if len(shots) > max_shots:
-        logger.info(f"Generated {len(shots)} shots, limiting to {max_shots}")
-        shots = shots[:max_shots]
+    # Limit to requested number of shots
+    if len(shots) > num_shots:
+        logger.info(f"Generated {len(shots)} shots, limiting to {num_shots}")
+        shots = shots[:num_shots]
+    elif len(shots) < num_shots:
+        logger.warning(f"Only generated {len(shots)} shots, requested {num_shots}")
     
-    logger.info(f"Generated {len(shots)} shots:")
+    logger.info(f"Final: {len(shots)} shots:")
     for i, shot in enumerate(shots, 1):
         logger.info(f"  {i}. {shot}")
     

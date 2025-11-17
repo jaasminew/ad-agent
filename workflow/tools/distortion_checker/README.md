@@ -17,7 +17,7 @@ Dependencies are documented in `pyproject.toml`.
 ## Quick Start
 
 ```python
-from tools import check_image_distortion
+from workflow.tools import check_image_distortion
 
 # Check an image for distortions
 result = check_image_distortion("path/to/image.jpg")
@@ -73,7 +73,7 @@ uv run python tools/distortion_checker/example.py /path/to/image.jpg
 ```python
 from langchain.agents import initialize_agent, AgentType
 from langchain_openai import ChatOpenAI
-from tools import check_image_distortion
+from workflow.tools import check_image_distortion
 
 llm = ChatOpenAI(model="gpt-4")
 agent = initialize_agent(

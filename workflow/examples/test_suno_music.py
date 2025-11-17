@@ -30,7 +30,7 @@ load_dotenv()
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from tools.suno_music import SunoMusicClient, suno_generate_music
+from workflow.tools.suno_music import SunoMusicClient, suno_generate_music
 
 # Setup logging
 logging.basicConfig(

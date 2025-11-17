@@ -22,13 +22,23 @@ class VideoConcatClient:
     
     def download_video(self, url: str, output_path: str) -> None:
         """
-        Download video from URL to local path.
+        Download video from URL or copy from local path.
         
         Args:
-            url: Video URL
+            url: Video URL or local file path
             output_path: Local path to save video
         """
         logger.info(f"Downloading video from: {url}")
+        
+        # Check if it's a local file path
+        if os.path.exists(url):
+            logger.info(f"Input is a local file, copying to: {output_path}")
+            import shutil
+            shutil.copy2(url, output_path)
+            logger.info(f"✓ Video copied to: {output_path}")
+            return
+        
+        # Otherwise, download from URL
         response = requests.get(url, stream=True, timeout=300)
         response.raise_for_status()
         

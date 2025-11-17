@@ -3,11 +3,13 @@
 import sys
 import os
 import logging
+from pathlib import Path
 
-# Add parent directory to path to import tools
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add project root to path to import tools
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
-from tools.video_concat import concat_videos
+from workflow.tools.video_concat import concat_videos
 from dotenv import load_dotenv
 
 # Configure logging

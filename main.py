@@ -1,6 +1,8 @@
 """AD Agent Workflow - Generate advertising videos using AI"""
 
 import os
+import sys
+import argparse
 import logging
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START, END
@@ -37,6 +39,7 @@ def run_ad_workflow(
     brand_identity: str,
     product_images: str,
     must_have_shots: str,
+    num_shots: int = 3,
     generate_video: bool = False,
     video_model: str = "kling"
 ) -> dict:
@@ -56,6 +59,7 @@ def run_ad_workflow(
         brand_identity: Brand positioning/identity
         product_images: Product image URL
         must_have_shots: Required shots (comma-separated)
+        num_shots: Number of shots to generate (default: 3)
         generate_video: Whether to generate video (default: False)
         video_model: Which video generation model to use ("veo", "kling", or "seedance", default: "kling")
     
@@ -69,6 +73,7 @@ def run_ad_workflow(
     logger.info(f"Brand Identity: {brand_identity}")
     logger.info(f"Product Images: {product_images}")
     logger.info(f"Must Have Shots: {must_have_shots}")
+    logger.info(f"Number of Shots: {num_shots}")
     logger.info(f"Generate Video: {generate_video}")
     logger.info(f"Video Model: {video_model.upper()}")
     logger.info("=" * 80 + "\n")
@@ -101,6 +106,7 @@ def run_ad_workflow(
         "brand_identity": brand_identity,
         "product_images": product_images,
         "must_have_shots": must_have_shots,
+        "num_shots": num_shots,
         "generate_video": generate_video,
         "video_model": video_model,
         "messages": [],
@@ -170,14 +176,82 @@ def run_ad_workflow(
 
 
 if __name__ == "__main__":
-    # Example usage - set generate_video=True to generate and concatenate videos
+    parser = argparse.ArgumentParser(
+        description="AD Agent Workflow - Generate advertising videos using AI",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Basic usage with default settings (3 shots, no video generation)
+  python main.py --product "Polaroid Camera" --brand "Nostalgia, Artistic" --image "https://example.com/image.jpg" --shots "Friends sharing photos"
+  
+  # Generate 5 shots with video generation enabled
+  python main.py --product "Polaroid Camera" --brand "Nostalgia, Artistic" --image "https://example.com/image.jpg" --shots "Friends sharing photos" --num-shots 5 --generate-video --video-model kling
+  
+  # Use environment variables or run directly with default example
+  python main.py
+        """
+    )
+    
+    parser.add_argument(
+        "--product",
+        type=str,
+        default="Polaroid Camera",
+        help="Product name (default: Polaroid Camera)"
+    )
+    
+    parser.add_argument(
+        "--brand",
+        type=str,
+        default="Nostalgia, Artistic, Instant Sharing, Creativity, Authenticity",
+        help="Brand identity/positioning (default: Nostalgia, Artistic, ...)"
+    )
+    
+    parser.add_argument(
+        "--image",
+        type=str,
+        default="https://m.media-amazon.com/images/I/71a0-JzaiEL._AC_SL1500_.jpg",
+        help="Product image URL (default: example Polaroid image)"
+    )
+    
+    parser.add_argument(
+        "--shots",
+        type=str,
+        default="Scenes of friends instantly sharing photos",
+        help="Must-have shots description (default: Scenes of friends...)"
+    )
+    
+    parser.add_argument(
+        "--num-shots",
+        type=int,
+        default=3,
+        help="Number of shots to generate (default: 3)"
+    )
+    
+    parser.add_argument(
+        "--generate-video",
+        action="store_true",
+        help="Enable video generation (default: False)"
+    )
+    
+    parser.add_argument(
+        "--video-model",
+        type=str,
+        choices=["veo", "kling", "seedance"],
+        default="kling",
+        help="Video generation model to use (default: kling)"
+    )
+    
+    args = parser.parse_args()
+    
+    # Run workflow with parsed arguments
     result = run_ad_workflow(
-        product_name="Polaroid Camera",
-        brand_identity="Nostalgia, Artistic, Instant Sharing, Creativity, Authenticity",
-        product_images="https://m.media-amazon.com/images/I/71a0-JzaiEL._AC_SL1500_.jpg",
-        must_have_shots="Scenes of friends instantly sharing photos",
-        generate_video=False,  # Set to True to generate and concatenate videos
-        video_model="kling"     # Choose "veo", "kling", or "seedance"
+        product_name=args.product,
+        brand_identity=args.brand,
+        product_images=args.image,
+        must_have_shots=args.shots,
+        num_shots=args.num_shots,
+        generate_video=args.generate_video,
+        video_model=args.video_model
     )
     
     print("\n" + "=" * 80)
