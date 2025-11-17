@@ -1,7 +1,8 @@
 """Workers for AD Agent Workflow"""
 
 from .state import WorkflowState, ShotState
-from .script_writer import write_ad_script
+from .script_writer import write_ad_script  # Legacy: Simple LLM call
+from .script_gen_agent_worker import write_ad_script_with_agent  # NEW: ReAct Agent
 from .storyboard_agent_worker import run_storyboard_agent
 from .sequential_video_generator import generate_videos_sequentially
 from .result_aggregator import aggregate_results
@@ -19,7 +20,8 @@ from .video_generator import generate_video
 __all__ = [
     "WorkflowState",
     "ShotState",
-    "write_ad_script",
+    "write_ad_script",  # Legacy: Simple LLM call
+    "write_ad_script_with_agent",  # NEW: Step 1 - Script Generation Agent (ReAct)
     "run_storyboard_agent",  # NEW: Step 2 - Replaces steps 2-6
     "generate_videos_sequentially",  # NEW: Step 3 - Sequential video generation
     "aggregate_results",

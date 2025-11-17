@@ -11,7 +11,8 @@ from langgraph.graph import StateGraph, START, END
 
 from workflow.workers import (
     WorkflowState,
-    write_ad_script,
+    write_ad_script,  # Legacy: Simple LLM call
+    write_ad_script_with_agent,  # NEW: Script Generation Agent (ReAct)
     run_storyboard_agent,
     generate_videos_sequentially,
     aggregate_results,
@@ -57,13 +58,14 @@ def run_ad_workflow(
     must_have_shots: str,
     num_shots: int = 3,
     generate_video: bool = False,
-    video_model: str = "kling"
+    video_model: str = "kling",
+    use_agent: bool = True,  # NEW: Toggle between Agent and simple LLM
 ) -> dict:
     """
     Run the complete AD Agent workflow with integrated Storyboard Agent.
     
     Workflow:
-    1. Write ad script (shots list)
+    1. Write ad script (shots list) - Using Script Generation Agent or simple LLM
     2. Run Storyboard Agent (replaces old steps 2-6)
     3. Generate videos sequentially (with transitions)
     4. Aggregate results
@@ -78,6 +80,7 @@ def run_ad_workflow(
         num_shots: Number of shots to generate (default: 3)
         generate_video: Whether to generate video (default: False)
         video_model: Which video generation model to use ("veo", "kling", or "seedance", default: "kling")
+        use_agent: Whether to use Script Generation Agent (default: True) or simple LLM
     
     Returns:
         Final state dict containing all results
@@ -92,13 +95,17 @@ def run_ad_workflow(
     logger.info(f"Number of Shots: {num_shots}")
     logger.info(f"Generate Video: {generate_video}")
     logger.info(f"Video Model: {video_model.upper()}")
+    logger.info(f"Script Generation: {'AGENT (ReAct)' if use_agent else 'SIMPLE LLM'}")
     logger.info("=" * 80 + "\n")
     
     # Build main workflow
     graph = StateGraph(WorkflowState)
     
-    # Add nodes
-    graph.add_node("write_script", write_ad_script)
+    # Add nodes - Choose script generation method
+    script_node = "write_script_agent" if use_agent else "write_script"
+    script_func = write_ad_script_with_agent if use_agent else write_ad_script
+    
+    graph.add_node(script_node, script_func)
     graph.add_node("run_storyboard_agent", run_storyboard_agent)
     graph.add_node("generate_videos", generate_videos_sequentially)
     graph.add_node("aggregate_results", aggregate_results)
@@ -106,8 +113,8 @@ def run_ad_workflow(
     graph.add_node("generate_bgm", generate_and_add_bgm)
     
     # Add edges
-    graph.add_edge(START, "write_script")
-    graph.add_edge("write_script", "run_storyboard_agent")
+    graph.add_edge(START, script_node)
+    graph.add_edge(script_node, "run_storyboard_agent")
     graph.add_edge("run_storyboard_agent", "generate_videos")
     graph.add_edge("generate_videos", "aggregate_results")
     graph.add_edge("aggregate_results", "concatenate_videos")
@@ -197,11 +204,14 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic usage with default settings (3 shots, no video generation)
+  # Basic usage with Script Generation Agent (default, 3 shots, no video)
   python main.py --product "Polaroid Camera" --brand "Nostalgia, Artistic" --image "https://example.com/image.jpg" --shots "Friends sharing photos"
   
-  # Generate 5 shots with video generation enabled
+  # Generate 5 shots with video generation enabled (using Agent)
   python main.py --product "Polaroid Camera" --brand "Nostalgia, Artistic" --image "https://example.com/image.jpg" --shots "Friends sharing photos" --num-shots 5 --generate-video --video-model kling
+  
+  # Use simple LLM instead of Script Generation Agent
+  python main.py --product "Polaroid Camera" --brand "Nostalgia, Artistic" --image "https://example.com/image.jpg" --shots "Friends sharing photos" --use-simple-llm
   
   # Use environment variables or run directly with default example
   python main.py
@@ -257,6 +267,12 @@ Examples:
         help="Video generation model to use (default: kling)"
     )
     
+    parser.add_argument(
+        "--use-simple-llm",
+        action="store_true",
+        help="Use simple LLM instead of Script Generation Agent (default: False, uses Agent)"
+    )
+    
     args = parser.parse_args()
     
     # Run workflow with parsed arguments
@@ -267,7 +283,8 @@ Examples:
         must_have_shots=args.shots,
         num_shots=args.num_shots,
         generate_video=args.generate_video,
-        video_model=args.video_model
+        video_model=args.video_model,
+        use_agent=not args.use_simple_llm,  # Default is True (use agent)
     )
     
     print("\n" + "=" * 80)

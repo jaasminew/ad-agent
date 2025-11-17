@@ -19,15 +19,59 @@
 
 ### 1. 编写广告脚本
 
+**这一步使用 Script Generation Agent (ReAct Agent) 替代简单的 LLM 调用**
+
 输入(全部来自初始输入):
 - product_name
 - brand_identity
 - must_have_shots
+- num_shots (可选，默认 3)
 
-利用大模型语言能力生成分镜列表。
+**Script Generation Agent 处理**:
+- Agent 自动协调工具完成脚本生成流程
+- 内部使用: Memory (remember/recall), Web Search (可选)
+- 自动进行市场调研、创意生成、优化改进
+- 具体实现细节(包括 prompt 工程)无需关注,作为黑盒使用
 
-输出:
+处理流程(Agent 内部自动完成):
+1. 理解需求 - 分析产品信息和品牌定位
+2. 市场调研 (可选) - 使用 web_search 搜索灵感和最佳实践
+3. 生成分镜创意 - 基于调研结果构思创意分镜
+4. 优化完善 - 审核和改进分镜描述
+5. 存储结果 - 使用 remember 保存生成的分镜
+
+输出 (ScriptResult):
 - shots: 分镜列表
+  - shot_number: 分镜序号
+  - description: 分镜描述
+- total_shots: 总分镜数
+- research_notes: 调研笔记 (如果使用了 web_search)
+
+**使用示例**:
+```python
+from langchain_openai import ChatOpenAI
+from agent.script_gen_agent import ScriptGenerationAgent, ScriptConfig
+
+# 初始化 LLM
+llm = ChatOpenAI(model="gpt-4", temperature=0.7)
+
+# 创建 agent
+agent = ScriptGenerationAgent(llm=llm, verbose=True)
+
+# 配置脚本生成
+script_config = ScriptConfig(
+    product_name=product_name,
+    brand_identity=brand_identity,
+    must_have_shots=must_have_shots,
+    num_shots=5,
+)
+
+# 生成脚本
+script_result = agent.generate_script(script_config)
+
+# 获取分镜列表
+shots = [shot.description for shot in script_result.shots]
+```
 
 下一步: 2
 
@@ -218,7 +262,19 @@ final_urls = [
 ```
 初始输入
   ↓
-[1] 编写广告脚本
+[1] Script Generation Agent (ReAct Agent)
+  │
+  │  输入: ScriptConfig (product_name, brand_identity, must_have_shots, num_shots)
+  │  
+  │  内部自动处理:
+  │  - 理解需求和品牌定位
+  │  - 市场调研 (可选，使用 web_search)
+  │  - 创意分镜生成
+  │  - 优化和完善
+  │  - 存储结果到 memory
+  │  
+  │  输出: ScriptResult (shots, total_shots, research_notes)
+  │
   ↓
   shots(分镜列表)
   ↓
@@ -262,7 +318,16 @@ final_urls = [
 
 ## 关键改进点
 
-### 1. Storyboard Agent 集成(黑盒设计)
+### 1. Script Generation Agent 集成(ReAct Agent 设计)
+- **智能生成**: 使用 ReAct Agent 替代简单的 LLM 调用生成广告脚本
+- **工具协调**: Agent 自动协调 memory 和 web_search 工具
+- **市场调研**: 可选的 web_search 功能,搜索行业最佳实践和创意灵感
+- **记忆管理**: 使用 remember/recall 管理生成过程中的中间状态
+- **黑盒封装**: 内部实现(包括 prompt 工程、推理步骤)完全封装,无需关注
+- **输入**: 只需提供 `ScriptConfig` (product_name, brand_identity, must_have_shots, num_shots)
+- **输出**: 获得结构化的 `ScriptResult`,包含分镜列表和调研笔记
+
+### 2. Storyboard Agent 集成(黑盒设计)
 - **统一处理**: 原步骤 2-6 合并为一个 Storyboard Agent,提供清晰的输入输出接口
 - **黑盒封装**: 内部实现(包括 prompt 工程、工具协调、重试逻辑等)完全封装,无需关注
 - **自动化能力**: 
@@ -273,7 +338,9 @@ final_urls = [
 - **输入**: 只需提供 `EpisodeConfig` (title, product_config, beats)
 - **输出**: 获得结构化的 `EpisodeResult`,包含所有生成结果和状态信息
 
-### 2. 明确的数据流
+### 3. 明确的数据流
+- **ScriptConfig 输入**: 清晰定义 product_name, brand_identity, must_have_shots, num_shots
+- **ScriptResult 输出**: 结构化的分镜列表,每个分镜有 shot_number 和 description
 - **EpisodeConfig 输入**: 清晰定义 title, product_config(product_image_url, target_object), beats
 - **EpisodeResult 输出**: 完整的结构化输出,包含每个 beat 的详细信息
   - 每个 beat 有独立的 BeatResult,包含所有尝试记录和最终结果
@@ -281,13 +348,13 @@ final_urls = [
   - 包含质量检查、商品替换状态、标记信息等
 - **数据传递**: episode_result.beats[i].final_image_url 直接传递到视频生成步骤
 
-### 3. 串行视频生成
+### 4. 串行视频生成
 - **过渡连贯**: 生成视频时考虑 previous_beat 和 next_beat,确保镜头间平滑过渡
 - **上下文感知**: 每个 beat 的视频提示词都包含前后镜头信息,提升整体流畅度
 - **顺序依赖**: 必须串行执行,因为需要知道相邻镜头的状态
 - **图生视频**: 使用 final_image_url(已包含真实商品)作为视频首帧
 
-### 4. 灵活的执行模式
+### 5. 灵活的执行模式
 - **generate_video 标志**: 可以选择只生成合成图片和提示词,不生成实际视频
 - **快速迭代**: 在 generate_video=false 模式下可以快速验证分镜和商品合成效果
 - **成本控制**: 视频生成成本较高,可以先验证图片效果再决定是否生成视频
@@ -295,6 +362,9 @@ final_urls = [
 
 ## 技术栈
 
+- **Script Generation Agent**: LangChain ReAct Agent
+  - 使用 memory (remember/recall) 和 web_search 工具
+  - 支持任何 LangChain 兼容的 LLM(GPT-4, Claude Sonnet 4 等)
 - **Storyboard Agent**: LangChain ReAct Agent
   - 支持任何 LangChain 兼容的 LLM(GPT-4, Claude Sonnet 4 等)
   - 当前推荐: GPT-4o-mini(成本效益好)或 Claude Sonnet 4(质量高)
@@ -309,6 +379,13 @@ final_urls = [
 - **存储**: 腾讯云 COS
 
 ## 注意事项
+
+### Script Generation Agent 的使用说明
+1. **黑盒使用**: Agent 作为黑盒使用,内部实现细节(prompt、推理步骤等)无需修改
+2. **接口稳定**: 只关注输入(ScriptConfig)和输出(ScriptResult)的数据结构
+3. **可选调研**: web_search 是可选的,需要设置 TAVILY_API_KEY 环境变量
+4. **创意质量**: LLM 模型选择影响创意质量,推荐使用 GPT-4 或 Claude Sonnet 4
+5. **必备镜头**: 确保在 must_have_shots 中明确列出所有必需的分镜元素
 
 ### Storyboard Agent 的使用说明
 1. **黑盒使用**: Agent 作为黑盒使用,内部实现细节(prompt、工具调用顺序等)无需修改
