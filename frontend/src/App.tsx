@@ -501,7 +501,7 @@ function InputPanel({
 
   return (
     <div className="h-full px-1">
-      <Card className="flex h-full flex-col overflow-hidden">
+      <Card className="column-panel flex h-full flex-col overflow-hidden">
         <CardHeader className="space-y-1 px-4 pb-4">
           <CardTitle className="text-lg">{inputCopy.title}</CardTitle>
           <p className="text-sm text-muted-foreground">
@@ -678,7 +678,7 @@ function TimelinePanel({
     <div className="h-full px-1">
       <Card
         className={cn(
-          "flex h-full flex-col border-2",
+          "column-panel flex h-full flex-col border-2",
           isRunning ? "border-accent shadow-panel-glow" : "border-border"
         )}
       >
@@ -709,7 +709,7 @@ function TimelinePanel({
             </Alert>
           ) : null}
           {shouldShowNodes ? (
-            <ScrollArea className="h-full rounded-lg bg-dot-pattern">
+            <ScrollArea className="node-canvas h-full rounded-lg bg-dot-pattern">
               <div
                 className={cn(
                   "space-y-4 p-4 transition",
@@ -894,7 +894,7 @@ function FinalOutputPanel({
   const finalCopy = copy.finalOutput
   return (
     <div className="h-full px-1">
-      <Card className="flex h-full flex-col">
+      <Card className="column-panel flex h-full flex-col">
         <CardHeader className="flex-row items-center justify-between pb-4">
           <div>
             <CardTitle className="text-lg">{finalCopy.title}</CardTitle>

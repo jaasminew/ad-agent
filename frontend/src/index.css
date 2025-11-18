@@ -8,6 +8,9 @@
   --foreground: 210 40% 98%;
   --card: 240 10% 8%;
   --card-foreground: 210 40% 98%;
+  --column-panel: 240 10% 12%;
+  --node-canvas: 240 10% 6%;
+  --column-panel: 240 10% 12%;
   --popover: 240 10% 8%;
   --popover-foreground: 210 40% 98%;
   --primary: 240 60% 64%;
@@ -34,6 +37,9 @@
   --foreground: 222.2 47.4% 11.2%;
   --card: 0 0% 100%;
   --card-foreground: 222.2 47.4% 11.2%;
+  --column-panel: var(--card);
+  --node-canvas: var(--card);
+  --column-panel: var(--card);
   --popover: 0 0% 100%;
   --popover-foreground: 222.2 47.4% 11.2%;
   --primary: 240 60% 64%;
@@ -100,4 +106,14 @@ body {
 
 .scroll-area:hover::-webkit-scrollbar-thumb {
   background: hsl(var(--muted-foreground) / 0.6);
+}
+
+.column-panel {
+  background-color: hsl(var(--column-panel));
+  transition: background-color 150ms ease;
+}
+
+.node-canvas {
+  background-color: hsl(var(--node-canvas));
+  transition: background-color 150ms ease;
 }
