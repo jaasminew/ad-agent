@@ -33,6 +33,7 @@
 - 每个节点可用子 `Card` 或自定义 `div`，内部包含：
   - 在工作流运行期间，整列节点设为只读，添加 `aria-disabled`，并通过 `pointer-events-none`、`cursor-not-allowed`（hover 时显示禁止符号）提示不可操作。
   - 单个节点限制 `max-h-[30vh]`（约等于视窗高度的 30%）与 `max-w-[80%]`，内部再用 `ScrollArea` 或 `overflow-y-auto` 处理溢出内容。
+  - 卡片右上角放置“赞 / 踩”图标按钮，用户可即时对该节点产出表达态度；即使节点处于锁定状态也应可点。点击“踩”时弹出可关闭的小浮层，附带“你不喜欢的原因？”等可选提问输入，方便收集反馈再关闭。
   - 标题 + 状态 `Badge`（`variant="outline"` idle，`variant="secondary"` done）。
   - 运行时在卡片左侧加一条 `border-l-2 border-[#6467F0]`，或给整列套 `border-[#6467F0] shadow-[0_0_0_1px_#6467F0]`。
   - 内容区域：进行中的节点为实时流式输出（聊天形式），让用户看到最新日志；完成后可展示摘要、缩略图等。

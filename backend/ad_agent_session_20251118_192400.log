@@ -1,0 +1,235 @@
+2025-11-18 19:24:00 [INFO] __main__ - Session logs will be written to /Users/lianxunw/Desktop/ad-agent/backend/ad_agent_session_20251118_192400.log
+2025-11-18 19:24:00 [INFO] __main__ - ================================================================================
+2025-11-18 19:24:00 [INFO] __main__ - AD Agent Workflow - Generate Advertising Videos
+2025-11-18 19:24:00 [INFO] __main__ - ================================================================================
+2025-11-18 19:24:00 [INFO] __main__ - 
+================================================================================
+2025-11-18 19:24:00 [INFO] __main__ - Starting AD Agent Workflow with Storyboard Agent
+2025-11-18 19:24:00 [INFO] __main__ - ================================================================================
+2025-11-18 19:24:00 [INFO] __main__ - Product: Polaroid Camera
+2025-11-18 19:24:00 [INFO] __main__ - Brand Identity: creative, expressive, youthful, colorful
+2025-11-18 19:24:00 [INFO] __main__ - Product Images: https://m.media-amazon.com/images/I/71a0-JzaiEL._AC_SL1500_.jpg
+2025-11-18 19:24:00 [INFO] __main__ - Must Have Shots: 一个金色头发的女孩用相机在户外拍照
+2025-11-18 19:24:00 [INFO] __main__ - Number of Shots: 2
+2025-11-18 19:24:00 [INFO] __main__ - Generate Video: True
+2025-11-18 19:24:00 [INFO] __main__ - Video Model: KLING
+2025-11-18 19:24:00 [INFO] __main__ - Script Generation: AGENT (ReAct)
+2025-11-18 19:24:00 [INFO] __main__ - ================================================================================
+
+2025-11-18 19:24:00 [INFO] __main__ - Executing workflow...
+
+2025-11-18 19:24:00 [INFO] workflow.workers.script_gen_agent_worker - === Script Generation Agent: Generating ad shots ===
+2025-11-18 19:24:00 [INFO] workflow.workers.script_gen_agent_worker - Product: Polaroid Camera
+2025-11-18 19:24:00 [INFO] workflow.workers.script_gen_agent_worker - Brand Identity: creative, expressive, youthful, colorful
+2025-11-18 19:24:00 [INFO] workflow.workers.script_gen_agent_worker - Must-Have Shots: 一个金色头发的女孩用相机在户外拍照
+2025-11-18 19:24:00 [INFO] workflow.workers.script_gen_agent_worker - Requested number of shots: 2
+2025-11-18 19:24:00 [INFO] script_gen_agent.agent - ✓ Using provided LLM: ChatOpenAI
+2025-11-18 19:24:00 [INFO] script_gen_agent.tools - ✓ Loaded Memory tools
+2025-11-18 19:24:00 [INFO] script_gen_agent.tools - ✓ Loaded Web Search tool
+2025-11-18 19:24:00 [INFO] script_gen_agent.tools - ✓ Total tools loaded: 3
+2025-11-18 19:24:00 [INFO] script_gen_agent.agent - ✓ Loaded 3 tools
+2025-11-18 19:24:00 [INFO] script_gen_agent.agent - ✓ Agent executor initialized
+2025-11-18 19:24:00 [INFO] script_gen_agent.agent - 🎬 Starting script generation
+2025-11-18 19:24:00 [INFO] script_gen_agent.agent -    Product: Polaroid Camera
+2025-11-18 19:24:00 [INFO] script_gen_agent.agent -    Brand: creative, expressive, youthful, colorful
+2025-11-18 19:24:00 [INFO] script_gen_agent.agent -    Must-have shots: 一个金色头发的女孩用相机在户外拍照
+2025-11-18 19:24:00 [INFO] script_gen_agent.agent -    Number of shots: 2
+2025-11-18 19:24:02 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:24:05 [INFO] tools.web_search - 🔍 [web_search] Called - Query: 'Polaroid Camera advertisements 
+'
+2025-11-18 19:24:05 [INFO] tools.web_search - ✓ Tavily client initialized
+2025-11-18 19:24:07 [INFO] tools.web_search - ✓ [web_search] Returned 5 results
+2025-11-18 19:24:08 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:24:12 [INFO] tools.web_search - 🔍 [web_search] Called - Query: 'Polaroid Camera TV commercials 
+'
+2025-11-18 19:24:14 [INFO] tools.web_search - ✓ [web_search] Returned 5 results
+2025-11-18 19:24:16 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:24:19 [INFO] tools.memory - 💾 [remember] Storing note: 'Polaroid Camera commercials are known for focusing...'
+2025-11-18 19:24:19 [INFO] tools.memory - ✓ [remember] Note stored, total count: 1
+2025-11-18 19:24:22 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:24:38 [INFO] tools.memory - 💾 [remember] Storing note: 'shot_1: A vibrant shot of a blonde girl in a color...'
+2025-11-18 19:24:38 [INFO] tools.memory - ✓ [remember] Note stored, total count: 2
+2025-11-18 19:24:40 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:24:44 [INFO] script_gen_agent.agent - Agent execution completed
+2025-11-18 19:24:44 [INFO] script_gen_agent.agent - ✓ Generated 2 shots
+2025-11-18 19:24:44 [INFO] script_gen_agent.agent -    1. A vibrant shot of a blonde girl in a colorful summer dress, outdoors in a park filled with blooming flowers. She's capturing the beauty around her with her Polaroid camera, her face lit up with joy and creativity. The shot emphasizes the expressive and youthful brand identity of Polaroid.
+2025-11-18 19:24:44 [INFO] script_gen_agent.agent -    2. A close-up shot of the Polaroid camera in the girl's hands. The camera print is slowly coming out, revealing a picture of her friends laughing and enjoying a picnic in the park. The shot communicates the joy of capturing real-life moments and evokes a sense of nostalgia, aligning with the Polaroid's advertising style.
+2025-11-18 19:24:44 [INFO] script_gen_agent.agent - 🔄 Agent state reset
+2025-11-18 19:24:44 [INFO] workflow.workers.script_gen_agent_worker - 
+Research notes captured: 2
+2025-11-18 19:24:44 [INFO] workflow.workers.script_gen_agent_worker -   - Research: Polaroid Camera advertisements 
+
+2025-11-18 19:24:44 [INFO] workflow.workers.script_gen_agent_worker -   - Research: Polaroid Camera TV commercials 
+
+2025-11-18 19:24:44 [INFO] workflow.workers.script_gen_agent_worker - 
+Final: 2 shots generated:
+2025-11-18 19:24:44 [INFO] workflow.workers.script_gen_agent_worker -   1. A vibrant shot of a blonde girl in a colorful summer dress, outdoors in a park filled with blooming flowers. She's capturing the beauty around her with her Polaroid camera, her face lit up with joy and creativity. The shot emphasizes the expressive and youthful brand identity of Polaroid.
+2025-11-18 19:24:44 [INFO] workflow.workers.script_gen_agent_worker -   2. A close-up shot of the Polaroid camera in the girl's hands. The camera print is slowly coming out, revealing a picture of her friends laughing and enjoying a picnic in the park. The shot communicates the joy of capturing real-life moments and evokes a sense of nostalgia, aligning with the Polaroid's advertising style.
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker - 
+================================================================================
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker - Running Storyboard Agent (Black Box)
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker - ================================================================================
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker - Product: Polaroid Camera
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker - Brand Identity: creative, expressive, youthful, colorful
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker - Product Image: https://m.media-amazon.com/images/I/71a0-JzaiEL._AC_SL1500_.jpg
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker - Total shots: 2
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker - 
+Parsing shots into beats...
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker -   Beat 1: Shot 1
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker -     Scene: A vibrant shot of a blonde girl in a colorful summer dress, outdoors in a park filled with blooming flowers
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker -     Action: She's capturing the beauty around her with her Polaroid camera, her face lit up with joy and creativity. The shot emphasizes the expressive and youthful brand identity of Polaroid.
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker -   Beat 2: Shot 2
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker -     Scene: A close-up shot of the Polaroid camera in the girl's hands
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker -     Action: The camera print is slowly coming out, revealing a picture of her friends laughing and enjoying a picnic in the park. The shot communicates the joy of capturing real-life moments and evokes a sense of nostalgia, aligning with the Polaroid's advertising style.
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker - 
+Episode Config:
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker -   Title: Polaroid Camera - creative, expressive, youthful, colorful
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker -   Target Object: polaroid_camera
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker -   Total Beats: 2
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker - 
+Initializing Storyboard Agent...
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker - ✓ Using OpenAI GPT-4o-mini for Storyboard Agent
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.agent - ✓ Using provided LLM: ChatOpenAI
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.tools - ✓ Loaded PixelHub tools
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.tools - ✓ Loaded Palette Extractor tool
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.tools - ✓ Loaded MidJourney tools
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.tools - ✓ Loaded Distortion Checker tools
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.tools - ✓ Loaded Nanobanana tools
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.tools - ✓ Loaded Memory tools
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.tools - ✓ Total tools loaded: 10
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.agent - ✓ Loaded 10 tools
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.agent - ✓ Agent executor initialized
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker - ✓ Storyboard Agent initialized with 10 tools
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker - 
+Processing episode with Storyboard Agent...
+2025-11-18 19:24:44 [INFO] workflow.workers.storyboard_agent_worker - (This will take several minutes depending on the number of beats)
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.agent - 🎬 Starting episode: Polaroid Camera - creative, expressive, youthful, colorful
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.agent -    Episode ID: 71c303fc-fa17-468d-a125-ea22c254ccb4
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.agent -    Total beats: 2
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.agent - 
+============================================================
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.agent - Processing Beat 1 (1/2)
+2025-11-18 19:24:44 [INFO] storyboard_gen_agent.agent - ============================================================
+2025-11-18 19:24:46 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:24:52 [INFO] tools.memory - 🔖 [recall] Retrieving notes - Current count: 1
+2025-11-18 19:24:52 [INFO] tools.memory - ✓ [recall] Returned 1 notes
+2025-11-18 19:24:53 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:24:59 [INFO] tools.pixelhub - 🏷️  [list_tags] Called - page: {"page": 1, "limit": 1000}
+, limit: 1000
+2025-11-18 19:24:59 [INFO] tools.pixelhub - ✓ PixelHub client initialized with api_url: http://106.53.189.9:8084/api/v1
+2025-11-18 19:24:59 [ERROR] tools.pixelhub - HTTP error for /tags: 502 Server Error: Bad Gateway for url: http://106.53.189.9:8084/api/v1/tags?page=1&limit=1000
+2025-11-18 19:24:59 [ERROR] tools.pixelhub - ❌ [list_tags] API error: HTTP 502: {"code":0,"status":"502 Bad Gateway","desc":"未知错误","Contents":["未知异常","如需帮助请立即致电8000热线或企业微信\u0026nbsp;\u003ca class=\"a\" href=\"wxwork://message?username=8000助手\"\u003e\u003ci class=\"icon\"\u003e\u003c/i\u003e8000助手（IT业务）\u003c/a\u003e ，7x24小时为您服务"],"version":"3.1.2.69"}
+
+2025-11-18 19:25:00 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:25:05 [INFO] tools.pixelhub - 🏷️  [list_tags] Called - page: {"page": 1, "limit": 1000}
+, limit: 1000
+2025-11-18 19:25:05 [ERROR] tools.pixelhub - HTTP error for /tags: 502 Server Error: Bad Gateway for url: http://106.53.189.9:8084/api/v1/tags?page=1&limit=1000
+2025-11-18 19:25:05 [ERROR] tools.pixelhub - ❌ [list_tags] API error: HTTP 502: {"code":0,"status":"502 Bad Gateway","desc":"未知错误","Contents":["未知异常","如需帮助请立即致电8000热线或企业微信\u0026nbsp;\u003ca class=\"a\" href=\"wxwork://message?username=8000助手\"\u003e\u003ci class=\"icon\"\u003e\u003c/i\u003e8000助手（IT业务）\u003c/a\u003e ，7x24小时为您服务"],"version":"3.1.2.69"}
+
+2025-11-18 19:25:06 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:25:22 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:25:28 [INFO] storyboard_gen_agent.agent - Agent execution completed for beat 1
+2025-11-18 19:25:31 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:25:31 [INFO] storyboard_gen_agent.agent - 🧠 Beat 1 summary items:
+   - Blonde girl in a colorful summer dress
+   - Outdoors in a park filled with blooming flowers
+   - Polaroid camera prominently featured
+   - Vibrant and youthful color palette
+   - Joyful and creative facial expression
+2025-11-18 19:25:31 [INFO] storyboard_gen_agent.agent - 🧠 Stored 5 new global memory item(s):
+   - Blonde girl in a colorful summer dress
+   - Outdoors in a park filled with blooming flowers
+   - Polaroid camera prominently featured
+   - Vibrant and youthful color palette
+   - Joyful and creative facial expression
+2025-11-18 19:25:31 [WARNING] storyboard_gen_agent.agent - Using placeholder beat result extraction. Full implementation should parse agent's memory.
+2025-11-18 19:25:31 [INFO] storyboard_gen_agent.agent - ✓ Beat 1 completed
+2025-11-18 19:25:31 [INFO] storyboard_gen_agent.agent - 
+============================================================
+2025-11-18 19:25:31 [INFO] storyboard_gen_agent.agent - Processing Beat 2 (2/2)
+2025-11-18 19:25:31 [INFO] storyboard_gen_agent.agent - ============================================================
+2025-11-18 19:25:32 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:25:38 [INFO] tools.memory - 🔖 [recall] Retrieving notes - Current count: 6
+2025-11-18 19:25:39 [INFO] tools.memory - ✓ [recall] Returned 6 notes
+2025-11-18 19:25:41 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:25:46 [INFO] tools.pixelhub - 🏷️  [list_tags] Called - page: {"page": 1, "limit": 1000}
+, limit: 1000
+2025-11-18 19:25:46 [ERROR] tools.pixelhub - HTTP error for /tags: 502 Server Error: Bad Gateway for url: http://106.53.189.9:8084/api/v1/tags?page=1&limit=1000
+2025-11-18 19:25:46 [ERROR] tools.pixelhub - ❌ [list_tags] API error: HTTP 502: {"code":0,"status":"502 Bad Gateway","desc":"未知错误","Contents":["未知异常","如需帮助请立即致电8000热线或企业微信\u0026nbsp;\u003ca class=\"a\" href=\"wxwork://message?username=8000助手\"\u003e\u003ci class=\"icon\"\u003e\u003c/i\u003e8000助手（IT业务）\u003c/a\u003e ，7x24小时为您服务"],"version":"3.1.2.69"}
+
+2025-11-18 19:25:48 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:25:54 [INFO] tools.pixelhub - 🏷️  [list_tags] Called - page: {"page": 1, "limit": 1000}
+, limit: 1000
+2025-11-18 19:25:54 [ERROR] tools.pixelhub - HTTP error for /tags: 502 Server Error: Bad Gateway for url: http://106.53.189.9:8084/api/v1/tags?page=1&limit=1000
+2025-11-18 19:25:54 [ERROR] tools.pixelhub - ❌ [list_tags] API error: HTTP 502: {"code":0,"status":"502 Bad Gateway","desc":"未知错误","Contents":["未知异常","如需帮助请立即致电8000热线或企业微信\u0026nbsp;\u003ca class=\"a\" href=\"wxwork://message?username=8000助手\"\u003e\u003ci class=\"icon\"\u003e\u003c/i\u003e8000助手（IT业务）\u003c/a\u003e ，7x24小时为您服务"],"version":"3.1.2.69"}
+
+2025-11-18 19:25:55 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:26:04 [INFO] tools.memory - 💾 [remember] Storing note: 'checklist: beat=2 | slug=results_logging | status=...'
+2025-11-18 19:26:04 [INFO] tools.memory - ✓ [remember] Note stored, total count: 7
+2025-11-18 19:26:05 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:26:13 [INFO] storyboard_gen_agent.agent - Agent execution completed for beat 2
+2025-11-18 19:26:15 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent - 🧠 Beat 2 summary items:
+   - Polaroid camera reveals a photo of friends at a picnic.
+   - Shot evokes nostalgia and joy of capturing moments.
+   - Close-up shot emphasizes the camera's importance.
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent - 🧠 Stored 3 new global memory item(s):
+   - Polaroid camera reveals a photo of friends at a picnic.
+   - Shot evokes nostalgia and joy of capturing moments.
+   - Close-up shot emphasizes the camera's importance.
+2025-11-18 19:26:15 [WARNING] storyboard_gen_agent.agent - Using placeholder beat result extraction. Full implementation should parse agent's memory.
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent - ✓ Beat 2 completed
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent - 
+============================================================
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent - 🎉 Episode Complete!
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent -    Total beats: 2
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent -    Successful: 2
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent -    Flagged: 0
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent - ============================================================
+
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent - 🧠 Final global memory (9 items):
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent -    - uploaded_final_urls: []
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent -    - Blonde girl in a colorful summer dress
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent -    - Outdoors in a park filled with blooming flowers
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent -    - Polaroid camera prominently featured
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent -    - Vibrant and youthful color palette
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent -    - Joyful and creative facial expression
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent -    - Polaroid camera reveals a photo of friends at a picnic.
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent -    - Shot evokes nostalgia and joy of capturing moments.
+2025-11-18 19:26:15 [INFO] storyboard_gen_agent.agent -    - Close-up shot emphasizes the camera's importance.
+2025-11-18 19:26:15 [INFO] workflow.workers.storyboard_agent_worker - 
+================================================================================
+2025-11-18 19:26:15 [INFO] workflow.workers.storyboard_agent_worker - ✅ Storyboard Agent Completed
+2025-11-18 19:26:15 [INFO] workflow.workers.storyboard_agent_worker - ================================================================================
+2025-11-18 19:26:15 [INFO] workflow.workers.storyboard_agent_worker - Episode ID: 71c303fc-fa17-468d-a125-ea22c254ccb4
+2025-11-18 19:26:15 [INFO] workflow.workers.storyboard_agent_worker - Total Beats: 2
+2025-11-18 19:26:15 [INFO] workflow.workers.storyboard_agent_worker - Successful: 2
+2025-11-18 19:26:15 [INFO] workflow.workers.storyboard_agent_worker - Flagged: 0
+2025-11-18 19:26:15 [INFO] workflow.workers.storyboard_agent_worker - 
+📸 Generated Images:
+2025-11-18 19:26:15 [INFO] workflow.workers.storyboard_agent_worker -   Total: 0
+2025-11-18 19:26:15 [INFO] workflow.workers.sequential_video_generator - 
+================================================================================
+2025-11-18 19:26:15 [INFO] workflow.workers.sequential_video_generator - Generating Videos Sequentially (Step 3)
+2025-11-18 19:26:15 [INFO] workflow.workers.sequential_video_generator - ================================================================================
+2025-11-18 19:26:15 [INFO] workflow.workers.sequential_video_generator - Total beats: 2
+2025-11-18 19:26:15 [INFO] workflow.workers.sequential_video_generator - Video generation: ENABLED
+2025-11-18 19:26:15 [INFO] workflow.workers.sequential_video_generator - Video model: KLING
+2025-11-18 19:26:15 [INFO] workflow.workers.sequential_video_generator - 
+================================================================================
+2025-11-18 19:26:15 [INFO] workflow.workers.sequential_video_generator - Processing Beat 1/2
+2025-11-18 19:26:15 [INFO] workflow.workers.sequential_video_generator - ================================================================================
+2025-11-18 19:26:15 [INFO] workflow.workers.sequential_video_generator - Beat 1: Shot 1 — A vibrant shot of a blonde girl in a colorful summe...
+2025-11-18 19:26:15 [INFO] workflow.workers.sequential_video_generator - Source image: None
+2025-11-18 19:26:15 [INFO] workflow.workers.sequential_video_generator -   Next: Shot 2 — A close-up shot of the Polaroid camera in the girl'...
+2025-11-18 19:26:15 [INFO] workflow.workers.sequential_video_generator - Position: This is the FIRST shot. End with camera movement/state that flows into the next shot.
+2025-11-18 19:26:19 [INFO] httpx - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-11-18 19:26:19 [INFO] workflow.workers.sequential_video_generator - ✓ Generated video prompt: "Camera starts with a wide-angle view, showcasing the girl in the park surrounded by blooming flower...
+2025-11-18 19:26:19 [INFO] workflow.workers.sequential_video_generator - Generating video with KLING...
+2025-11-18 19:26:19 [INFO] workflow.tools.kling_video - ✓ Kling Video client initialized with API: https://api-beijing.klingai.com
+2025-11-18 19:26:19 [INFO] workflow.tools.kling_video - Creating Kling video generation task...
+2025-11-18 19:26:19 [INFO] workflow.tools.kling_video -   Image: None
+2025-11-18 19:26:19 [INFO] workflow.tools.kling_video -   Prompt: "Camera starts with a wide-angle view, showcasing the girl in the park surrounded by blooming flowers. As she raises her Polaroid camera, the camera smoothly follows her movement, ending with a medium shot of her joyous expression. The transition begins with a gentle pan towards the Polaroid camera in her hands, setting the direction for the next close-up shot."
+2025-11-18 19:26:19 [INFO] workflow.tools.kling_video -   Duration: 5s, Mode: pro, CFG Scale: 0.5
+2025-11-18 19:26:19 [ERROR] workflow.tools.kling_video - Failed to create task: HTTP 400: {"code":1201,"message":"image can not be null","request_id":"bcdfe212-8101-460e-8c92-712697616fb4"}
+2025-11-18 19:26:19 [WARNING] workflow.workers.sequential_video_generator - Video Generator (API): Attempt 1 failed, retrying...

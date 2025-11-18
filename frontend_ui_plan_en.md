@@ -33,6 +33,7 @@
   - When the workflow is running, the entire node stack is read-only—use `aria-disabled`, `pointer-events-none`, and `cursor-not-allowed` on hover to indicate nodes cannot be clicked.
   - Use `Timeline` pattern (stack of `Card`s) or a custom flex column with a `Separator` between nodes.
   - Constrain every node card to `max-h-[30vh]` (≈30% viewport height) and `max-w-[80%]` of the column; wrap its content with `ScrollArea` or `overflow-y-auto` so long transcripts gain their own scrollbar.
+  - Top-right corner of each node card houses thumb-up / thumb-down icon buttons. They post immediate feedback about the agent’s output; keep them accessible even while the node is locked. Clicking thumb-down opens a dismissible mini popover asking “Why don’t you like it?” (optional free-text input) so we can capture reasons before closing.
   - Each node card includes:
     - Header with node label (`Scripter`, `Storyboard Images`, `Video Generation`, `Video Concatenation`, `BGM`).
     - Status badge using `Badge` (`variant="secondary"` for idle, `variant="outline"` for completed). When a node is executing, upgrade border color to `#6467F0`.
