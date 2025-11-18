@@ -2,13 +2,42 @@
 
 import logging
 import subprocess
+import sys
+from pathlib import Path
 from typing import List, Dict, Any
 from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from .state import WorkflowState
 from workflow.tools.video_concat import concat_videos
 
+# Add backend to path for service imports
+backend_path = Path(__file__).parent.parent.parent
+if str(backend_path) not in sys.path:
+    sys.path.insert(0, str(backend_path))
+
 logger = logging.getLogger(__name__)
+
+
+def _stream_progress(message: str, output: dict = None):
+    """Send progress update to task manager if available."""
+    try:
+        from service.task_manager import TaskContext, get_task_manager
+        from service.models import WorkflowStage
+        
+        task_id = TaskContext.get_task_id()
+        task_manager = get_task_manager() if task_id else None
+        
+        if task_manager and task_id:
+            task_manager.add_llm_output(
+                task_id=task_id,
+                stage=WorkflowStage.VIDEO_CONCATENATER,
+                message=message,
+                output=output or {},
+            )
+    except Exception as e:
+        logger.debug(f"Failed to stream progress: {e}")
+    
+    logger.info(message)
 
 
 @retry(
@@ -74,17 +103,20 @@ def concatenate_videos(state: WorkflowState) -> dict:
     Outputs:
     - final_video_url: URL of the concatenated final video (only if generate_video=True)
     """
+    _stream_progress("🎞️ Starting video concatenation check...", {})
     logger.info("=== Video Concatenator: Checking if video concatenation is needed ===")
     
     generate_video_flag = state.get("generate_video", False)
     
     if not generate_video_flag:
+        _stream_progress("⏭️ Skipping concatenation (video generation disabled)", {})
         logger.info("Video generation is disabled (generate_video=False), skipping concatenation")
         return {
             "messages": ["✓ Video Concatenator: Skipped (video generation disabled)"]
         }
     
     # Video generation is enabled, proceed with concatenation
+    _stream_progress("🎬 Video generation enabled, collecting videos...", {})
     logger.info("Video generation is enabled, proceeding with concatenation")
     
     shot_results = state.get("shot_results", [])
@@ -107,10 +139,16 @@ def concatenate_videos(state: WorkflowState) -> dict:
             logger.warning(f"Shot {i} does not have a video URL, skipping")
     
     if not video_urls:
+        _stream_progress("❌ No videos found to concatenate", {})
         logger.error("No video URLs found in shot results, cannot concatenate")
         return {
             "messages": ["✗ Video Concatenator: No videos to concatenate"]
         }
+    
+    _stream_progress(
+        f"📹 Found {len(video_urls)} videos from {len(shot_results)} shots",
+        {"total_videos": len(video_urls), "total_shots": len(shot_results)}
+    )
     
     if len(video_urls) < len(shot_results):
         logger.warning(
@@ -125,6 +163,10 @@ def concatenate_videos(state: WorkflowState) -> dict:
     safe_product_name = safe_product_name.replace(' ', '_')
     output_filename = f"{safe_product_name}_final_{timestamp}"
     
+    _stream_progress(
+        f"🎬 Concatenating {len(video_urls)} videos with ffmpeg...",
+        {"filename": output_filename, "video_count": len(video_urls)}
+    )
     logger.info(f"Concatenating {len(video_urls)} videos...")
     logger.info(f"Output filename: {output_filename}")
     
@@ -134,6 +176,11 @@ def concatenate_videos(state: WorkflowState) -> dict:
         
         # Get video duration
         video_duration = get_video_duration(final_video_url)
+        
+        _stream_progress(
+            f"✅ Video concatenation completed! Duration: {video_duration:.1f}s",
+            {"final_video_url": final_video_url, "duration": video_duration}
+        )
         
         logger.info("=" * 80)
         logger.info("✓ Video concatenation completed successfully!")

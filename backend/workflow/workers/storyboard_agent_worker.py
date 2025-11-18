@@ -146,6 +146,16 @@ def run_storyboard_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     - nanobanana_images: List of final composed image URLs (from uploaded_final_urls)
     - messages: Log messages
     """
+    # Import from service module for streaming updates
+    import sys
+    from pathlib import Path
+    backend_path = Path(__file__).parent.parent.parent
+    if str(backend_path) not in sys.path:
+        sys.path.insert(0, str(backend_path))
+    
+    from service.task_manager import TaskContext, get_task_manager
+    from service.models import WorkflowStage
+    
     logger.info("\n" + "=" * 80)
     logger.info("Running Storyboard Agent (Black Box)")
     logger.info("=" * 80)
@@ -159,6 +169,10 @@ def run_storyboard_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     logger.info(f"Brand Identity: {brand_identity}")
     logger.info(f"Product Image: {product_images}")
     logger.info(f"Total shots: {len(shots)}")
+    
+    # Get task manager for real-time updates
+    task_id = TaskContext.get_task_id()
+    task_manager = get_task_manager() if task_id else None
     
     # Parse shots into beats
     logger.info("\nParsing shots into beats...")
@@ -184,7 +198,7 @@ def run_storyboard_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     logger.info(f"  Target Object: {episode_config.product_config.target_object}")
     logger.info(f"  Total Beats: {len(episode_config.beats)}")
     
-    # Create and run agent
+    # Create and run agent with streaming
     logger.info("\nInitializing Storyboard Agent...")
     agent = create_storyboard_agent()
     
@@ -192,7 +206,13 @@ def run_storyboard_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     logger.info("(This will take several minutes depending on the number of beats)")
     
     try:
-        episode_result = agent.process_episode(episode_config)
+        # Use streaming version if task_manager is available
+        if task_manager and task_id:
+            episode_result = _process_episode_with_streaming(
+                agent, episode_config, task_manager, task_id
+            )
+        else:
+                episode_result = agent.process_episode(episode_config)
         
         logger.info("\n" + "=" * 80)
         logger.info("✅ Storyboard Agent Completed")
@@ -228,5 +248,259 @@ def run_storyboard_agent(state: Dict[str, Any]) -> Dict[str, Any]:
         
     except Exception as e:
         logger.error(f"\n❌ Storyboard Agent failed: {e}", exc_info=True)
+        raise
+
+
+def _process_episode_with_streaming(
+    agent: StoryboardAgent,
+    episode_config: EpisodeConfig,
+    task_manager,
+    task_id: str,
+) -> EpisodeResult:
+    """
+    Process episode with streaming callback to capture agent thoughts and tool calls.
+    
+    This creates a custom beat processing loop with callbacks.
+    """
+    from langchain_core.callbacks.base import BaseCallbackHandler
+    from service.models import WorkflowStage
+    import uuid
+    
+    class StoryboardStreamingCallback(BaseCallbackHandler):
+        """Callback to stream storyboard agent thoughts and actions."""
+        
+        def __init__(self, task_manager, task_id: str):
+            self.task_manager = task_manager
+            self.task_id = task_id
+        
+        def on_agent_action(self, action, **kwargs):
+            """Called when agent takes an action."""
+            tool_name = action.tool
+            tool_input = action.tool_input
+            
+            # Format tool input for display
+            if isinstance(tool_input, dict):
+                input_str = json.dumps(tool_input, indent=2, ensure_ascii=False)
+            else:
+                input_str = str(tool_input)
+            
+            message = f"🔧 Action: {tool_name}\nInput: {input_str}"
+            
+            self.task_manager.add_llm_output(
+                task_id=self.task_id,
+                stage=WorkflowStage.STORYBOARD_GEN_AGENT,
+                message=message,
+                output={"action": tool_name, "input": tool_input},
+            )
+            logger.info(f"[Storyboard Agent] {message}")
+        
+        def on_tool_end(self, output, **kwargs):
+            """Called when a tool finishes running."""
+            # Truncate long outputs
+            output_str = str(output)
+            if len(output_str) > 500:
+                output_str = output_str[:500] + "... (truncated)"
+            
+            message = f"📊 Observation: {output_str}"
+            
+            self.task_manager.add_llm_output(
+                task_id=self.task_id,
+                stage=WorkflowStage.STORYBOARD_GEN_AGENT,
+                message=message,
+                output={"observation": output_str},
+            )
+            logger.info(f"[Storyboard Agent] {message}")
+        
+        def on_agent_finish(self, finish, **kwargs):
+            """Called when agent finishes."""
+            output_preview = finish.return_values.get('output', '')
+            if len(output_preview) > 200:
+                output_preview = output_preview[:200] + "..."
+            message = f"✅ Beat completed: {output_preview}"
+            
+            self.task_manager.add_llm_output(
+                task_id=self.task_id,
+                stage=WorkflowStage.STORYBOARD_GEN_AGENT,
+                message=message,
+                output=finish.return_values,
+            )
+            logger.info(f"[Storyboard Agent] {message}")
+    
+    # Initialize episode
+    agent.episode_id = str(uuid.uuid4())
+    agent.episode_config = episode_config
+    agent.episode_palette = None
+    agent.beat_results = []
+    agent.global_product_urls = {}
+    agent.beat_summaries = []
+    agent.global_memory = []
+    agent._clear_agent_memory()
+    agent._reset_uploaded_url_memory()
+    
+    logger.info(f"🎬 Starting episode: {episode_config.title}")
+    logger.info(f"   Episode ID: {agent.episode_id}")
+    logger.info(f"   Total beats: {len(episode_config.beats)}")
+    
+    # Create callback
+    callback = StoryboardStreamingCallback(task_manager, task_id)
+    
+    # Process each beat with callback
+    for idx, beat in enumerate(episode_config.beats):
+        logger.info(f"\n{'='*60}")
+        logger.info(f"Processing Beat {beat.beat} ({idx + 1}/{len(episode_config.beats)})")
+        logger.info(f"{'='*60}")
+        
+        # Send progress update
+        task_manager.add_llm_output(
+            task_id=task_id,
+            stage=WorkflowStage.STORYBOARD_GEN_AGENT,
+            message=f"🎬 Processing Beat {beat.beat}/{len(episode_config.beats)}: {beat.heading}",
+            output={"beat_number": beat.beat, "heading": beat.heading},
+        )
+        
+        try:
+            # Process beat with custom callback injection
+            beat_result = _process_beat_with_callback(
+                agent=agent,
+                beat=beat,
+                product_config=episode_config.product_config,
+                is_first_beat=(idx == 0),
+                total_beats=len(episode_config.beats),
+                callback=callback,
+            )
+            
+            agent.beat_results.append(beat_result)
+            logger.info(f"✓ Beat {beat.beat} completed")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to process beat {beat.beat}: {e}")
+            # Create a failed beat result
+            from storyboard_gen_agent.models import BeatResult
+            from storyboard_gen_agent.utils import normalize_beat
+            beat_result = BeatResult(
+                beat_number=beat.beat,
+                shot_text=normalize_beat(beat),
+                total_attempts=0,
+                storyboard_image_url="",
+                storyboard_task_id="",
+                quality_check_passed=False,
+                flagged_for_review=True,
+                review_reason=f"Processing error: {str(e)}",
+            )
+            agent.beat_results.append(beat_result)
+        finally:
+            agent._post_process_beat(beat_result)
+    
+    # Create episode result
+    episode_result = EpisodeResult(
+        episode_id=agent.episode_id,
+        title=episode_config.title,
+        episode_palette=agent.episode_palette,
+        beats=agent.beat_results,
+        total_beats=len(episode_config.beats),
+        successful_beats=sum(1 for b in agent.beat_results if b.product_replacement_success),
+        flagged_beats=sum(1 for b in agent.beat_results if b.flagged_for_review),
+        product_url_memory=agent.global_product_urls.copy(),
+        global_memory=agent._build_global_memory_snapshot(),
+    )
+    
+    logger.info(f"\n{'='*60}")
+    logger.info(f"🎉 Episode Complete!")
+    logger.info(f"   Total beats: {episode_result.total_beats}")
+    logger.info(f"   Successful: {episode_result.successful_beats}")
+    logger.info(f"   Flagged: {episode_result.flagged_beats}")
+    logger.info(f"{'='*60}\n")
+    
+    final_memory_snapshot = agent._build_global_memory_snapshot()
+    if final_memory_snapshot:
+        logger.info("🧠 Final global memory (%d items):", len(final_memory_snapshot))
+        for item in final_memory_snapshot:
+            logger.info("   - %s", item)
+    else:
+        logger.info("🧠 Final global memory is empty")
+    
+    agent._emit_final_product_urls(episode_result.product_url_memory)
+    
+    return episode_result
+
+
+def _process_beat_with_callback(
+    agent: StoryboardAgent,
+    beat: Beat,
+    product_config: ProductConfig,
+    is_first_beat: bool,
+    total_beats: int,
+    callback,
+) -> "BeatResult":
+    """
+    Process a single beat with callback injected.
+    
+    This reimplements the core logic of agent.process_beat but with callback support.
+    """
+    from storyboard_gen_agent.checklist import build_checklist, format_checklist_markdown
+    from storyboard_gen_agent.prompt_templates import BEAT_PROCESSING_PROMPT
+    from tools.memory import MEM
+    
+    # Build input prompt (same as agent.process_beat)
+    checklist_items = build_checklist(is_first_beat=is_first_beat)
+    checklist_markdown = format_checklist_markdown(checklist_items)
+    agent._start_shot_episode()
+    global_memory_notes = agent._format_global_memory_for_prompt()
+    progress_summary = agent._format_progress_summary()
+    
+    input_prompt = BEAT_PROCESSING_PROMPT.format(
+        beat_number=beat.beat,
+        heading=beat.heading,
+        shot_description=beat.shot_description,
+        action=beat.action,
+        target_object=product_config.target_object,
+        product_image_url=product_config.product_image_url,
+        total_beats=total_beats,
+        is_first_beat=is_first_beat,
+        progress_summary=progress_summary or "No beats completed yet.",
+        global_memory_notes=global_memory_notes,
+        checklist_markdown=checklist_markdown,
+    )
+    
+    logger.debug(f"Agent input prompt: {input_prompt}")
+    
+    # Execute agent with callback
+    memory_snapshot = []
+    try:
+        result = agent.executor.invoke(
+            {"input": input_prompt},
+            config={"callbacks": [callback]}
+        )
+        
+        logger.info(f"Agent execution completed for beat {beat.beat}")
+        logger.debug(f"Agent output: {result.get('output', '')[:200]}...")
+        memory_snapshot = list(MEM)
+        checklist_confirmed = True
+        new_notes = agent._filter_new_shot_notes(memory_snapshot)
+        agent._persist_episode_state_from_notes(new_notes)
+        summary_items = agent._summarize_shot_memory(
+            beat=beat,
+            agent_output=result,
+            new_notes=new_notes,
+        )
+        if summary_items:
+            logger.info(
+                "🧠 Beat %s summary items:\n%s",
+                beat.beat,
+                "\n".join(f"   - {item}" for item in summary_items),
+            )
+            agent._append_global_memory_items(summary_items)
+        
+        # Extract beat result
+        beat_result = agent._extract_beat_result_from_agent_output(
+            beat=beat,
+            agent_output=result,
+            checklist_confirmed=checklist_confirmed,
+        )
+        
+        return beat_result
+        
+    except Exception as e:
+        logger.error(f"Agent execution failed for beat {beat.beat}: {e}")
         raise
 

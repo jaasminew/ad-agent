@@ -50,6 +50,120 @@ def _generate_script_with_agent(product_name: str, brand_identity: str, must_hav
     return result
 
 
+def _generate_script_with_agent_streaming(
+    product_name: str, 
+    brand_identity: str, 
+    must_have_shots: str, 
+    num_shots: int = 3,
+    task_manager=None,
+    task_id=None
+):
+    """Generate shots using Script Generation Agent with real-time streaming of intermediate steps."""
+    # Import callback handler from correct location (LangChain 1.0+)
+    try:
+        from langchain_core.callbacks.base import BaseCallbackHandler
+    except ImportError:
+        from langchain.callbacks.base import BaseCallbackHandler
+    
+    # Import WorkflowStage (need to import as a package)
+    import sys
+    from pathlib import Path
+    backend_path = Path(__file__).parent.parent.parent
+    if str(backend_path) not in sys.path:
+        sys.path.insert(0, str(backend_path))
+    
+    from service.models import WorkflowStage
+    
+    # Custom callback to capture agent's thoughts and actions
+    class StreamingCallback(BaseCallbackHandler):
+        def __init__(self, task_manager, task_id):
+            self.task_manager = task_manager
+            self.task_id = task_id
+            self.step_count = 0
+        
+        def on_agent_action(self, action, **kwargs):
+            """Called when agent decides on an action"""
+            if self.task_manager and self.task_id:
+                self.step_count += 1
+                # Push thought + action to frontend
+                self.task_manager.add_llm_output(
+                    task_id=self.task_id,
+                    stage=WorkflowStage.SCRIPT_GEN_AGENT,
+                    message=f"💭 Thought: {action.log.split('Action:')[0].strip() if 'Action:' in action.log else action.log}",
+                    output={"step": self.step_count, "type": "thought"},
+                )
+                
+                # Push tool call details
+                self.task_manager.add_tool_calling(
+                    task_id=self.task_id,
+                    stage=WorkflowStage.SCRIPT_GEN_AGENT,
+                    tool_name=action.tool,
+                    input_data={"input": str(action.tool_input)},
+                    output_data={},
+                    success=True,
+                )
+        
+        def on_tool_end(self, output, **kwargs):
+            """Called when tool finishes"""
+            if self.task_manager and self.task_id:
+                # Push observation
+                self.task_manager.add_llm_output(
+                    task_id=self.task_id,
+                    stage=WorkflowStage.SCRIPT_GEN_AGENT,
+                    message=f"👁️ Observation: {str(output)[:200]}{'...' if len(str(output)) > 200 else ''}",
+                    output={"step": self.step_count, "type": "observation"},
+                )
+    
+    # Initialize LLM
+    llm = ChatOpenAI(model="gpt-4", temperature=0.7)
+    
+    # Create agent
+    agent = ScriptGenerationAgent(llm=llm, verbose=True)
+    
+    # Configure script generation
+    script_config = ScriptConfig(
+        product_name=product_name,
+        brand_identity=brand_identity,
+        must_have_shots=must_have_shots,
+        num_shots=num_shots,
+    )
+    
+    # Generate script with callbacks
+    try:
+        if task_manager and task_id:
+            # Use custom callback for streaming
+            callbacks = [StreamingCallback(task_manager, task_id)]
+            
+            # Build input prompt (same logic as agent.generate_script)
+            from script_gen_agent.prompt_templates import SCRIPT_GENERATION_PROMPT
+            input_prompt = SCRIPT_GENERATION_PROMPT.format(
+                product_name=script_config.product_name,
+                brand_identity=script_config.brand_identity,
+                must_have_shots=script_config.must_have_shots,
+                num_shots=script_config.num_shots,
+            )
+            
+            # Execute agent with callbacks
+            result_dict = agent.executor.invoke(
+                {"input": input_prompt},
+                config={"callbacks": callbacks}
+            )
+            
+            # Parse result (reuse agent's parsing logic)
+            result = agent._extract_script_result(
+                agent_output=result_dict,
+                num_shots=script_config.num_shots,
+            )
+        else:
+            # No streaming, use normal generate_script
+            result = agent.generate_script(script_config)
+    finally:
+        # Clean up agent memory
+        agent.reset()
+    
+    return result
+
+
 def write_ad_script_with_agent(state: WorkflowState) -> dict:
     """
     Generate advertising script with shot list using Script Generation Agent.
@@ -70,6 +184,15 @@ def write_ad_script_with_agent(state: WorkflowState) -> dict:
     Outputs:
     - shots: List of shot descriptions (strings)
     """
+    # Import from service module (need to import as a package)
+    import sys
+    from pathlib import Path
+    backend_path = Path(__file__).parent.parent.parent
+    if str(backend_path) not in sys.path:
+        sys.path.insert(0, str(backend_path))
+    
+    from service.task_manager import TaskContext, get_task_manager
+    
     logger.info("=== Script Generation Agent: Generating ad shots ===")
     
     product_name = state["product_name"]
@@ -82,8 +205,15 @@ def write_ad_script_with_agent(state: WorkflowState) -> dict:
     logger.info(f"Must-Have Shots: {must_have_shots}")
     logger.info(f"Requested number of shots: {num_shots}")
     
-    # Call Script Generation Agent with retry mechanism
-    script_result = _generate_script_with_agent(product_name, brand_identity, must_have_shots, num_shots)
+    # Get task manager for real-time updates
+    task_id = TaskContext.get_task_id()
+    task_manager = get_task_manager() if task_id else None
+    
+    # Call Script Generation Agent with custom callback for intermediate steps
+    script_result = _generate_script_with_agent_streaming(
+        product_name, brand_identity, must_have_shots, num_shots,
+        task_manager=task_manager, task_id=task_id
+    )
     
     # Convert Shot objects to strings for workflow compatibility
     shots = [shot.description for shot in script_result.shots]

@@ -105,28 +105,28 @@ export const translations = {
     workflow: {
       processingFallback: "Processing...",
       streamingScripts: {
-        script: [
+        script_gen_agent: [
           "Scanning the brief...",
           "Drafting a cold-open hook with a tangible problem.",
           "Outlining 6 shots to cover setup, payoff, CTA.",
           "Polishing dialogue beats to feel human.",
         ],
-        storyboard: [
+        storyboard_gen_agent: [
           "Generating reference boards for each planned shot.",
           "Locking framing cues and camera moves.",
           "Highlighting motion guidance for the video model.",
         ],
-        "video-gen": [
+        video_generator: [
           "Sending prompts to the video model.",
           "Receiving first cut assets...",
           "Reinforcing color palette per brand guide.",
         ],
-        concat: [
+        video_concatenater: [
           "Aligning clip lengths to the script pacing.",
           "Dropping in placeholders for transitions.",
           "Normalizing loudness across clips.",
         ],
-        bgm: [
+        bgm_generator: [
           "Sketching melody inspired by synthwave references.",
           "Balancing drums to leave space for narration.",
           "Exporting final mix at -14 LUFS.",
@@ -189,27 +189,27 @@ export const translations = {
       close: "Close",
     },
     nodes: {
-      script: {
+      script_gen_agent: {
         label: "Scripter",
         waitingSummary: "Waiting for the story script.",
         doneSummary: "Story outline locked with a 45-second runtime.",
       },
-      storyboard: {
+      storyboard_gen_agent: {
         label: "Storyboard Images",
         waitingSummary: "Waiting for storyboard drafts.",
         doneSummary: "Storyboard includes 6 hero frames and transition cues.",
       },
-      "video-gen": {
+      video_generator: {
         label: "Video Generation",
         waitingSummary: "Waiting to render the footage.",
         doneSummary: "Core footage rendered in UHD, matching the palette.",
       },
-      concat: {
+      video_concatenater: {
         label: "Video Concatenation",
         waitingSummary: "Waiting to stitch clips together.",
         doneSummary: "All segments stitched with crossfades + bumper outro.",
       },
-      bgm: {
+      bgm_generator: {
         label: "BGM",
         waitingSummary: "Waiting to compose background music.",
         doneSummary: "Custom BGM track mastered and synced to beat markers.",
@@ -321,28 +321,28 @@ export const translations = {
     workflow: {
       processingFallback: "处理中…",
       streamingScripts: {
-        script: [
+        script_gen_agent: [
           "解析简报…",
           "撰写以真实痛点开场的钩子。",
           "规划 6 个镜头覆盖铺垫、转折、CTA。",
           "润色对白节奏让其更自然。",
         ],
-        storyboard: [
+        storyboard_gen_agent: [
           "为每个镜头生成参考分镜。",
           "锁定构图提示与镜头运动。",
           "标注供视频模型参考的运动引导。",
         ],
-        "video-gen": [
+        video_generator: [
           "向视频模型发送提示。",
           "接收第一版素材…",
           "根据品牌色强化调色。",
         ],
-        concat: [
+        video_concatenater: [
           "校准片段长度以匹配脚本节奏。",
           "为转场添加占位。",
           "统一所有片段的响度。",
         ],
-        bgm: [
+        bgm_generator: [
           "根据合成波参考勾勒旋律。",
           "平衡鼓点，为旁白留出空间。",
           "以 -14 LUFS 导出终版混音。",
@@ -403,27 +403,27 @@ export const translations = {
       close: "关闭",
     },
     nodes: {
-      script: {
+      script_gen_agent: {
         label: "脚本生成",
         waitingSummary: "等待脚本输出。",
         doneSummary: "45 秒脚本结构已锁定。",
       },
-      storyboard: {
+      storyboard_gen_agent: {
         label: "分镜图",
         waitingSummary: "等待分镜草图。",
         doneSummary: "分镜包含 6 个关键画面和转场提示。",
       },
-      "video-gen": {
+      video_generator: {
         label: "视频生成",
         waitingSummary: "等待渲染画面。",
         doneSummary: "核心画面以 UHD 输出，并匹配品牌配色。",
       },
-      concat: {
+      video_concatenater: {
         label: "视频拼接",
         waitingSummary: "等待拼接片段。",
         doneSummary: "所有段落已衔接并添加首尾转场。",
       },
-      bgm: {
+      bgm_generator: {
         label: "背景音乐",
         waitingSummary: "等待编曲。",
         doneSummary: "定制 BGM 已混音并对齐节拍标记。",

@@ -9,13 +9,29 @@ dependencies = [
     "uvicorn[standard]>=0.27.0",
     "pydantic>=2.5.0",
     "python-dotenv>=1.0.0",
+    "python-multipart>=0.0.6",
     
     # LangChain (from workflow and agent)
     "langchain>=0.3.0",
     "langchain-core>=0.3.0",
+    "langchain-community>=0.3.0",
     "langchain-anthropic>=0.2.0",
     "langchain-openai>=0.2.0",
     "langgraph>=0.2.0",
+    
+    # Agent tools dependencies
+    "tavily-python>=0.5.0",
+    "google-genai>=1.0.0",
+    "cos-python-sdk-v5>=1.9.0",
+    "colorthief>=0.2.1",
+    
+    # Workflow tools dependencies
+    "pyjwt>=2.8.0",
+    "mediapipe>=0.10.0",
+    "opencv-python>=4.8.0",
+    "numpy>=1.24.0",
+    "volcengine-python-sdk[ark]>=1.0.0",
+    "tenacity>=8.0.0",
     
     # Additional dependencies (from workflow)
     "requests>=2.31.0",

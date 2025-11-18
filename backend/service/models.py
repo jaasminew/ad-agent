@@ -104,6 +104,11 @@ class TaskQueryResponse(BaseModel):
     task_id: str
     stage: WorkflowStage
     status: TaskStatus
+    product_name: str = Field(default="", description="Product name")
+    final_script: Optional[str] = Field(default=None, description="Final script")
+    final_video_url: Optional[str] = Field(default=None, description="Final video URL (without BGM)")
+    final_video_with_bgm_url: Optional[str] = Field(default=None, description="Final video URL (with BGM)")
+    created_at: str = Field(default="", description="Creation timestamp")
     contents: List[ContentBlock] = Field(default_factory=list)
     
     class Config:
@@ -128,6 +133,7 @@ class TaskRecord:
         created_at: datetime,
         updated_at: datetime,
         error_message: Optional[str] = None,
+        final_script: Optional[str] = None,
         final_video_url: Optional[str] = None,
         final_video_with_bgm_url: Optional[str] = None,
     ):
@@ -143,6 +149,7 @@ class TaskRecord:
         self.created_at = created_at
         self.updated_at = updated_at
         self.error_message = error_message
+        self.final_script = final_script
         self.final_video_url = final_video_url
         self.final_video_with_bgm_url = final_video_with_bgm_url
 

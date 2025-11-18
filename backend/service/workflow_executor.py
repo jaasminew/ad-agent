@@ -11,7 +11,7 @@ workflow_path = Path(__file__).parent.parent / "workflow"
 sys.path.insert(0, str(workflow_path))
 
 from workers import WorkflowState
-from workers.script_gen_agent_worker import write_ad_script
+from workers.script_gen_agent_worker import write_ad_script_with_agent
 from workers.storyboard_agent_worker import run_storyboard_agent
 from workers.sequential_video_generator import generate_videos_sequentially
 from workers.result_aggregator import aggregate_results
@@ -80,7 +80,7 @@ def execute_workflow(
             task_manager=task_manager,
             task_id=task_id,
             stage=WorkflowStage.SCRIPT_GEN_AGENT,
-            worker_func=write_ad_script,
+            worker_func=write_ad_script_with_agent,
             state=state,
         )
         logger.info(f"[Task {task_id}] ✓ Script generation completed")
@@ -213,16 +213,27 @@ def _execute_with_logging(
         state: Current state
         
     Returns:
-        Updated state
+        Updated state (merged with original state)
     """
-    # Execute worker
+    # ✅ Stage started - push immediate update
+    task_manager.add_llm_output(
+        task_id=task_id,
+        stage=stage,
+        message=f"🚀 Starting {stage.value.replace('_', ' ').title()}...",
+        output={"status": "started"},
+    )
+    
+    # Execute worker (worker itself will push intermediate updates)
     result = worker_func(state)
     
-    # Record LLM output (if any)
-    # Parse based on each worker's actual output structure
+    # Record final output after completion
     _record_worker_output(task_manager, task_id, stage, state, result)
     
-    return result
+    # Merge result with original state (preserve all fields)
+    # This ensures that fields like product_name, brand_identity, etc. are not lost
+    merged_state = {**state, **result}
+    
+    return merged_state
 
 
 def _record_worker_output(

@@ -1,6 +1,8 @@
 """Sequential Video Generator - 串行生成视频(步骤 3)"""
 
 import logging
+import sys
+from pathlib import Path
 from typing import Dict, Any, List
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
@@ -10,7 +12,35 @@ from workflow.tools.kling_video import get_kling_video_client
 from workflow.tools.seedance_video import get_seedance_video_client
 from workflow.prompts.video_generator import VIDEO_GENERATOR_SYSTEM_PROMPT, VIDEO_GENERATOR_USER_PROMPT
 
+# Add backend to path for service imports
+backend_path = Path(__file__).parent.parent.parent
+if str(backend_path) not in sys.path:
+    sys.path.insert(0, str(backend_path))
+
 logger = logging.getLogger(__name__)
+
+
+def _stream_progress(message: str, output: dict = None):
+    """Send progress update to task manager if available."""
+    try:
+        from service.task_manager import TaskContext, get_task_manager
+        from service.models import WorkflowStage
+        
+        task_id = TaskContext.get_task_id()
+        task_manager = get_task_manager() if task_id else None
+        
+        if task_manager and task_id:
+            task_manager.add_llm_output(
+                task_id=task_id,
+                stage=WorkflowStage.VIDEO_GENERATOR,
+                message=message,
+                output=output or {},
+            )
+    except Exception as e:
+        # Silently ignore streaming errors
+        logger.debug(f"Failed to stream progress: {e}")
+    
+    logger.info(message)
 
 
 @retry(
@@ -116,6 +146,11 @@ def generate_videos_sequentially(state: Dict[str, Any]) -> Dict[str, Any]:
     
     shot_results = []
     
+    _stream_progress(
+        f"🎬 Starting video generation for {total_beats} beats using {video_model.upper()}",
+        {"total_beats": total_beats, "model": video_model}
+    )
+    
     for i, beat_result in enumerate(episode_result.beats):
         logger.info(f"\n{'=' * 80}")
         logger.info(f"Processing Beat {i+1}/{total_beats}")
@@ -124,6 +159,11 @@ def generate_videos_sequentially(state: Dict[str, Any]) -> Dict[str, Any]:
         beat_number = beat_result.beat_number
         shot_text = beat_result.shot_text
         final_image_url = nanobanana_images[i] if i < len(nanobanana_images) else beat_result.final_image_url
+        
+        _stream_progress(
+            f"🎥 Generating video for Beat {i+1}/{total_beats}",
+            {"beat_number": beat_number, "shot_text": shot_text[:100]}
+        )
         
         logger.info(f"Beat {beat_number}: {shot_text[:60]}...")
         logger.info(f"Source image: {final_image_url}")
@@ -157,10 +197,22 @@ def generate_videos_sequentially(state: Dict[str, Any]) -> Dict[str, Any]:
         
         # Generate video prompt
         try:
+            _stream_progress(
+                f"📝 Generating video prompt for Beat {i+1}...",
+                {"action": "prompt_generation"}
+            )
             video_prompt = _generate_video_prompt_with_retry(shot_text, context_info, position_hint)
+            _stream_progress(
+                f"✓ Generated prompt: {video_prompt[:150]}...",
+                {"prompt": video_prompt}
+            )
             logger.info(f"✓ Generated video prompt: {video_prompt[:100]}...")
         except Exception as e:
             logger.error(f"❌ Failed to generate video prompt for beat {beat_number}: {e}")
+            _stream_progress(
+                f"❌ Prompt generation failed for Beat {i+1}: {str(e)}",
+                {"error": str(e)}
+            )
             shot_results.append({
                 "beat_number": beat_number,
                 "shot_text": shot_text,
@@ -178,16 +230,32 @@ def generate_videos_sequentially(state: Dict[str, Any]) -> Dict[str, Any]:
         error = None
         
         if generate_video_flag:
+            _stream_progress(
+                f"🎬 Calling {video_model.upper()} API to generate video...",
+                {"action": "video_generation", "model": video_model}
+            )
             logger.info(f"Generating video with {video_model.upper()}...")
             try:
                 result = _generate_video_with_api(video_model, final_image_url, video_prompt)
                 video_url = result.get("cos_url") or result.get("local_path")
+                _stream_progress(
+                    f"✅ Video generated successfully for Beat {i+1}",
+                    {"video_url": video_url}
+                )
                 logger.info(f"✓ Video generated: {video_url}")
             except Exception as e:
                 logger.error(f"❌ Failed to generate video for beat {beat_number}: {e}")
+                _stream_progress(
+                    f"❌ Video generation failed for Beat {i+1}: {str(e)}",
+                    {"error": str(e)}
+                )
                 success = False
                 error = str(e)
         else:
+            _stream_progress(
+                f"⏭️ Skipping video generation (disabled)",
+                {"action": "skip"}
+            )
             logger.info("Skipping video generation (generate_video=False)")
         
         shot_results.append({
@@ -202,6 +270,10 @@ def generate_videos_sequentially(state: Dict[str, Any]) -> Dict[str, Any]:
         
         logger.info(f"✓ Beat {beat_number} completed")
     
+    _stream_progress(
+        f"✅ Video generation completed for all {len(shot_results)} beats",
+        {"total_beats": len(shot_results)}
+    )
     logger.info(f"\n✓ Video generation completed for {len(shot_results)} beats")
     
     return {

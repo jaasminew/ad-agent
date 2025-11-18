@@ -149,6 +149,11 @@ class TaskManager:
             task_id=task.task_id,
             stage=WorkflowStage(task.stage),
             status=TaskStatus(task.status),
+            product_name=task.product_name,
+            final_script=task.final_script,
+            final_video_url=task.final_video_url,
+            final_video_with_bgm_url=task.final_video_with_bgm_url,
+            created_at=task.created_at.isoformat(),
             contents=contents,
         )
     
@@ -282,8 +287,19 @@ class TaskManager:
             )
             
             # Update final results
+            # Extract script from state
+            final_script = None
+            if "shots" in final_state and final_state["shots"]:
+                # Format shots into readable script
+                shots_list = []
+                for i, shot in enumerate(final_state["shots"], 1):
+                    desc = shot.get("description", shot.get("shot_description", ""))
+                    shots_list.append(f"Shot {i}: {desc}")
+                final_script = "\n\n".join(shots_list)
+            
             self.db.update_task_final_urls(
                 task_id=task_id,
+                final_script=final_script,
                 final_video_url=final_state.get("final_video_url"),
                 final_video_with_bgm_url=final_state.get("final_video_with_bgm_url"),
             )

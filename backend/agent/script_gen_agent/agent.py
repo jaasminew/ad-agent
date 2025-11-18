@@ -3,16 +3,11 @@
 import logging
 import re
 from typing import Optional
-try:
-    # Try newer langchain structure
-    from langchain_classic.agents import AgentExecutor, create_react_agent
-except ImportError:
-    # Fallback to older langchain structure
-    from langchain.agents import AgentExecutor, create_react_agent
-try:
-    from langchain_classic.prompts import PromptTemplate
-except ImportError:
-    from langchain.prompts import PromptTemplate
+
+# Import from langchain-classic (LangChain 1.0+)
+# AgentExecutor has been moved to langchain-classic package
+from langchain_classic.agents import AgentExecutor, create_react_agent
+from langchain_classic.prompts import PromptTemplate
 from langchain_core.language_models import BaseChatModel
 
 from .models import ScriptConfig, ScriptResult, Shot

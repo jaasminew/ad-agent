@@ -6,7 +6,11 @@ New usage: from service.app import app
 """
 
 import logging
-from fastapi import FastAPI, HTTPException, Query
+import base64
+import tempfile
+from pathlib import Path
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Query, File, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import json
@@ -26,6 +30,15 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Load environment variables from .env file
+# This ensures all API keys and configs are available
+env_path = Path(__file__).parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
+    logger.info(f"✓ Loaded environment variables from {env_path}")
+else:
+    logger.warning(f"⚠ No .env file found at {env_path}")
 
 # Create FastAPI application
 app = FastAPI(
@@ -267,3 +280,76 @@ async def root():
 async def health():
     """Health check"""
     return {"status": "healthy"}
+
+
+@app.post("/v1/upload/image")
+async def upload_image(file: UploadFile = File(...)):
+    """Upload product image and return COS URL
+    
+    Args:
+        file: Image file to upload
+        
+    Returns:
+        dict: Contains the uploaded image URL
+    """
+    try:
+        # Validate file type
+        if not file.content_type or not file.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="File must be an image")
+        
+        # Read file content
+        content = await file.read()
+        
+        # Try to upload to COS
+        try:
+            # Import COS uploader (from workflow utils)
+            import sys
+            from pathlib import Path
+            workflow_path = Path(__file__).parent.parent / "workflow"
+            if str(workflow_path) not in sys.path:
+                sys.path.insert(0, str(workflow_path))
+            
+            from utils.cos_uploader import COSUploader, is_cos_available
+            
+            if not is_cos_available():
+                raise ValueError("COS credentials not configured")
+            
+            uploader = COSUploader()
+            
+            # Generate filename
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = file.filename or "product_image.jpg"
+            # Sanitize filename
+            filename = filename.replace(" ", "_")
+            
+            # Upload bytes data
+            url = uploader.upload_bytes(
+                data=content,
+                filename=filename,
+                prefix="product_images",
+            )
+            
+            logger.info(f"✓ Image uploaded to COS: {url}")
+            return {"url": url, "success": True}
+            
+        except Exception as cos_error:
+            logger.warning(f"Failed to upload to COS: {cos_error}, falling back to base64")
+            # Fallback: return base64 Data URL
+            import base64
+            b64_data = base64.b64encode(content).decode('utf-8')
+            mime_type = file.content_type or 'image/jpeg'
+            data_url = f"data:{mime_type};base64,{b64_data}"
+            
+            return {
+                "url": data_url,
+                "success": True,
+                "fallback": True,
+                "message": "COS upload failed, using Data URL"
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to upload image: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")

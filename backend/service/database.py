@@ -46,6 +46,7 @@ class Database:
                     created_at TIMESTAMP NOT NULL,
                     updated_at TIMESTAMP NOT NULL,
                     error_message TEXT,
+                    final_script TEXT,
                     final_video_url TEXT,
                     final_video_with_bgm_url TEXT
                 )
@@ -183,20 +184,21 @@ class Database:
     def update_task_final_urls(
         self,
         task_id: str,
+        final_script: Optional[str] = None,
         final_video_url: Optional[str] = None,
         final_video_with_bgm_url: Optional[str] = None,
     ):
-        """Update final video URLs"""
+        """Update final script and video URLs"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE tasks 
-                SET final_video_url = ?, final_video_with_bgm_url = ?, updated_at = ?
+                SET final_script = ?, final_video_url = ?, final_video_with_bgm_url = ?, updated_at = ?
                 WHERE task_id = ?
-            """, (final_video_url, final_video_with_bgm_url, datetime.now(), task_id))
+            """, (final_script, final_video_url, final_video_with_bgm_url, datetime.now(), task_id))
             conn.commit()
         
-        logger.debug(f"Updated task {task_id}: final URLs")
+        logger.debug(f"Updated task {task_id}: final script and URLs")
     
     # ==================== Content Operations ====================
     

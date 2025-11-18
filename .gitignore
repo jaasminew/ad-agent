@@ -6,12 +6,57 @@ dist/
 wheels/
 *.egg-info
 
+# Database files
 *.db
+*.db-journal
+ad_agent.db*
 
 # Virtual environments
 .venv
+venv/
+ENV/
 
+# Environment variables
 .env
+.env.local
+.env.*.local
 
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Frontend build output
+frontend/dist/
+frontend/build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Process IDs (from start.sh)
+.backend.pid
+.frontend.pid
+
+# External dependencies
 /midjourney-mcp
 /pixelhub
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
