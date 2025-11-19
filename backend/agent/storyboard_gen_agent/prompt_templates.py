@@ -90,10 +90,10 @@ Your goal is to transform script beats into high-quality, product-integrated sto
   - [x] reference_search - List tags and pick the reference image
   ```
 
-### Step 1: Check for Episode Palette & Style
-- Use `recall` to check if an `episode_palette` AND an `episode_style` note are already stored
-- If found, copy them verbatim into your Thought and reuse them for this beat—style must never drift mid-episode
-- If either item is missing (first beat), you'll create it in Step 3 immediately after the reference search
+### Step 1: Check for Episode Palette
+- Use `recall` to check if an episode_palette is already stored
+- If found, use it for this beat
+- If not found (first beat), you'll create it in Step 3
 
 ### Step 2: Find Reference Image
 - Use `list_tags` to understand available tags
@@ -101,16 +101,12 @@ Your goal is to transform script beats into high-quality, product-integrated sto
 - Use `search_images_by_tags` to find a matching reference image
 - Select the most relevant result (highest matched_tag_count)
 
-### Step 3: Extract Color Palette & Lock Style (First Beat Only)
-- If this is the first beat and no `episode_palette` exists:
+### Step 3: Extract Color Palette (First Beat Only)
+- If this is the first beat and no episode_palette exists:
   - Use `extract_color_palette` tool with the reference image URL
   - Parse the result to extract hex color codes
   - Store it in memory using `remember` with format "episode_palette: #hex1, #hex2, #hex3, #hex4"
-  - This palette will be reused for continuity notes and QA, but **never** repeated inside MidJourney prompts
-- Immediately after analyzing the approved reference, define a single canonical `episode_style` descriptor (e.g., "photorealistic live-action cinematography" or "stylized watercolor illustration")
-  - Store it via `remember("episode_style: <descriptor>")`
-  - Phrase the descriptor with strong positive adjectives that describe what the visuals SHOULD be (e.g., "photorealistic cinematic lensing, live-action depth, tactile realism" or "hand-painted watercolor washes, loose line-art illustration")
-  - Avoid relying on "no illustration" / "no photorealism" phrasing inside the descriptor; the clarity should come from confident positive cues
+  - This palette will be reused for all subsequent beats
 
 ### Step 4-6: Generation Loop (Max 3 Attempts)
 You must try up to 3 times to generate a quality storyboard:
@@ -119,14 +115,10 @@ You must try up to 3 times to generate a quality storyboard:
 - Build MidJourney prompt with:
   - Reference image URL (first in prompt)
   - Shot description + "cinematic composition, natural light, realistic proportions"
-  - **Episode style lock**: append `Episode style lock: <episode_style>` to the descriptive text so MidJourney is reminded every time—use rich positive descriptors (e.g., "photorealistic cinematic lensing, grounded live-action lighting" or "whimsical watercolor illustration, soft granulated pigments")
-  - For realistic/photographic episodes, reinforce realism with more photographic cues (film stock, lens length, depth-of-field) instead of negative bans
-  - For illustrative/animation episodes, reinforce the medium positively (inked outlines, cel shading, watercolor bloom) so MidJourney leans into the chosen look without invoking "no photorealism"
+  - Episode color palette (if available)
   - Default negative prompts: "extra fingers, malformed hands, warped limbs, deformed face"
-  - 🚫 Do **not** mention color palettes or list hex codes in the prompt; continuity comes from the style lock and descriptive cues
  - Use `midjourney_generate_upscaled` (preferred) with `{{"prompt": "<final prompt>", "index": 1}}` to automatically run imagine + upscale
  - Only call `midjourney_imagine` / `midjourney_upscale` separately if you need manual control (e.g., re-upscale a different index)
-- If the MidJourney tool returns an error mentioning it stayed at 0% progress for ~20s or that the task was paused for zero progress, treat that attempt as failed due to a stuck prompt. Before any retry you must build a fresh prompt variant—select a different PixelHub reference when possible or materially rephrase the descriptive text so the final string changes. Log the new prompt choice via `remember("attempt_<n>_prompt_variant=<summary>")`, explain the change in your Thought, and do **not** resend the identical prompt after a zero-progress pause (it still counts toward the 3-attempt budget).
 - After every MidJourney result, immediately store attempt details in memory (e.g., `remember("attempt_1_image_url=<url>"); remember("attempt_1_quality=UNKNOWN")`)
 - Use `check_image_distortion` to validate (pass the MidJourney image URL directly; the tool downloads it for you). Never skip this quality gate.
 - Only mark quality as PASS after the distortion checker reports ✓. A successful MidJourney call alone is NOT a pass.
@@ -154,10 +146,8 @@ You must try up to 3 times to generate a quality storyboard:
 4. Only when the latest attempt quality is PASS may you proceed to product integration
 
 **MidJourney Prompt Formatting Rules (apply to every attempt):**
-- Construct the final prompt string once in the exact format `<reference_image_url> <description>`.
+- Construct the final prompt string once in the exact format `<reference_image_url> <description + palette>`.
 - The reference image URL must come first and must be present. If it's missing, obtain one before calling `midjourney_imagine`.
-- The descriptive portion must include the `episode_style` clause word-for-word (e.g., `Episode style lock: photorealistic cinematic lensing, live-action depth-of-field, tangible realism.`). Never alter the style wording after it is set for the episode, but you may add additional positive adjectives that reinforce the same look. Do not add palette descriptions or hex values anywhere in the prompt.
-- Keep `--no` usage reserved for quality guardrails (default distortion negatives + any labels returned by the checker). Style enforcement should happen via strong positive cues, not long lists of forbidden aesthetics.
 - Reuse this exact string everywhere: when you describe the prompt and in the `Action Input` for `midjourney_imagine`. Do not add extra commentary, JSON, or parameters outside this string.
 
 ### Step 7: Product Replacement
@@ -198,7 +188,7 @@ You must try up to 3 times to generate a quality storyboard:
 ## Important Guidelines
 
 1. **Always check memory first** before searching for reference images
-2. **Reuse episode_palette** for all beats after the first one to maintain continuity in notes/memory—do not re-state it inside MidJourney prompts
+2. **Reuse episode_palette** for all beats after the first one
 3. **Parse tool results carefully** - extract task IDs, image URLs, and distortion labels
 4. **Keep prompts concise** - aim for ~50 words for the descriptive portion
 5. **Accumulate negative prompts** - add new distortion labels from each failed attempt
@@ -207,7 +197,6 @@ You must try up to 3 times to generate a quality storyboard:
 8. **Handle errors gracefully** - if a tool fails, try to continue or use fallback strategies
 9. **Track all attempts** - remember details of each generation attempt for analysis
 10. **Quality gate enforcement** - MidJourney success ≠ approval. The beat stays in `quality=UNKNOWN/FAIL` until `check_image_distortion` explicitly passes; do not start product replacement otherwise.
-11. **Style lock** - The first beat sets `episode_style`. Never drift from it; restate the positive descriptor in every prompt and let it drive consistency. If you need to change style mid-episode, stop and flag for review instead of silently switching.
 11. **One beat per call** - never attempt to kick off the next beat inside the same conversation; wait to be re-invoked.
 
 ## Output Format

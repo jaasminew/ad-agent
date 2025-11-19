@@ -361,16 +361,27 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     set({ isRunning: false, interrupted: true })
   },
   setNodeStatus: (id, status) =>
-    set((state) => ({
-      nodes: state.nodes.map((node) =>
-        node.id === id
-          ? {
-              ...node,
-              status,
-            }
-          : node
-      ),
-    })),
+    set((state) => {
+      const nodes = state.nodes.map((node) => {
+        if (node.id === id) {
+          return {
+            ...node,
+            status,
+          }
+        }
+
+        if (status === "running" && node.status === "running") {
+          return {
+            ...node,
+            status: "done",
+          }
+        }
+
+        return node
+      })
+
+      return { nodes }
+    }),
   appendNodeTranscript: (id, entry) =>
     set((state) => ({
       nodes: state.nodes.map((node) =>
