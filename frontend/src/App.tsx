@@ -28,6 +28,16 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import {
@@ -81,6 +91,8 @@ function App() {
   )
   const [isRegenerating, setIsRegenerating] = React.useState(false)
   const [theme, setTheme] = React.useState<"dark" | "light">("dark")
+  const [interruptDialogOpen, setInterruptDialogOpen] = React.useState(false)
+  const [isInterrupting, setIsInterrupting] = React.useState(false)
   const [language, setLanguage] = React.useState<Language>(() => {
     if (typeof window !== "undefined") {
       const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY)
@@ -164,20 +176,33 @@ function App() {
     videoFormats,
   ])
 
-  const handleInterrupt = React.useCallback(async () => {
-    try {
-      await interruptWorkflow()
-    toast.error(copy.toasts.interruptSent.title, {
-      description: copy.toasts.interruptSent.description,
-      className:
-        "border border-destructive/40 bg-destructive/10 text-destructive-foreground shadow-lg",
-      icon: <PauseOctagon className="h-4 w-4" />,
-      duration: 4500,
-    })
-    } catch (error) {
-      console.error("Failed to interrupt workflow:", error)
-    }
-  }, [copy, interruptWorkflow])
+  const handleInterruptRequest = React.useCallback(() => {
+    if (!isRunning) return
+    setInterruptDialogOpen(true)
+  }, [isRunning])
+
+  const handleConfirmInterrupt = React.useCallback(
+    async (event?: React.MouseEvent<HTMLButtonElement>) => {
+      event?.preventDefault()
+      setIsInterrupting(true)
+      try {
+        await interruptWorkflow()
+        setInterruptDialogOpen(false)
+      } catch (error) {
+        console.error("Failed to interrupt workflow:", error)
+        toast.error(copy.interruptDialog.errorTitle, {
+          description: copy.interruptDialog.errorDescription,
+        })
+      } finally {
+        setIsInterrupting(false)
+      }
+    },
+    [
+      copy.interruptDialog.errorDescription,
+      copy.interruptDialog.errorTitle,
+      interruptWorkflow,
+    ]
+  )
 
   const handleRegenerate = React.useCallback(async () => {
     if (!finalResult || isRegenerating) return
@@ -316,8 +341,9 @@ function App() {
                 onToggleVideoFormat={toggleVideoFormat}
                 disabled={isRunning}
                 onGenerate={handleGenerate}
-                onInterrupt={handleInterrupt}
+                onInterrupt={handleInterruptRequest}
                 isRunning={isRunning}
+                isInterrupting={isInterrupting}
               />
             </ResizablePanel>
             <ResizableHandle />
@@ -358,10 +384,49 @@ function App() {
             finalResult={finalResult}
             isRunning={isRunning}
             onGenerate={handleGenerate}
-            onInterrupt={handleInterrupt}
+            onInterrupt={handleInterruptRequest}
+            isInterrupting={isInterrupting}
           />
         </section>
       </div>
+      <AlertDialog
+        open={interruptDialogOpen}
+        onOpenChange={(open) => {
+          if (isInterrupting) return
+          setInterruptDialogOpen(open)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{copy.interruptDialog.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {copy.interruptDialog.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isInterrupting}>
+              {copy.interruptDialog.cancel}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmInterrupt}
+              disabled={isInterrupting}
+              className="inline-flex items-center bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive"
+            >
+              {isInterrupting ? (
+                <>
+                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                  {copy.interruptDialog.confirming}
+                </>
+              ) : (
+                <>
+                  <PauseOctagon className="mr-2 h-4 w-4" />
+                  {copy.interruptDialog.confirm}
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Toaster theme={theme} />
       {lightboxOpen && finalResult
         ? createPortal(
@@ -399,6 +464,7 @@ interface InputPanelProps {
   onGenerate: () => void
   onInterrupt: () => void
   isRunning: boolean
+  isInterrupting: boolean
 }
 
 function InputPanel({
@@ -410,6 +476,7 @@ function InputPanel({
   onGenerate,
   onInterrupt,
   isRunning,
+  isInterrupting,
 }: InputPanelProps) {
   const inputCopy = copy.inputPanel
   const showShotHelper = !formState.mustHaveShotsText.trim().length
@@ -545,9 +612,10 @@ function InputPanel({
           </Button>
           <Button
             className="flex-1"
-            variant="secondary"
-            disabled={!isRunning}
+            variant="destructive"
+            disabled={!isRunning || isInterrupting}
             onClick={onInterrupt}
+            aria-busy={isInterrupting}
           >
             <PauseOctagon className="mr-2 h-4 w-4" />
             {inputCopy.actions.interrupt}
@@ -588,8 +656,8 @@ function TimelinePanel({
     node.status !== "waiting" || node.transcript.length > 0
 
   const nodesWithActivity = nodes.filter(nodeHasActivity)
-  const shouldShowNodes = isRunning || nodesWithActivity.length > 0
-  const nodesToRender = isRunning ? nodes : nodesWithActivity
+  const shouldShowNodes = nodesWithActivity.length > 0
+  const nodesToRender = nodesWithActivity
 
   return (
     <div className="h-full px-1">
@@ -1105,6 +1173,7 @@ interface StackedFallbackProps {
   isRunning: boolean
   onGenerate: () => void
   onInterrupt: () => void
+  isInterrupting: boolean
 }
 
 function StackedFallback({
@@ -1114,14 +1183,15 @@ function StackedFallback({
   isRunning,
   onGenerate,
   onInterrupt,
+  isInterrupting,
 }: StackedFallbackProps) {
   const fallbackCopy = copy.stackedFallback
   const nodeHasActivity = (node: WorkflowNode) =>
     node.status !== "waiting" || node.transcript.length > 0
 
   const nodesWithActivity = nodes.filter(nodeHasActivity)
-  const shouldShowNodes = isRunning || nodesWithActivity.length > 0
-  const nodesToRender = isRunning ? nodes : nodesWithActivity
+  const shouldShowNodes = nodesWithActivity.length > 0
+  const nodesToRender = nodesWithActivity
 
   return (
     <div className="space-y-4">
@@ -1138,11 +1208,13 @@ function StackedFallback({
             {copy.inputPanel.actions.generate}
           </Button>
           <Button
-            variant="secondary"
+            variant="destructive"
             className="flex-1"
-            disabled={!isRunning}
+            disabled={!isRunning || isInterrupting}
             onClick={onInterrupt}
+            aria-busy={isInterrupting}
           >
+            <PauseOctagon className="mr-2 h-4 w-4" />
             {copy.inputPanel.actions.interrupt}
           </Button>
         </CardFooter>

@@ -104,6 +104,16 @@ export const translations = {
         description: "A new cut is ready in the output panel.",
       },
     },
+    interruptDialog: {
+      title: "Interrupt this run?",
+      description:
+        "Stopping now cancels the remaining nodes. Partial outputs stay in the timeline so you can adjust the brief and restart.",
+      cancel: "Keep running",
+      confirm: "Stop workflow",
+      confirming: "Stopping…",
+      errorTitle: "Failed to interrupt",
+      errorDescription: "Please try again in a moment.",
+    },
     workflow: {
       processingFallback: "Processing...",
       streamingScripts: {
@@ -320,6 +330,16 @@ export const translations = {
         title: "终版渲染已刷新",
         description: "输出面板里已经更新了新的版本。",
       },
+    },
+    interruptDialog: {
+      title: "确定要中断当前流程？",
+      description:
+        "现在停止会立即取消剩余节点，已有输出仍会保留，方便你稍后调整并重新运行。",
+      cancel: "继续运行",
+      confirm: "立即停止",
+      confirming: "正在停止…",
+      errorTitle: "中断失败",
+      errorDescription: "稍后再试一次。",
     },
     workflow: {
       processingFallback: "处理中…",
