@@ -1,7 +1,6 @@
 """Script Generation Agent Worker - Generate advertising script using ReAct Agent"""
 
 import logging
-import json
 from langchain_openai import ChatOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from .state import WorkflowState
@@ -101,35 +100,30 @@ def _generate_script_with_agent_streaming(
                     self.task_manager.add_llm_output(
                         task_id=self.task_id,
                         stage=WorkflowStage.SCRIPT_GEN_AGENT,
-                        message=f"💭 Thought: {thought_text}",
-                        output={"step": self.step_count, "type": "thought"},
+                        message=f"💭 {thought_text}",
+                        output={"type": "thought"},
                     )
                 
-                # Format and push action details
+                # Send simple tool call message (only tool name, no parameters)
                 tool_name = action.tool
-                tool_input = action.tool_input
-                
-                if isinstance(tool_input, dict):
-                    input_str = json.dumps(tool_input, indent=2, ensure_ascii=False)
-                else:
-                    input_str = str(tool_input)
+                message = f"🔧 Calling tool: {tool_name}"
                 
                 self.task_manager.add_llm_output(
                     task_id=self.task_id,
                     stage=WorkflowStage.SCRIPT_GEN_AGENT,
-                    message=f"🔧 Action: {tool_name}\nInput: {input_str}",
-                    output={"step": self.step_count, "type": "action", "tool": tool_name},
+                    message=message,
+                    output={"type": "tool_call", "tool": tool_name},
                 )
         
         def on_tool_end(self, output, **kwargs):
             """Called when tool finishes"""
-            # 不输出 Observation - 这是内部信息
+            # 工具执行完成,不输出任何内容到前端
             # 只记录到日志用于调试
             if self.task_manager and self.task_id:
                 output_str = str(output)
                 if len(output_str) > 200:
                     output_str = output_str[:200] + "..."
-                logger.debug(f"[Script Gen Agent] Observation (internal): {output_str}")
+                logger.debug(f"[Script Gen Agent] Tool output (internal): {output_str}")
     
     # Initialize LLM
     llm = ChatOpenAI(model="gpt-4", temperature=0.7)
@@ -244,6 +238,27 @@ def write_ad_script_with_agent(state: WorkflowState) -> dict:
     logger.info(f"\nFinal: {script_result.total_shots} shots generated:")
     for i, shot in enumerate(shots, 1):
         logger.info(f"  {i}. {shot}")
+    
+    # 输出最终结果 (传递给下一个节点的数据)
+    if task_manager and task_id:
+        from service.models import WorkflowStage
+        
+        result_message = f"✅ Script generation completed\nGenerated {len(shots)} shots:"
+        for i, shot in enumerate(shots, 1):
+            # 截断过长的描述
+            shot_preview = shot if len(shot) <= 80 else shot[:77] + "..."
+            result_message += f"\n  {i}. {shot_preview}"
+        
+        task_manager.add_llm_output(
+            task_id=task_id,
+            stage=WorkflowStage.SCRIPT_GEN_AGENT,
+            message=result_message,
+            output={
+                "type": "result",
+                "total_shots": len(shots),
+                "shots": shots,
+            },
+        )
     
     return {
         "shots": shots,

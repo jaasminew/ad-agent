@@ -278,7 +278,6 @@ def _process_episode_with_streaming(
         def on_agent_action(self, action, **kwargs):
             """Called when agent takes an action."""
             tool_name = action.tool
-            tool_input = action.tool_input
             
             # Extract and display Thought from action log
             if hasattr(action, 'log') and action.log:
@@ -297,77 +296,36 @@ def _process_episode_with_streaming(
                     self.task_manager.add_llm_output(
                         task_id=self.task_id,
                         stage=WorkflowStage.STORYBOARD_GEN_AGENT,
-                        message=f"💭 Thought: {thought_text}",
-                        output={"thought": thought_text},
+                        message=f"💭 {thought_text}",
+                        output={"type": "thought"},
                     )
                     logger.info(f"[Storyboard Agent] Thought: {thought_text[:100]}...")
             
-            # Format tool input for display (don't show sensitive data)
-            if isinstance(tool_input, dict):
-                # For nanobanana, show simplified version
-                if tool_name == "nanobanana_generate":
-                    input_display = {
-                        "prompt": tool_input.get("prompt", ""),
-                        "input_images": len(tool_input.get("input_image_paths", [])) if isinstance(tool_input.get("input_image_paths"), list) else 1
-                    }
-                    input_str = json.dumps(input_display, indent=2, ensure_ascii=False)
-                else:
-                    input_str = json.dumps(tool_input, indent=2, ensure_ascii=False)
-            else:
-                input_str = str(tool_input)
-            
-            # Send action message (without showing observation later)
-            message = f"🔧 Action: {tool_name}\nInput: {input_str}"
+            # Send simple action message (only tool name, no parameters)
+            message = f"🔧 Calling tool: {tool_name}"
             
             self.task_manager.add_llm_output(
                 task_id=self.task_id,
                 stage=WorkflowStage.STORYBOARD_GEN_AGENT,
                 message=message,
-                output={"action": tool_name, "input": tool_input},
+                output={"type": "tool_call", "tool": tool_name},
             )
             logger.info(f"[Storyboard Agent] {message}")
         
         def on_tool_end(self, output, **kwargs):
             """Called when a tool finishes running."""
-            # 不输出 Observation - 这是内部信息
+            # 工具执行完成,不输出任何内容到前端
             # 只记录到日志用于调试
             output_str = str(output)
             if len(output_str) > 200:
                 output_str = output_str[:200] + "... (truncated)"
-            logger.debug(f"[Storyboard Agent] Observation (internal): {output_str}")
-            
-            # 如果是 nanobanana_generate 工具,提取图片 URL 并显示预览
-            tool = kwargs.get('name', '')
-            if tool == 'nanobanana_generate' and output:
-                # 尝试从输出中提取 URL
-                output_str_full = str(output)
-                # nanobanana 返回格式通常是 URL 字符串或包含 URL 的消息
-                if output_str_full.startswith('http'):
-                    image_url = output_str_full.strip()
-                    # 发送图片预览
-                    self.task_manager.add_llm_output(
-                        task_id=self.task_id,
-                        stage=WorkflowStage.STORYBOARD_GEN_AGENT,
-                        message=f"🖼️ Generated product image",
-                        output={
-                            "type": "image_preview",
-                            "image_url": image_url
-                        },
-                    )
-                    logger.info(f"[Storyboard Agent] Generated image: {image_url}")
+            logger.debug(f"[Storyboard Agent] Tool output (internal): {output_str}")
         
         def on_agent_finish(self, finish, **kwargs):
             """Called when agent finishes."""
-            # 简化完成消息,不显示详细输出
-            message = f"✅ Beat completed"
-            
-            self.task_manager.add_llm_output(
-                task_id=self.task_id,
-                stage=WorkflowStage.STORYBOARD_GEN_AGENT,
-                message=message,
-                output={"status": "completed"},
-            )
-            logger.info(f"[Storyboard Agent] {message}")
+            # Beat 完成,不需要输出任何信息
+            # 最终结果会在 beat 处理完成后统一输出
+            logger.info(f"[Storyboard Agent] Beat completed")
     
     # Initialize episode
     agent.episode_id = str(uuid.uuid4())
@@ -398,7 +356,7 @@ def _process_episode_with_streaming(
             task_id=task_id,
             stage=WorkflowStage.STORYBOARD_GEN_AGENT,
             message=f"🎬 Processing Beat {beat.beat}/{len(episode_config.beats)}: {beat.heading}",
-            output={"beat_number": beat.beat, "heading": beat.heading},
+            output={"type": "progress", "beat_number": beat.beat, "total": len(episode_config.beats)},
         )
         
         try:
@@ -414,6 +372,31 @@ def _process_episode_with_streaming(
             
             agent.beat_results.append(beat_result)
             logger.info(f"✓ Beat {beat.beat} completed")
+            
+            # 输出 Beat 的结果 (传递给下一个节点的数据)
+            result_message = f"✅ Beat {beat.beat} completed"
+            result_data = {
+                "beat_number": beat.beat,
+                "quality_passed": beat_result.quality_check_passed,
+                "product_replaced": beat_result.product_replacement_success,
+            }
+            
+            # 如果有最终图片 URL,添加到结果中
+            if beat_result.final_image_url:
+                result_data["image_url"] = beat_result.final_image_url
+                result_message += f"\n📸 Generated product image: {beat_result.final_image_url}"
+            
+            if beat_result.flagged_for_review:
+                result_message += f"\n⚠️ Flagged for review: {beat_result.review_reason}"
+                result_data["flagged"] = True
+                result_data["reason"] = beat_result.review_reason
+            
+            task_manager.add_llm_output(
+                task_id=task_id,
+                stage=WorkflowStage.STORYBOARD_GEN_AGENT,
+                message=result_message,
+                output=result_data,
+            )
             
         except Exception as e:
             logger.error(f"❌ Failed to process beat {beat.beat}: {e}")

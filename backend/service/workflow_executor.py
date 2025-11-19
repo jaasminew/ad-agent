@@ -215,13 +215,7 @@ def _execute_with_logging(
     Returns:
         Updated state (merged with original state)
     """
-    # ✅ Stage started - push immediate update
-    task_manager.add_llm_output(
-        task_id=task_id,
-        stage=stage,
-        message=f"🚀 Starting {stage.value.replace('_', ' ').title()}...",
-        output={"status": "started"},
-    )
+    # 不输出 "Starting..." 消息,让 worker 自己输出思考和工具调用
     
     # Execute worker (worker itself will push intermediate updates)
     result = worker_func(state)
@@ -252,46 +246,20 @@ def _record_worker_output(
         state: Input state
         result: Output state
     """
-    # Record different outputs based on stage
-    if stage == WorkflowStage.SCRIPT_GEN_AGENT:
-        # Record generated script
-        shots = result.get("shots", [])
-        if shots:
-            task_manager.add_llm_output(
-                task_id=task_id,
-                stage=stage,
-                message=f"Generated {len(shots)} shots for {state['product_name']}",
-                output={
-                    "shots": [{"shot_number": i+1, "description": shot} for i, shot in enumerate(shots)],
-                    "total_shots": len(shots),
-                },
-                reasoning=f"Analyzed brand identity: {state['brand_identity']}",
-            )
+    # 注意: Agent workers (SCRIPT_GEN_AGENT, STORYBOARD_GEN_AGENT) 已经在内部
+    # 通过 callback 实时输出了思考过程、工具调用和结果，这里不需要重复记录
     
-    elif stage == WorkflowStage.STORYBOARD_GEN_AGENT:
-        # Record storyboard results
-        episode_result = result.get("episode_result")
-        if episode_result:
-            task_manager.add_llm_output(
-                task_id=task_id,
-                stage=stage,
-                message=f"Generated storyboards for {episode_result.total_beats} beats",
-                output={
-                    "total_beats": episode_result.total_beats,
-                    "successful_beats": episode_result.successful_beats,
-                    "flagged_beats": episode_result.flagged_beats,
-                },
-            )
-    
-    elif stage == WorkflowStage.VIDEO_GENERATOR:
+    # 只记录非 Agent 节点的输出
+    if stage == WorkflowStage.VIDEO_GENERATOR:
         # Record video generation results
         shot_results = result.get("shot_results", [])
         if shot_results:
             task_manager.add_llm_output(
                 task_id=task_id,
                 stage=stage,
-                message=f"Generated {len(shot_results)} videos",
+                message=f"✅ Generated {len(shot_results)} videos",
                 output={
+                    "type": "result",
                     "total_videos": len(shot_results),
                     "video_urls": [r.get("video_url", "") for r in shot_results],
                 },
@@ -304,8 +272,9 @@ def _record_worker_output(
             task_manager.add_llm_output(
                 task_id=task_id,
                 stage=stage,
-                message="Concatenated all video clips",
+                message=f"✅ Video concatenation completed\n🎬 Final video: {final_video_url}",
                 output={
+                    "type": "result",
                     "final_video_url": final_video_url,
                     "duration": result.get("video_duration", 0),
                 },
@@ -315,14 +284,16 @@ def _record_worker_output(
         # Record BGM generation results
         final_video_with_bgm_url = result.get("final_video_with_bgm_url")
         if final_video_with_bgm_url:
+            music_style = result.get("music_style", "")
             task_manager.add_llm_output(
                 task_id=task_id,
                 stage=stage,
-                message="Generated and added background music",
+                message=f"✅ Background music generated and added\n🎵 Music style: {music_style}\n🎬 Final video: {final_video_with_bgm_url}",
                 output={
+                    "type": "result",
                     "final_video_with_bgm_url": final_video_with_bgm_url,
-                    "music_prompt": result.get("music_prompt", ""),
-                    "music_style": result.get("music_style", ""),
+                    "music_style": music_style,
                 },
             )
+
 
