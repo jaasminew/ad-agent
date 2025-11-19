@@ -1,6 +1,7 @@
 """Script Generation Agent Worker - Generate advertising script using ReAct Agent"""
 
 import logging
+import json
 from langchain_openai import ChatOpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from .state import WorkflowState
@@ -85,34 +86,50 @@ def _generate_script_with_agent_streaming(
             """Called when agent decides on an action"""
             if self.task_manager and self.task_id:
                 self.step_count += 1
-                # Push thought + action to frontend
+                
+                # Extract and display Thought from action log
+                thought_text = ""
+                if hasattr(action, 'log') and action.log and 'Action:' in action.log:
+                    parts = action.log.split('Action:', 1)
+                    if parts and parts[0]:
+                        thought_part = parts[0].replace('Thought:', '').strip()
+                        if thought_part:
+                            thought_text = thought_part
+                
+                # Push thought to frontend
+                if thought_text:
+                    self.task_manager.add_llm_output(
+                        task_id=self.task_id,
+                        stage=WorkflowStage.SCRIPT_GEN_AGENT,
+                        message=f"💭 Thought: {thought_text}",
+                        output={"step": self.step_count, "type": "thought"},
+                    )
+                
+                # Format and push action details
+                tool_name = action.tool
+                tool_input = action.tool_input
+                
+                if isinstance(tool_input, dict):
+                    input_str = json.dumps(tool_input, indent=2, ensure_ascii=False)
+                else:
+                    input_str = str(tool_input)
+                
                 self.task_manager.add_llm_output(
                     task_id=self.task_id,
                     stage=WorkflowStage.SCRIPT_GEN_AGENT,
-                    message=f"💭 Thought: {action.log.split('Action:')[0].strip() if 'Action:' in action.log else action.log}",
-                    output={"step": self.step_count, "type": "thought"},
-                )
-                
-                # Push tool call details
-                self.task_manager.add_tool_calling(
-                    task_id=self.task_id,
-                    stage=WorkflowStage.SCRIPT_GEN_AGENT,
-                    tool_name=action.tool,
-                    input_data={"input": str(action.tool_input)},
-                    output_data={},
-                    success=True,
+                    message=f"🔧 Action: {tool_name}\nInput: {input_str}",
+                    output={"step": self.step_count, "type": "action", "tool": tool_name},
                 )
         
         def on_tool_end(self, output, **kwargs):
             """Called when tool finishes"""
+            # 不输出 Observation - 这是内部信息
+            # 只记录到日志用于调试
             if self.task_manager and self.task_id:
-                # Push observation
-                self.task_manager.add_llm_output(
-                    task_id=self.task_id,
-                    stage=WorkflowStage.SCRIPT_GEN_AGENT,
-                    message=f"👁️ Observation: {str(output)[:200]}{'...' if len(str(output)) > 200 else ''}",
-                    output={"step": self.step_count, "type": "observation"},
-                )
+                output_str = str(output)
+                if len(output_str) > 200:
+                    output_str = output_str[:200] + "..."
+                logger.debug(f"[Script Gen Agent] Observation (internal): {output_str}")
     
     # Initialize LLM
     llm = ChatOpenAI(model="gpt-4", temperature=0.7)

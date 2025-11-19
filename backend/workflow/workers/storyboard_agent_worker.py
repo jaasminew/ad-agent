@@ -280,12 +280,43 @@ def _process_episode_with_streaming(
             tool_name = action.tool
             tool_input = action.tool_input
             
-            # Format tool input for display
+            # Extract and display Thought from action log
+            if hasattr(action, 'log') and action.log:
+                # Parse thought from the action log
+                # The log typically contains: "Thought: ... \nAction: ... \nAction Input: ..."
+                thought_text = ""
+                if 'Thought:' in action.log:
+                    parts = action.log.split('Action:', 1)
+                    if parts and parts[0]:
+                        thought_part = parts[0].replace('Thought:', '').strip()
+                        if thought_part:
+                            thought_text = thought_part
+                
+                if thought_text:
+                    # Send thought message
+                    self.task_manager.add_llm_output(
+                        task_id=self.task_id,
+                        stage=WorkflowStage.STORYBOARD_GEN_AGENT,
+                        message=f"💭 Thought: {thought_text}",
+                        output={"thought": thought_text},
+                    )
+                    logger.info(f"[Storyboard Agent] Thought: {thought_text[:100]}...")
+            
+            # Format tool input for display (don't show sensitive data)
             if isinstance(tool_input, dict):
-                input_str = json.dumps(tool_input, indent=2, ensure_ascii=False)
+                # For nanobanana, show simplified version
+                if tool_name == "nanobanana_generate":
+                    input_display = {
+                        "prompt": tool_input.get("prompt", ""),
+                        "input_images": len(tool_input.get("input_image_paths", [])) if isinstance(tool_input.get("input_image_paths"), list) else 1
+                    }
+                    input_str = json.dumps(input_display, indent=2, ensure_ascii=False)
+                else:
+                    input_str = json.dumps(tool_input, indent=2, ensure_ascii=False)
             else:
                 input_str = str(tool_input)
             
+            # Send action message (without showing observation later)
             message = f"🔧 Action: {tool_name}\nInput: {input_str}"
             
             self.task_manager.add_llm_output(
@@ -298,33 +329,43 @@ def _process_episode_with_streaming(
         
         def on_tool_end(self, output, **kwargs):
             """Called when a tool finishes running."""
-            # Truncate long outputs
+            # 不输出 Observation - 这是内部信息
+            # 只记录到日志用于调试
             output_str = str(output)
-            if len(output_str) > 500:
-                output_str = output_str[:500] + "... (truncated)"
+            if len(output_str) > 200:
+                output_str = output_str[:200] + "... (truncated)"
+            logger.debug(f"[Storyboard Agent] Observation (internal): {output_str}")
             
-            message = f"📊 Observation: {output_str}"
-            
-            self.task_manager.add_llm_output(
-                task_id=self.task_id,
-                stage=WorkflowStage.STORYBOARD_GEN_AGENT,
-                message=message,
-                output={"observation": output_str},
-            )
-            logger.info(f"[Storyboard Agent] {message}")
+            # 如果是 nanobanana_generate 工具,提取图片 URL 并显示预览
+            tool = kwargs.get('name', '')
+            if tool == 'nanobanana_generate' and output:
+                # 尝试从输出中提取 URL
+                output_str_full = str(output)
+                # nanobanana 返回格式通常是 URL 字符串或包含 URL 的消息
+                if output_str_full.startswith('http'):
+                    image_url = output_str_full.strip()
+                    # 发送图片预览
+                    self.task_manager.add_llm_output(
+                        task_id=self.task_id,
+                        stage=WorkflowStage.STORYBOARD_GEN_AGENT,
+                        message=f"🖼️ Generated product image",
+                        output={
+                            "type": "image_preview",
+                            "image_url": image_url
+                        },
+                    )
+                    logger.info(f"[Storyboard Agent] Generated image: {image_url}")
         
         def on_agent_finish(self, finish, **kwargs):
             """Called when agent finishes."""
-            output_preview = finish.return_values.get('output', '')
-            if len(output_preview) > 200:
-                output_preview = output_preview[:200] + "..."
-            message = f"✅ Beat completed: {output_preview}"
+            # 简化完成消息,不显示详细输出
+            message = f"✅ Beat completed"
             
             self.task_manager.add_llm_output(
                 task_id=self.task_id,
                 stage=WorkflowStage.STORYBOARD_GEN_AGENT,
                 message=message,
-                output=finish.return_values,
+                output={"status": "completed"},
             )
             logger.info(f"[Storyboard Agent] {message}")
     
