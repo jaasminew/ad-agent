@@ -122,18 +122,20 @@ shots = [shot.description for shot in script_result.shots]
 - flagged_beats: 标记需要审核的 beat 数
 - product_url_memory: beat 序号到最终商品图片 URL 的映射
 - global_memory: 全局记忆条目(用于跨 beat 的状态共享)
-  - **重要**: global_memory 的第一条是 `uploaded_final_urls`,包含所有已上传到 COS 的最终商品合成图片列表
-  - 这是 Agent 最重要的输出产物,包含了所有成功生成的商品合成图片 URL
+  - **结构**: `global_memory[0]` 是一个 URL 列表(`uploaded_final_urls`),其余元素依次是长度为 5 的列表,记录每个镜头的 [title_number, main_character, style, color_palette, shot_description]
+  - 其中 `global_memory[0]` 是 Agent 最重要的输出产物,包含所有成功生成的商品合成图片 URL
 
 **关键输出获取方式**:
 ```python
-# 方式 1: 从 global_memory 中提取(推荐,最直接)
+# 方式 1: 从 global_memory[0] 中提取(推荐,最直接)
 final_urls = []
-for item in episode_result.global_memory:
-    if item.startswith("uploaded_final_urls:"):
+if episode_result.global_memory:
+    first_entry = episode_result.global_memory[0]
+    if isinstance(first_entry, list):
+        final_urls = first_entry
+    elif isinstance(first_entry, str) and first_entry.startswith("uploaded_final_urls:"):
         import json
-        final_urls = json.loads(item.split(":", 1)[1].strip())
-        break
+        final_urls = json.loads(first_entry.split(":", 1)[1].strip())
 
 # 方式 2: 从 beats 中收集
 final_urls = [
@@ -157,7 +159,7 @@ final_urls = [
 
 输入:
 - episode_result: Storyboard Agent 的完整输出(来自步骤 2)
-  - **推荐**: 从 episode_result.global_memory 中提取 `uploaded_final_urls` 列表
+  - **推荐**: 从 episode_result.global_memory[0] 中提取 `uploaded_final_urls` 列表
   - 或从 episode_result.beats 中提取每个 beat 的 final_image_url(商品合成图)
   - 使用 beat 的 shot_text, heading, action 等信息
 - generate_video: 是否生成视频的控制标志
@@ -291,7 +293,7 @@ final_urls = [
   │  输出: EpisodeResult (包含所有 beats 的合成图片)
   │
   ↓
-  EpisodeResult.global_memory["uploaded_final_urls"]
+  EpisodeResult.global_memory[0]
   (所有商品合成图片 URL 列表)
   ↓
 [3] 串行生成视频 (考虑相邻镜头过渡)

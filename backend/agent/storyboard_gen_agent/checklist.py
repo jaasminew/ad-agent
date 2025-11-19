@@ -24,8 +24,8 @@ def build_checklist(is_first_beat: bool) -> List[ChecklistItem]:
 
     items: List[ChecklistItem] = [
         ChecklistItem(
-            "palette_check",
-            "Recall memory for an existing episode palette",
+            "continuity_recall",
+            "Recall the previous shot's continuity record (character + style + palette)",
             mandatory=False,
         ),
         ChecklistItem("reference_search", "List tags and pick the reference image"),
@@ -94,7 +94,7 @@ def format_checklist_markdown(items: List[ChecklistItem]) -> str:
 
     lines = [
         "Checklist (print this before any tool call and refresh it after each status change):",
-        "- Always include the slug (e.g., `palette_check`) so controllers can parse progress.",
+        "- Always include the slug (e.g., `continuity_recall`) so controllers can parse progress.",
         "- Format each row as `- [ ] slug - description` and switch to `[x]` only after the task is DONE.",
         "- When a later step becomes unnecessary (e.g., Skip Attempt 2 after Attempt 1 passes), immediately mark it as `[x] slug - description (skipped – reason)` and log a `status=skipped` note.",
         "- Optional tasks must end in either DONE or SKIPPED with a justification; leaving them unchecked will fail validation.",

@@ -3,7 +3,7 @@
 import json
 import logging
 import uuid
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 try:
     # Try newer langchain structure
     from langchain_classic.agents import AgentExecutor, create_react_agent
@@ -41,11 +41,12 @@ from .checklist import (
     format_checklist_markdown,
 )
 from tools.memory import MEM, recall as recall_tool
-from tools.upload_memory import clear_uploaded_urls, get_uploaded_urls
+from tools.upload_memory import clear_uploaded_urls, get_uploaded_urls, format_uploaded_urls_note
 
 logger = logging.getLogger(__name__)
 
 UPLOADED_URL_NOTE_PREFIX = "uploaded_final_urls:"
+SHOT_MEMORY_NOTE_PREFIX = "shot_memory:"
 
 
 class StoryboardAgent:
@@ -120,7 +121,8 @@ class StoryboardAgent:
         self.beat_results: List[BeatResult] = []
         self.global_product_urls: Dict[int, str] = {}
         self.beat_summaries: List[str] = []
-        self.global_memory: List[str] = []
+        self.global_memory: List[List[str]] = []
+        self._persistent_notes: List[str] = []
         self._uploaded_urls: List[str] = []
         self.memory_summary_prompt = PromptTemplate.from_template(
             SHOT_MEMORY_SUMMARY_PROMPT
@@ -210,6 +212,7 @@ Thought: {{agent_scratchpad}}
         self.global_product_urls = {}
         self.beat_summaries = []
         self.global_memory = []
+        self._persistent_notes = []
         self._clear_agent_memory()
         self._clear_agent_memory()
         self._reset_uploaded_url_memory()
@@ -337,18 +340,17 @@ Thought: {{agent_scratchpad}}
             checklist_confirmed = True
             new_notes = self._filter_new_shot_notes(memory_snapshot)
             self._persist_episode_state_from_notes(new_notes)
-            summary_items = self._summarize_shot_memory(
+            shot_memory_entry = self._summarize_shot_memory(
                 beat=beat,
                 agent_output=result,
                 new_notes=new_notes,
             )
-            if summary_items:
+            if shot_memory_entry:
                 logger.info(
-                    "🧠 Beat %s summary items:\n%s",
+                    "🧠 Beat %s continuity record stored",
                     beat.beat,
-                    "\n".join(f"   - {item}" for item in summary_items),
                 )
-                self._append_global_memory_items(summary_items)
+                self._append_shot_memory_entry(shot_memory_entry)
             
             # Parse the result from agent memory
             # TODO: Implement proper result parsing from agent's memory/recall
@@ -430,6 +432,7 @@ Thought: {{agent_scratchpad}}
         self.global_product_urls = {}
         self.beat_summaries = []
         self.global_memory = []
+        self._persistent_notes = []
         self._shot_seed_memory = []
         
         self._clear_agent_memory()
@@ -459,17 +462,79 @@ Thought: {{agent_scratchpad}}
         if latest != self._uploaded_urls:
             self._uploaded_urls = latest
 
-    def _build_global_memory_snapshot(self) -> List[str]:
-        """Combine uploaded URL note with controller memory entries."""
+    def _build_global_memory_snapshot(self) -> List[List[str]]:
+        """Combine uploaded URL list with controller-managed shot entries."""
         self._sync_uploaded_url_cache()
         return build_global_memory_with_uploaded_urls(
             self.global_memory, self._uploaded_urls
         )
 
+    def _serialize_global_memory_snapshot(self, snapshot: List[List[str]]) -> List[str]:
+        """Convert structured global memory into serializable notes for the agent."""
+        serialized: List[str] = []
+        if not snapshot:
+            return serialized
+
+        first = snapshot[0]
+        if isinstance(first, list):
+            serialized.append(format_uploaded_urls_note(first))
+        elif isinstance(first, str):
+            serialized.append(first)
+
+        for entry in snapshot[1:]:
+            if isinstance(entry, list) and len(entry) == 5:
+                serialized.append(self._serialize_shot_memory_entry(entry))
+            elif isinstance(entry, str):
+                serialized.append(entry)
+
+        return serialized
+
+    def _serialize_shot_memory_entry(self, entry: List[str]) -> str:
+        """Convert a five-element shot record into a deterministic string."""
+        segments = [
+            f"title_number={entry[0] if len(entry) > 0 else ''}",
+            f"main_character={entry[1] if len(entry) > 1 else ''}",
+            f"style={entry[2] if len(entry) > 2 else ''}",
+            f"color_palette={entry[3] if len(entry) > 3 else ''}",
+            f"shot_description={entry[4] if len(entry) > 4 else ''}",
+        ]
+        compact = " | ".join(
+            f"{segment.split('=', 1)[0]}={segment.split('=', 1)[1].strip()}"
+            for segment in segments
+        )
+        normalized = " ".join(compact.split())
+        return f"{SHOT_MEMORY_NOTE_PREFIX} {normalized}"
+
+    def _normalize_shot_memory_entry(self, entry: Any, beat: Beat) -> Optional[List[str]]:
+        """Validate and coerce LLM response into a five-element list."""
+        if not isinstance(entry, list):
+            logger.debug("Shot memory response missing list payload: %s", entry)
+            return None
+
+        sanitized: List[str] = []
+        for value in entry[:5]:
+            if isinstance(value, list):
+                value = ", ".join(str(item).strip() for item in value if str(item).strip())
+            elif value is None:
+                value = ""
+            sanitized.append(str(value).strip())
+
+        while len(sanitized) < 5:
+            sanitized.append("")
+
+        if not sanitized[0]:
+            sanitized[0] = f"Shot {beat.beat}"
+        if not sanitized[4]:
+            sanitized[4] = normalize_beat(beat)
+
+        return sanitized
+
     def _start_shot_episode(self):
         """Reset scratchpad and seed it with curated global memory."""
         self._clear_agent_memory()
-        self._shot_seed_memory = self._build_global_memory_snapshot()
+        structured_snapshot = self._build_global_memory_snapshot()
+        serialized_snapshot = self._serialize_global_memory_snapshot(structured_snapshot)
+        self._shot_seed_memory = serialized_snapshot + list(self._persistent_notes)
         if self._shot_seed_memory:
             MEM.extend(self._shot_seed_memory)
             logger.debug(
@@ -504,17 +569,17 @@ Thought: {{agent_scratchpad}}
             return
         essentials = self._extract_essential_memory_items(notes)
         if essentials:
-            self._append_global_memory_items(essentials)
+            self._append_persistent_notes(essentials)
 
     def _summarize_shot_memory(
         self,
         beat: Beat,
         agent_output: dict,
         new_notes: List[str],
-    ) -> List[str]:
-        """Use the controller LLM to produce compact continuity memory."""
+    ) -> Optional[List[str]]:
+        """Use the controller LLM to produce a structured continuity record."""
         if not new_notes and not agent_output.get("output"):
-            return []
+            return None
 
         episode_title = self.episode_config.title if self.episode_config else ""
         prompt = self.memory_summary_prompt.format(
@@ -524,39 +589,48 @@ Thought: {{agent_scratchpad}}
             beat_summary=normalize_beat(beat),
             final_answer=agent_output.get("output", ""),
             agent_notes="\n".join(new_notes) or "(empty)",
-                existing_memory="\n".join(self._build_global_memory_snapshot()) or "(none)",
+            existing_memory=format_global_memory_notes(
+                self._build_global_memory_snapshot()
+            ),
         )
 
         try:
             response = self.llm.invoke(prompt)
             parsed = json.loads(response.content)
-            items = parsed.get("memory_items", [])
+            entry = parsed.get("shot_memory")
         except Exception as exc:
             logger.warning(
                 "⚠️  Failed to summarize shot memory for beat %s: %s",
                 beat.beat,
                 exc,
             )
-            return []
+            return None
 
-        cleaned = [item.strip() for item in items if isinstance(item, str) and item.strip()]
-        return cleaned
+        normalized = self._normalize_shot_memory_entry(entry, beat)
+        return normalized
 
-    def _append_global_memory_items(self, items: List[str]) -> None:
-        """Merge new global memory items, avoiding duplicates."""
+    def _append_shot_memory_entry(self, entry: List[str]) -> None:
+        """Persist one five-element shot continuity record."""
+        if len(entry) != 5:
+            logger.debug("Rejected malformed shot memory entry: %s", entry)
+            return
+        snapshot = [segment.strip() for segment in entry]
+        self.global_memory.append(snapshot)
+        logger.info("🧠 Stored continuity record for %s", snapshot[0] or f"Shot {len(self.global_memory)}")
+
+    def _append_persistent_notes(self, items: List[str]) -> None:
+        """Keep essential controller notes (palette, product URLs) available."""
         added: List[str] = []
         for item in items:
             normalized = item.strip()
             if not normalized:
                 continue
-            if normalized not in self.global_memory:
-                self.global_memory.append(normalized)
+            if normalized not in self._persistent_notes:
+                self._persistent_notes.append(normalized)
                 added.append(normalized)
         if added:
-            logger.info(
-                "🧠 Stored %d new global memory item(s):\n%s",
-                len(added),
-                "\n".join(f"   - {entry}" for entry in added),
+            logger.debug(
+                "Stored %d persistent controller note(s).", len(added)
             )
 
     def _record_product_url_memory(self, beat_result: BeatResult):
@@ -567,7 +641,7 @@ Thought: {{agent_scratchpad}}
         self.global_product_urls[beat_result.beat_number] = final_url
         prefix = f"global_product_url: beat={beat_result.beat_number}"
         note = f"{prefix}, url={final_url}"
-        self._append_global_memory_items([note])
+        self._append_persistent_notes([note])
 
     def _capture_beat_summary(self, beat_result: BeatResult) -> str:
         """Create a concise summary for internal context passing."""

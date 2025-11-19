@@ -22,19 +22,19 @@ def test_format_checklist_markdown_includes_slug_and_instructions():
     markdown = format_checklist_markdown(items)
 
     assert "Checklist (print this before any tool call" in markdown
-    assert "- [ ] palette_check" in markdown
+    assert "- [ ] continuity_recall" in markdown
 
 
 def test_extract_statuses_prefers_latest_and_validates():
     notes = [
-        "checklist: beat=1 | slug=palette_check | status=pending",
-        "checklist: beat=1 | slug=palette_check | status=done",
+        "checklist: beat=1 | slug=continuity_recall | status=pending",
+        "checklist: beat=1 | slug=continuity_recall | status=done",
         "checklist: beat=1 | slug=reference_search | status=pending",
-        "checklist: beat=2 | slug=palette_check | status=done",
+        "checklist: beat=2 | slug=continuity_recall | status=done",
     ]
 
     statuses = extract_checklist_statuses(notes, beat_number=1)
-    assert statuses["palette_check"] == "done"
+    assert statuses["continuity_recall"] == "done"
     assert statuses["reference_search"] == "pending"
 
     items = build_checklist(is_first_beat=False)

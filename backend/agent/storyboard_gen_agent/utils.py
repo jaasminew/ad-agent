@@ -2,10 +2,9 @@
 
 import json
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from .models import Beat
-from tools.upload_memory import format_uploaded_urls_note
 
 logger = logging.getLogger(__name__)
 
@@ -27,25 +26,63 @@ def normalize_beat(beat: Beat) -> str:
     return shot_text
 
 
-def format_global_memory_notes(notes: Optional[List[str]]) -> str:
+def format_global_memory_notes(notes: Optional[List[Any]]) -> str:
     """
     Present global memory entries in a consistent, compact format for prompts.
     """
     if not notes:
         return "(none)"
-    formatted = "\n".join(f"- {note.strip()}" for note in notes if note.strip())
-    return formatted or "(none)"
+    
+    lines: List[str] = []
+    iterator = list(notes)
+    if not iterator:
+        return "(none)"
+    
+    first = iterator[0]
+    if isinstance(first, list):
+        if first:
+            lines.append("- Uploaded final URLs:")
+            for url in first:
+                if not url:
+                    continue
+                lines.append(f"  • {url}")
+        else:
+            lines.append("- Uploaded final URLs: (none)")
+    elif isinstance(first, str):
+        lines.append(f"- {first.strip()}")
+    
+    for entry in iterator[1:]:
+        if isinstance(entry, list) and len(entry) == 5:
+            title, character, style, palette, description = [
+                (segment or "").strip() for segment in entry
+            ]
+            title_label = title or "(untitled)"
+            lines.append(f"- {title_label}")
+            if character:
+                lines.append(f"  • Main character: {character}")
+            if style:
+                lines.append(f"  • Style: {style}")
+            if palette:
+                lines.append(f"  • Palette: {palette}")
+            if description:
+                lines.append(f"  • Description: {description}")
+        elif isinstance(entry, str):
+            cleaned = entry.strip()
+            if cleaned:
+                lines.append(f"- {cleaned}")
+    
+    return "\n".join(lines) or "(none)"
 
 
 def build_global_memory_with_uploaded_urls(
-    base_memory: Optional[List[str]], uploaded_urls: Optional[List[str]]
-) -> List[str]:
+    base_memory: Optional[List[List[str]]], uploaded_urls: Optional[List[str]]
+) -> List[List[str]]:
     """
-    Prefix the controller's global memory with the uploaded URL note so it always
+    Prefix the controller's global memory with the uploaded URL list so it always
     appears first when rendered or seeded into shot memory.
     """
-    base = list(base_memory or [])
-    return [format_uploaded_urls_note(uploaded_urls)] + base
+    base: List[List[str]] = [list(entry) for entry in (base_memory or [])]
+    return [list(uploaded_urls or [])] + base
 
 
 def extract_color_palette(image_url: str, num_colors: int = 4) -> Optional[List[str]]:
@@ -84,26 +121,6 @@ def extract_color_palette(image_url: str, num_colors: int = 4) -> Optional[List[
         return None
 
 
-def format_palette_for_prompt(palette: Optional[List[str]]) -> str:
-    """
-    Format color palette for inclusion in MidJourney prompt.
-    
-    Args:
-        palette: List of hex color codes or None
-        
-    Returns:
-        Formatted string for prompt (e.g., "using color palette #FF5733, #3366FF")
-        Returns empty string if palette is None or empty
-    """
-    if not palette:
-        return ""
-    
-    color_codes = ", ".join(palette)
-    formatted = f"using color palette {color_codes}"
-    logger.debug(f"Formatted palette: {formatted}")
-    return formatted
-
-
 def build_midjourney_prompt(
     reference_image_url: str,
     shot_text: str,
@@ -114,7 +131,10 @@ def build_midjourney_prompt(
     """
     Build a complete MidJourney prompt with all components.
     
-    Format: {reference_url} {shot_text} {palette} {style_params} --no {negatives}
+    Format: {reference_url} {shot_text_with_style_and_quality_cues} --no {negatives}
+    
+    Note: `palette` is accepted so upstream planners can pass continuity data,
+    but the resulting prompt intentionally omits explicit palette language.
     
     Args:
         reference_image_url: Style reference image URL
@@ -132,10 +152,12 @@ def build_midjourney_prompt(
     # Add shot text with style modifiers
     descriptive_text = f"{shot_text}, cinematic composition, natural light, realistic proportions"
     
-    # Add palette if available
-    palette_text = format_palette_for_prompt(palette)
-    if palette_text:
-        descriptive_text += f", {palette_text}"
+    if palette:
+        joined_palette = ", ".join(palette)
+        logger.debug(
+            "Palette available for continuity (omitted from prompt by design): %s",
+            joined_palette,
+        )
     
     # Add correct anatomy reminders
     descriptive_text += ", correct anatomy of hands, no extra fingers or distorted hands"

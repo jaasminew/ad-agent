@@ -2,6 +2,7 @@
 
 import base64
 import io
+import re
 from typing import Tuple, Union, List
 
 import numpy as np
@@ -10,6 +11,7 @@ from PIL import Image
 
 
 REMOTE_DOWNLOAD_TIMEOUT = 30  # seconds
+_URL_PATTERN = re.compile(r"https?://[^\s\"'`<>]+")
 
 
 def _image_from_bytes(image_bytes: bytes) -> Tuple[np.ndarray, int, int]:
@@ -18,6 +20,50 @@ def _image_from_bytes(image_bytes: bytes) -> Tuple[np.ndarray, int, int]:
     img = img.convert("RGB")
     width, height = img.size
     return np.array(img), width, height
+
+
+def _normalize_string_input(raw_input: str) -> str:
+    """
+    Clean up common formatting artifacts (quotes, Markdown fences, JSON blobs)
+    before attempting to interpret the string as a path/URL/base64 payload.
+    """
+    if not raw_input:
+        return raw_input
+    
+    normalized = raw_input.strip()
+    
+    # Strip Markdown code fences (e.g., ```json ... ```)
+    if normalized.startswith("```"):
+        lines = normalized.splitlines()
+        # Drop the opening fence line
+        lines = lines[1:]
+        normalized = "\n".join(lines).lstrip()
+    if normalized.endswith("```"):
+        lines = normalized.splitlines()
+        # Drop the closing fence line (usually the last non-empty line)
+        while lines and not lines[-1].strip():
+            lines.pop()
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        normalized = "\n".join(lines).rstrip()
+    
+    normalized = normalized.strip()
+    
+    # Remove surrounding quotes/backticks that LLMs sometimes add
+    normalized = normalized.strip("`")
+    if normalized and normalized[0] in {"'", '"'}:
+        normalized = normalized[1:]
+    if normalized and normalized[-1] in {"'", '"'}:
+        normalized = normalized[:-1]
+    normalized = normalized.strip()
+    
+    # If the string still contains multiple lines (e.g., JSON), try to extract the first URL
+    if not normalized.startswith(("http://", "https://", "data:", "base64:")):
+        match = _URL_PATTERN.search(normalized)
+        if match:
+            return match.group(0)
+    
+    return normalized
 
 
 def load_image(image_input: Union[str, bytes]) -> Tuple[np.ndarray, int, int]:
@@ -41,14 +87,7 @@ def load_image(image_input: Union[str, bytes]) -> Tuple[np.ndarray, int, int]:
     
     # If string, check if it's base64 or file path
     if isinstance(image_input, str):
-        # Normalize whitespace or stray quotes that may come from agent formatting
-        normalized_input = image_input.strip()
-        if normalized_input and normalized_input[0] in {"'", '"'}:
-            normalized_input = normalized_input[1:]
-        if normalized_input and normalized_input[-1] in {"'", '"'}:
-            normalized_input = normalized_input[:-1]
-        normalized_input = normalized_input.strip()
-        image_input = normalized_input
+        image_input = _normalize_string_input(image_input)
         
         # Check for remote URL
         if image_input.startswith(("http://", "https://")):

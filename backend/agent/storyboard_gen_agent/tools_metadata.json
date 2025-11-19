@@ -50,7 +50,7 @@
         "name": "search_images_by_tags",
         "category": "image_search",
         "source_file": "tools/pixelhub.py",
-        "function": "Search for images by tags using relevance ranking with OR logic. Returns images matching any of the provided tags, sorted by number of matched tags",
+        "function": "Search for images by tags using relevance ranking with OR logic. Returns the top-ranked match explicitly plus up to two highest-matching images (sorted by matched tags).",
         "usage_guidelines": [
           "MUST call list_tags first to get available tags",
           "Only use tags that exist in the system",
@@ -82,7 +82,15 @@
           "structure": {
             "total": "Total number of matching images",
             "current_page": "Current page number",
-            "results_count": "Number of results returned",
+            "available_results_count": "Number of candidates returned by the API before truncation",
+            "results_count": "Number of results returned (max 2)",
+            "top_match": {
+              "id": "Image ID",
+              "url": "Image URL",
+              "description": "Image description",
+              "matched_tag_count": "Number of tags matched",
+              "tags": ["List of all tags for this image"]
+            },
             "results": [
               {
                 "id": "Image ID",
@@ -230,7 +238,7 @@
         "function": "Run Midjourney imagine and upscale sequentially in a single call. Returns structured JSON with both task IDs and URLs.",
         "usage_guidelines": [
           "Preferred way to generate storyboard frames: pass the final Midjourney prompt and optional index (defaults to 1)",
-          "Always format prompts as `<reference_url> <description + palette>` before calling",
+          "Always format prompts as `<reference_url> <description>` before calling—do not add color palettes or hex codes to the descriptive text",
           "If you need a different crop, set `index` to 1-4; the tool validates the range",
           "Falls back to separate midjourney_imagine / midjourney_upscale only when you need manual control",
           "Output is JSON – parse fields like `imagine_task_id`, `upscale_task_id`, and `upscaled_image_url` for downstream steps"

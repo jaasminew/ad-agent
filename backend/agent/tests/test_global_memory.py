@@ -12,27 +12,43 @@ def test_format_global_memory_notes_empty():
 
 def test_format_global_memory_notes_lists_entries():
     notes = [
-        "episode_palette: #FEE3B5, #C47C4E",
-        "character: Emi wears a linen jumpsuit with copper accessories",
+        ["https://example.com/final.png"],
+        [
+            "Shot 1",
+            "Emi wears a linen jumpsuit with copper accessories",
+            "Illustrative realism",
+            "#FEE3B5, #C47C4E",
+            "Camera pushes in as Emi lifts the product toward the light",
+        ],
     ]
     formatted = format_global_memory_notes(notes)
-    assert "- episode_palette: #FEE3B5, #C47C4E" in formatted
-    assert "- character: Emi wears a linen jumpsuit with copper accessories" in formatted
-    assert formatted.count("\n") == 1
+    assert "- Shot 1" in formatted
+    assert "Main character: Emi wears a linen jumpsuit with copper accessories" in formatted
+    assert "Style: Illustrative realism" in formatted
+    assert "Palette: #FEE3B5, #C47C4E" in formatted
+    assert "Description: Camera pushes in" in formatted
 
 
 def test_build_global_memory_with_uploaded_urls_inserts_note_first():
-    base_memory = ["episode_palette: #FEE3B5, #C47C4E"]
+    base_memory = [
+        [
+            "Shot 1",
+            "Emi wears a linen jumpsuit with copper accessories",
+            "Illustrative realism",
+            "#FEE3B5, #C47C4E",
+            "Camera pushes in as Emi lifts the product toward the light",
+        ]
+    ]
     urls = ["https://example.com/final.png", "https://example.com/alt.png"]
     combined = build_global_memory_with_uploaded_urls(base_memory, urls)
 
-    assert combined[0].startswith("uploaded_final_urls:")
+    assert combined[0] == urls
     assert combined[1:] == base_memory
 
 
 def test_build_global_memory_with_uploaded_urls_formats_empty_list():
     combined = build_global_memory_with_uploaded_urls([], [])
-    assert combined[0] == 'uploaded_final_urls: []'
+    assert combined[0] == []
     formatted = format_global_memory_notes(combined)
-    assert formatted.splitlines()[0] == "- uploaded_final_urls: []"
+    assert formatted.splitlines()[0] == "- Uploaded final URLs: (none)"
 

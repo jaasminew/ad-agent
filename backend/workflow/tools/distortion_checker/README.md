@@ -24,6 +24,13 @@ result = check_image_distortion("path/to/image.jpg")
 print(result)
 ```
 
+## Configuration
+
+- `DISTORTION_CHECKER_MIN_CONFIDENCE` (default: `0.82`): Minimum confidence score
+  a detected distortion must meet before it is reported. Increase this value
+  (for example, `0.9`) to make the checker less sensitive and reduce false
+  positives. Decrease it to surface more borderline detections.
+
 ## Available Tools
 
 ### `check_image_distortion(image_path: str) -> str`

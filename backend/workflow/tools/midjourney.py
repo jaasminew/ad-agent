@@ -202,10 +202,27 @@ def _parse_generate_upscaled_params(
 
     return prompt_value, index_int
 
+
+def _parse_progress_percentage(progress_value: Any) -> Optional[float]:
+    """Extract numeric percentage (0-100) from progress field."""
+    if progress_value is None:
+        return None
+    if isinstance(progress_value, (int, float)):
+        return float(progress_value)
+    if isinstance(progress_value, str):
+        match = re.search(r"(\d+(?:\.\d+)?)", progress_value)
+        if match:
+            try:
+                return float(match.group(1))
+            except ValueError:
+                return None
+    return None
+
 # ==================== Configuration ====================
 MIDJOURNEY_CONFIG = {
     "poll_interval": 2,  # Poll interval in seconds
     "max_poll_time": 300,  # Maximum poll time (5 minutes)
+    "zero_progress_guard_seconds": 20,  # Maximum time to wait at 0% progress
 }
 
 
@@ -220,6 +237,20 @@ class MidjourneyClient:
         self.base_url = self.base_url.rstrip("/")
         self.poll_interval = MIDJOURNEY_CONFIG["poll_interval"]
         self.max_poll_time = MIDJOURNEY_CONFIG["max_poll_time"]
+        zero_guard_env = os.environ.get("MIDJOURNEY_ZERO_PROGRESS_GUARD_SECONDS")
+        if zero_guard_env:
+            try:
+                self.zero_progress_guard = max(0, int(zero_guard_env))
+            except ValueError:
+                logger.warning(
+                    "Invalid MIDJOURNEY_ZERO_PROGRESS_GUARD_SECONDS value '%s'; "
+                    "falling back to default %s",
+                    zero_guard_env,
+                    MIDJOURNEY_CONFIG["zero_progress_guard_seconds"],
+                )
+                self.zero_progress_guard = MIDJOURNEY_CONFIG["zero_progress_guard_seconds"]
+        else:
+            self.zero_progress_guard = MIDJOURNEY_CONFIG["zero_progress_guard_seconds"]
         logger.info(f"✓ Midjourney client initialized with base_url: {self.base_url}")
 
     def _make_request(self, method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
@@ -268,6 +299,7 @@ class MidjourneyClient:
         """Poll task until it's complete (SUCCESS or FAILURE)"""
         logger.info(f"Starting to poll task: {task_id}")
         start_time = time.time()
+        zero_progress_start: Optional[float] = None
 
         while True:
             elapsed = time.time() - start_time
@@ -281,6 +313,32 @@ class MidjourneyClient:
             status = task.get("status")
             progress = task.get("progress", "N/A")
             logger.info(f"Task {task_id} status: {status}, progress: {progress}")
+
+            # Guard against tasks that never progress beyond 0%
+            if status in ("NOT_START", "SUBMITTED", "IN_PROGRESS"):
+                numeric_progress = _parse_progress_percentage(progress)
+                if numeric_progress is not None and numeric_progress > 0:
+                    zero_progress_start = None
+                else:
+                    if zero_progress_start is None:
+                        zero_progress_start = time.time()
+                    elif (
+                        self.zero_progress_guard
+                        and time.time() - zero_progress_start >= self.zero_progress_guard
+                    ):
+                        logger.warning(
+                            "Task %s stuck at 0%% progress for %ss. "
+                            "Stopping poll so upstream agent can retry.",
+                            task_id,
+                            self.zero_progress_guard,
+                        )
+                        raise RuntimeError(
+                            f"Task {task_id} is paused after staying at 0% progress for "
+                            f"{self.zero_progress_guard}s. Please retry or investigate the "
+                            "Midjourney proxy."
+                        )
+            else:
+                zero_progress_start = None
 
             if status == "SUCCESS":
                 logger.info(f"Task {task_id} completed successfully")

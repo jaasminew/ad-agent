@@ -70,9 +70,8 @@ All models use Pydantic for validation:
 
 ### 4. **Utility Functions**
 - ✅ `normalize_beat()` - Combine beat fields into shot_text
-- ✅ `extract_color_palette()` - **IMPLEMENTED** - Extracts dominant colors using palette_extractor
-- ✅ `format_palette_for_prompt()` - Format hex codes for MidJourney
-- ✅ `build_midjourney_prompt()` - Construct complete prompt with reference, palette, negatives
+- ✅ `extract_color_palette()` - **IMPLEMENTED** - Extracts dominant colors using palette_extractor for continuity tracking
+- ✅ `build_midjourney_prompt()` - Construct complete prompt with reference URL, descriptive text, and negatives (palette intentionally omitted)
 - ✅ `distortion_label_to_negative_prompt()` - Convert distortion labels to negative prompts
 - ✅ `parse_midjourney_result()` - Parse tool output
 - ✅ `parse_distortion_result()` - Parse distortion check output
@@ -89,11 +88,11 @@ All models use Pydantic for validation:
 - **✅ NOW IMPLEMENTED**: Uses `tools/palette_extractor.py` to extract dominant colors
 - Extracts 4 dominant colors from reference images using ColorThief or PIL
 - Returns hex color codes (e.g., `["#FF5733", "#3366FF", "#28A745", "#FFC107"]`)
-- The agent now has full palette consistency across all beats in an episode
+- Palette is stored for continuity/memory only—MidJourney prompts no longer mention palette or hex values
 
 ### MidJourney Prompt Format
-- **As discussed**: Format is `{reference_url} {descriptive_text} {palette_hex_codes}`
-- Example: `"https://s.mj.run/ABC123 Friends gather in a park, using color palette #FF5733, #3366FF, correct anatomy of hands --no extra fingers"`
+- **Updated**: Format is `{reference_url} {descriptive_text with style lock}` (no palette callouts)
+- Example: `"https://s.mj.run/ABC123 Friends gather in a park, cinematic composition, natural light, Episode style lock: photorealistic cinematic lensing --no extra fingers, malformed hands"`
 
 ### Inpainting Logic
 - **As discussed**: Placeholder/commented out since the function doesn't exist yet

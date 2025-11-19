@@ -37,8 +37,7 @@ import {
 } from "@/components/ui/resizable"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Toaster } from "@/components/ui/toaster"
-import { useToast } from "@/components/ui/use-toast"
+import { Toaster } from "@/components/ui/sonner"
 import { Dropzone, DropzoneContent, DropzoneEmptyState } from "@/components/ui/dropzone"
 import { cn } from "@/lib/utils"
 import {
@@ -48,6 +47,7 @@ import {
   type WorkflowFormPayload,
 } from "@/store/workflow-store"
 import { translations, type AppCopy, type Language } from "@/locales"
+import { toast } from "sonner"
 
 const LANGUAGE_STORAGE_KEY = "language"
 
@@ -69,17 +69,11 @@ function App() {
     interruptWorkflow,
   } = useWorkflowStore()
 
-  const { toast } = useToast()
-
-  const [productName, setProductName] = React.useState("Product teaser for NOVA earbuds")
-  const [brandIdentity, setBrandIdentity] = React.useState(
-    "Highlight hybrid noise-canceling, adaptive EQ, and 36h battery. Set mood: futuristic studio with neon rim light."
-  )
+  const [productName, setProductName] = React.useState("")
+  const [brandIdentity, setBrandIdentity] = React.useState("")
   const [productImage, setProductImage] = React.useState<File | null>(null)
-  const [mustHaveShotsText, setMustHaveShotsText] = React.useState(
-    "Problem hook in transit\nClose-up of earbuds + UI overlay\nLifestyle hero in neon studio"
-  )
-  const [numberOfShots, setNumberOfShots] = React.useState("6")
+  const [mustHaveShotsText, setMustHaveShotsText] = React.useState("")
+  const [numberOfShots, setNumberOfShots] = React.useState("")
   const [videoFormats, setVideoFormats] = React.useState<string[]>(["16:9 Landscape"])
   const [lightboxOpen, setLightboxOpen] = React.useState(false)
   const [feedbackDraft, setFeedbackDraft] = React.useState<Record<string, string>>(
@@ -107,45 +101,35 @@ function App() {
     const parsedNumberOfShots = Number.parseInt(numberOfShots, 10)
 
     if (!trimmedProductName) {
-      toast({
-        variant: "destructive",
-        title: copy.validation.missingProductName.title,
+      toast.error(copy.validation.missingProductName.title, {
         description: copy.validation.missingProductName.description,
       })
       return
     }
 
     if (!trimmedBrandIdentity) {
-      toast({
-        variant: "destructive",
-        title: copy.validation.missingBrandIdentity.title,
+      toast.error(copy.validation.missingBrandIdentity.title, {
         description: copy.validation.missingBrandIdentity.description,
       })
       return
     }
 
     if (!parsedShots.length) {
-      toast({
-        variant: "destructive",
-        title: copy.validation.missingShots.title,
+      toast.error(copy.validation.missingShots.title, {
         description: copy.validation.missingShots.description,
       })
       return
     }
 
     if (!Number.isFinite(parsedNumberOfShots) || parsedNumberOfShots <= 0) {
-      toast({
-        variant: "destructive",
-        title: copy.validation.invalidShotCount.title,
+      toast.error(copy.validation.invalidShotCount.title, {
         description: copy.validation.invalidShotCount.description,
       })
       return
     }
 
     if (!videoFormats.length) {
-      toast({
-        variant: "destructive",
-        title: copy.validation.missingVideoFormat.title,
+      toast.error(copy.validation.missingVideoFormat.title, {
         description: copy.validation.missingVideoFormat.description,
       })
       return
@@ -164,11 +148,9 @@ function App() {
       await startWorkflow(payload)
     } catch (error) {
       console.error("Failed to start workflow:", error)
-      toast({
-        variant: "destructive",
-        title: "Failed to start workflow",
+      toast.error("Failed to start workflow", {
         description: error instanceof Error ? error.message : "Unknown error",
-    })
+      })
     }
   }, [
     brandIdentity,
@@ -179,22 +161,23 @@ function App() {
     productImage,
     productName,
     startWorkflow,
-    toast,
     videoFormats,
   ])
 
   const handleInterrupt = React.useCallback(async () => {
     try {
       await interruptWorkflow()
-    toast({
-      variant: "destructive",
-      title: copy.toasts.interruptSent.title,
+    toast.error(copy.toasts.interruptSent.title, {
       description: copy.toasts.interruptSent.description,
+      className:
+        "border border-destructive/40 bg-destructive/10 text-destructive-foreground shadow-lg",
+      icon: <PauseOctagon className="h-4 w-4" />,
+      duration: 4500,
     })
     } catch (error) {
       console.error("Failed to interrupt workflow:", error)
     }
-  }, [copy, interruptWorkflow, toast])
+  }, [copy, interruptWorkflow])
 
   const handleRegenerate = React.useCallback(async () => {
     if (!finalResult || isRegenerating) return
@@ -202,8 +185,7 @@ function App() {
     
     // TODO: Implement actual regeneration logic with backend API
     // For now, just show a message
-    toast({
-      title: copy.toasts.finalRenderRefreshed.title,
+    toast(copy.toasts.finalRenderRefreshed.title, {
       description: copy.toasts.finalRenderRefreshed.description,
     })
     
@@ -212,7 +194,6 @@ function App() {
     copy,
     finalResult,
     isRegenerating,
-    toast,
   ])
 
   const timelineDisabled = isRunning
@@ -381,7 +362,7 @@ function App() {
           />
         </section>
       </div>
-      <Toaster />
+      <Toaster theme={theme} />
       {lightboxOpen && finalResult
         ? createPortal(
             <Lightbox
@@ -493,7 +474,7 @@ function InputPanel({
             </label>
             <div className="relative">
               {showShotHelper ? (
-                <p className="pointer-events-none absolute left-4 right-4 top-3 whitespace-pre-line text-sm text-muted-foreground/80">
+                <p className="pointer-events-none absolute left-4 right-4 top-3 whitespace-pre-line text-sm text-foreground/60">
                   {shotHelperText}
                 </p>
               ) : null}
@@ -515,6 +496,7 @@ function InputPanel({
               inputMode="numeric"
               value={formState.numberOfShots}
               onChange={(e) => onChange.numberOfShots(e.target.value)}
+              placeholder={inputCopy.fields.numberOfShots.placeholder}
               disabled={disabled}
             />
           </div>

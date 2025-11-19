@@ -85,8 +85,12 @@ class EpisodeResult(BaseModel):
         default_factory=dict,
         description="Mapping of beat numbers to final product-integrated URLs",
     )
-    global_memory: List[str] = Field(
+    global_memory: List[List[str]] = Field(
         default_factory=list,
-        description="Compact continuity memory distilled after each beat",
+        description=(
+            "Global memory snapshot where index 0 is the list of uploaded_final_urls "
+            "and each subsequent item is a five-element shot continuity record "
+            "[title_number, main_character, style, color_palette, shot_description]"
+        ),
     )
 

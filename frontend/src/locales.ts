@@ -26,11 +26,12 @@ export const translations = {
       fields: {
         productName: {
           label: "Product Name",
-          placeholder: "NOVA earbuds launch teaser",
+          placeholder: "Product teaser for NOVA earbuds",
         },
         brandIdentity: {
           label: "Brand Identity",
-          placeholder: "Tone, palette, differentiators…",
+          placeholder:
+            "Highlight hybrid noise-canceling, adaptive EQ, and 36h battery. Set mood: futuristic studio with neon rim light.",
         },
         productImage: {
           label: "Product Image",
@@ -40,6 +41,7 @@ export const translations = {
         },
         numberOfShots: {
           label: "Number of Shots",
+          placeholder: "6",
         },
         videoFormat: {
           label: "Video Format",
@@ -243,11 +245,11 @@ export const translations = {
       fields: {
         productName: {
           label: "产品名称",
-          placeholder: "NOVA 耳机发布预告",
+          placeholder: "NOVA 耳机产品预告",
         },
         brandIdentity: {
           label: "品牌调性",
-          placeholder: "基调、配色、差异点…",
+          placeholder: "突出混合降噪、自适应 EQ、36 小时续航。氛围：霓虹边缘灯未来感棚拍。",
         },
         productImage: {
           label: "产品图片",
@@ -257,6 +259,7 @@ export const translations = {
         },
         numberOfShots: {
           label: "镜头数量",
+          placeholder: "6",
         },
         videoFormat: {
           label: "视频比例",

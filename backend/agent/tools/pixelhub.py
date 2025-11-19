@@ -383,8 +383,9 @@ def list_tags(page: int = 1, limit: int = 1000) -> str:
 
 @tool("search_images_by_tags", args_schema=SearchImagesInput)
 def search_images_by_tags(tags: List[str], page: int = 1, limit: int = 20) -> str:
-    """Search images by tags using relevance ranking (OR logic). Returns images that match any of the provided tags,
-    sorted by number of matched tags. IMPORTANT: Only use tags that exist in the system (call list_tags first).
+    """Search images by tags using relevance ranking (OR logic). Returns the top matches
+    (max 2) sorted by matched tags and highlights the single best match explicitly.
+    IMPORTANT: Only use tags that exist in the system (call list_tags first).
 
     Args:
         tags: List of tags to search for. MUST use tags from list_tags result.
@@ -392,7 +393,8 @@ def search_images_by_tags(tags: List[str], page: int = 1, limit: int = 20) -> st
         limit: Number of results per page (default: 20, max: 100)
 
     Returns:
-        A JSON string containing search results with image URLs, descriptions, and matched tags.
+        A JSON string containing the highlighted top match plus up to two top-ranked
+        results with image URLs, descriptions, and matched tag counts.
     """
     normalized_tags = _coerce_tags_argument(tags)
     normalized_page = _coerce_int(page, "page", "search_images_by_tags")
@@ -414,12 +416,25 @@ def search_images_by_tags(tags: List[str], page: int = 1, limit: int = 20) -> st
         total = result.get("total", 0)
         current_page = result.get("current_page", page)
         results = result.get("results", [])
+        sorted_results = sorted(
+            results,
+            key=lambda item: (
+                item.get("matched_tag_count", 0),
+                item.get("upload_date") or "",
+                item.get("id") or "",
+            ),
+            reverse=True,
+        )
+        top_results = sorted_results[:2]
+        top_match = top_results[0] if top_results else None
 
         response = {
             "total": total,
             "current_page": current_page,
-            "results_count": len(results),
-            "results": results,
+            "available_results_count": len(results),
+            "results_count": len(top_results),
+            "top_match": top_match,
+            "results": top_results,
         }
 
         logger.info(f"✓ [search_images_by_tags] Found {total} images, returned {len(results)} results")

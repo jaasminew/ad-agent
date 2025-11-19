@@ -104,8 +104,10 @@ def extract_uploaded_final_urls(episode_result: EpisodeResult) -> List[str]:
         List of final image URLs
     """
     # Method 1: From global_memory (recommended)
-    for item in episode_result.global_memory:
-        if item.startswith("uploaded_final_urls:"):
+    for idx, item in enumerate(episode_result.global_memory):
+        if idx == 0 and isinstance(item, list):
+            return item
+        if isinstance(item, str) and item.startswith("uploaded_final_urls:"):
             try:
                 urls_json = item.split(":", 1)[1].strip()
                 return json.loads(urls_json)
