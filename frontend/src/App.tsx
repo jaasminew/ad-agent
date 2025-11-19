@@ -49,12 +49,17 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Toaster } from "@/components/ui/sonner"
 import { Dropzone, DropzoneContent, DropzoneEmptyState } from "@/components/ui/dropzone"
+import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import {
   useWorkflowStore,
   type WorkflowNode,
   type WorkflowResult,
   type WorkflowFormPayload,
+  type TranscriptEntry,
+  type ThoughtContentBlock,
+  type ChecklistContentBlock,
+  type ChecklistItemBlock,
 } from "@/store/workflow-store"
 import { translations, type AppCopy, type Language } from "@/locales"
 import { toast } from "sonner"
@@ -864,8 +869,8 @@ function NodeCard({
       >
         {node.transcript.length ? (
           <>
-            {node.transcript.map((line, index) => (
-              <TranscriptLine key={`${node.id}-${index}`} line={line} />
+            {node.transcript.map((entry) => (
+              <TranscriptLine key={entry.id} entry={entry} />
             ))}
           </>
         ) : (
@@ -877,10 +882,11 @@ function NodeCard({
 }
 
 interface TranscriptLineProps {
-  line: string
+  entry: TranscriptEntry
 }
 
-function TranscriptLine({ line }: TranscriptLineProps) {
+function TranscriptLine({ entry }: TranscriptLineProps) {
+  const line = entry.message
   // Detect line type and apply styling
   const isThought = line.includes("🤔") || line.startsWith("Thought:")
   const isAction = line.includes("🔧") || line.startsWith("Action:")
@@ -907,7 +913,7 @@ function TranscriptLine({ line }: TranscriptLineProps) {
             : "font-normal"
   
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <p className={cn(fontWeight, "text-foreground/80")}>{line}</p>
       {urls.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -916,6 +922,84 @@ function TranscriptLine({ line }: TranscriptLineProps) {
           ))}
         </div>
       )}
+      {entry.contentBlocks && entry.contentBlocks.length > 0 ? (
+        <div className="space-y-3">
+          {entry.contentBlocks.map((block, index) => (
+            <TranscriptContentBlock key={`${entry.id}-block-${index}`} block={block} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function TranscriptContentBlock({ block }: { block: ThoughtContentBlock }) {
+  if (block.type === "text") {
+    return (
+      <div className="rounded-lg border border-dashed border-muted/50 bg-background/80 px-3 py-2 text-xs text-muted-foreground">
+        {block.content}
+      </div>
+    )
+  }
+  
+  if (block.type === "checklist") {
+    return <ChecklistBlock block={block} />
+  }
+  
+  return null
+}
+
+function ChecklistBlock({ block }: { block: ChecklistContentBlock }) {
+  const { stats } = block
+  const progressPercent = Math.round(stats.progress * 100)
+  
+  return (
+    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm shadow-sm">
+      <div className="mb-3 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <span>Checklist</span>
+        <span>
+          {stats.checkedItems}/{stats.totalItems} · {progressPercent}%
+        </span>
+      </div>
+      <div className="space-y-2">
+        {block.items.map((item) => (
+          <ChecklistItemRow key={item.slug} item={item} />
+        ))}
+      </div>
+      {block.summary ? (
+        <p className="mt-3 text-xs text-muted-foreground">{block.summary}</p>
+      ) : null}
+    </div>
+  )
+}
+
+function ChecklistItemRow({ item }: { item: ChecklistItemBlock }) {
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-3 rounded-lg border border-transparent bg-background/80 p-2 transition",
+        item.checked ? "border-primary/60" : "border-muted/50",
+        "hover:border-primary/70"
+      )}
+    >
+      <Checkbox
+        checked={item.checked}
+        aria-readonly="true"
+        tabIndex={-1}
+        className={cn(
+          "pointer-events-none border-2",
+          "data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+        )}
+      />
+      <div className="flex-1 space-y-1">
+        <p className={cn("text-sm leading-tight", item.checked ? "text-foreground" : "text-muted-foreground")}>
+          {item.description}
+        </p>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+          {item.slug}
+          {item.optional ? " · Optional" : ""}
+        </p>
+      </div>
     </div>
   )
 }

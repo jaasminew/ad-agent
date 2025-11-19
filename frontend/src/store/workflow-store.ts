@@ -4,12 +4,52 @@ import * as api from "@/services/api"
 type NodeStatus = "waiting" | "running" | "done" | "error"
 type NodeFeedback = "up" | "down" | null
 
+export interface ChecklistItemBlock {
+  slug: string
+  description: string
+  checked: boolean
+  optional?: boolean
+}
+
+export interface ChecklistStats {
+  totalItems: number
+  checkedItems: number
+  mandatoryItems: number
+  mandatoryChecked: number
+  progress: number
+  mandatoryComplete: boolean
+}
+
+export interface ChecklistContentBlock {
+  type: "checklist"
+  items: ChecklistItemBlock[]
+  summary: string
+  stats: ChecklistStats
+}
+
+export interface TextContentBlock {
+  type: "text"
+  content: string
+}
+
+export type ThoughtContentBlock = TextContentBlock | ChecklistContentBlock
+
+export interface TranscriptEntry {
+  id: string
+  message: string
+  contentBlocks?: ThoughtContentBlock[]
+  metadata?: {
+    outputType?: string
+    checklistSummary?: string
+  }
+}
+
 export interface WorkflowNode {
   id: string
   label: string
   status: NodeStatus
   summary: string
-  transcript: string[]
+  transcript: TranscriptEntry[]
   feedback: NodeFeedback
   feedbackReason?: string
 }
@@ -44,8 +84,8 @@ interface WorkflowState {
   startWorkflow: (payload: WorkflowFormPayload) => Promise<number>
   interruptWorkflow: () => Promise<void>
   setNodeStatus: (id: string, status: NodeStatus) => void
-  appendNodeTranscript: (id: string, line: string) => void
-  overwriteNodeTranscript: (id: string, lines: string[]) => void
+  appendNodeTranscript: (id: string, entry: TranscriptEntry) => void
+  overwriteNodeTranscript: (id: string, entries: TranscriptEntry[]) => void
   setNodeSummary: (id: string, summary: string) => void
   toggleNodeFeedback: (id: string, feedback: NodeFeedback, reason?: string) => void
   completeWorkflow: (result: WorkflowResult) => void
@@ -92,6 +132,86 @@ const createInitialNodes = (): WorkflowNode[] =>
     transcript: [],
     feedback: null,
   }))
+
+const generateTranscriptId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID()
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+const normalizeChecklistStats = (block: Record<string, unknown>): ChecklistStats => ({
+  totalItems: Number(block.total_items ?? block.totalItems ?? 0),
+  checkedItems: Number(block.checked_items ?? block.checkedItems ?? 0),
+  mandatoryItems: Number(block.mandatory_items ?? block.mandatoryItems ?? 0),
+  mandatoryChecked: Number(block.mandatory_checked ?? block.mandatoryChecked ?? 0),
+  progress: Number(block.progress ?? 0),
+  mandatoryComplete: Boolean(block.mandatory_complete ?? block.mandatoryComplete ?? false),
+})
+
+const normalizeChecklistItem = (item: Record<string, unknown>, index: number): ChecklistItemBlock => ({
+  slug: typeof item.slug === "string" && item.slug.length ? item.slug : `item_${index}`,
+  description: typeof item.description === "string" ? item.description : "",
+  checked: Boolean(item.checked),
+  optional: Boolean(item.optional),
+})
+
+const transformContentBlock = (block: Record<string, unknown>, index: number): ThoughtContentBlock | null => {
+  if (!block || typeof block !== "object") return null
+  
+  const blockType = typeof block.type === "string" ? block.type : undefined
+  
+  if (blockType === "text") {
+    return {
+      type: "text",
+      content: typeof block.content === "string" ? block.content : "",
+    }
+  }
+  
+  if (blockType === "checklist" && Array.isArray(block.items)) {
+    const items = block.items.map((item, idx) =>
+      normalizeChecklistItem((item as Record<string, unknown>) ?? {}, idx)
+    )
+    
+    return {
+      type: "checklist",
+      items,
+      summary: typeof block.summary === "string" ? block.summary : "",
+      stats: normalizeChecklistStats(block),
+    }
+  }
+  
+  return null
+}
+
+const buildTranscriptEntry = (message: string, output?: Record<string, unknown>): TranscriptEntry => {
+  const entry: TranscriptEntry = {
+    id: generateTranscriptId(),
+    message,
+  }
+  
+  if (!output || typeof output !== "object") {
+    return entry
+  }
+  
+  const outputType = typeof output.type === "string" ? output.type : undefined
+  const rawBlocks = Array.isArray(output.content_blocks) ? output.content_blocks : []
+  const contentBlocks = rawBlocks
+    .map((block, index) =>
+          transformContentBlock((block as Record<string, unknown>) ?? {}, index)
+        )
+    .filter((block): block is ThoughtContentBlock => Boolean(block))
+  
+  if (outputType === "thought" && contentBlocks.length) {
+    entry.contentBlocks = contentBlocks
+    entry.metadata = {
+      outputType,
+      checklistSummary: typeof output.checklist_summary === "string" ? output.checklist_summary : undefined,
+    }
+  }
+  
+  return entry
+}
 
 // AbortController for SSE streaming
 let streamAbortController: AbortController | null = null
@@ -181,9 +301,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
               const nodeId = stageToNodeId[llmData.stage]
               if (nodeId) {
                 get().setNodeStatus(nodeId, "running")
-                get().appendNodeTranscript(nodeId, llmData.message)
+                get().appendNodeTranscript(nodeId, buildTranscriptEntry(llmData.message, llmData.output))
                 if (llmData.reasoning) {
-                  get().appendNodeTranscript(nodeId, `Reasoning: ${llmData.reasoning}`)
+                  get().appendNodeTranscript(
+                    nodeId,
+                    buildTranscriptEntry(`Reasoning: ${llmData.reasoning}`)
+                  )
                 }
               }
             } else if (contentEvent.type === "tool_calling") {
@@ -192,10 +315,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
               if (nodeId) {
                 get().appendNodeTranscript(
                   nodeId,
-                  `🔧 ${toolData.tool_name}: ${toolData.success ? "✓" : "✗"}`
+                  buildTranscriptEntry(`🔧 ${toolData.tool_name}: ${toolData.success ? "✓" : "✗"}`)
                 )
                 if (toolData.error) {
-                  get().appendNodeTranscript(nodeId, `Error: ${toolData.error}`)
+                  get().appendNodeTranscript(
+                    nodeId,
+                    buildTranscriptEntry(`Error: ${toolData.error}`)
+                  )
                 }
               }
             }
@@ -245,24 +371,24 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           : node
       ),
     })),
-  appendNodeTranscript: (id, line) =>
+  appendNodeTranscript: (id, entry) =>
     set((state) => ({
       nodes: state.nodes.map((node) =>
         node.id === id
           ? {
               ...node,
-              transcript: [...node.transcript, line],
+              transcript: [...node.transcript, entry],
             }
           : node
       ),
     })),
-  overwriteNodeTranscript: (id, lines) =>
+  overwriteNodeTranscript: (id, entries) =>
     set((state) => ({
       nodes: state.nodes.map((node) =>
         node.id === id
           ? {
               ...node,
-              transcript: lines,
+              transcript: entries,
             }
           : node
       ),
