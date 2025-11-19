@@ -2,6 +2,8 @@
 
 import logging
 import re
+import sys
+from pathlib import Path
 from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from .state import WorkflowState
@@ -10,7 +12,33 @@ from workflow.tools.suno_music import suno_generate_music
 from workflow.tools.video_add_bgm import add_bgm_to_video
 from workflow.prompts.bgm_generator import get_music_prompt_generation, get_style_detection_prompt
 
+# Add backend to path for service imports
+backend_path = Path(__file__).parent.parent.parent
+if str(backend_path) not in sys.path:
+    sys.path.insert(0, str(backend_path))
+
 logger = logging.getLogger(__name__)
+
+
+def _check_cancellation():
+    """Check if task has been cancelled and raise exception if so."""
+    try:
+        from service.task_manager import TaskContext, get_task_manager
+        from service.workflow_executor import TaskCancelledException
+        
+        task_id = TaskContext.get_task_id()
+        if task_id:
+            task_manager = get_task_manager()
+            if task_manager.is_cancelled(task_id):
+                logger.info(f"[Task {task_id}] Task cancelled by user during BGM generation")
+                raise TaskCancelledException(f"Task {task_id} cancelled")
+    except Exception as e:
+        # If it's a cancellation exception, re-raise it
+        if e.__class__.__name__ == "TaskCancelledException":
+            raise
+        # Otherwise, silently ignore other errors
+        logger.debug(f"Failed to check cancellation: {e}")
+
 
 
 @retry(
@@ -147,6 +175,9 @@ def generate_and_add_bgm(state: WorkflowState) -> dict:
     # BGM generation is needed, proceed
     logger.info("BGM generation is enabled, proceeding...")
     
+    # Check cancellation before starting
+    _check_cancellation()
+    
     product_name = state.get("product_name", "product")
     brand_identity = state.get("brand_identity", "")
     shots = state.get("shots", [])
@@ -155,6 +186,8 @@ def generate_and_add_bgm(state: WorkflowState) -> dict:
     logger.info("Step 1: Generating music prompt using LLM...")
     
     try:
+        _check_cancellation()
+        
         llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
         
         # Prepare context for LLM
@@ -177,6 +210,8 @@ def generate_and_add_bgm(state: WorkflowState) -> dict:
     logger.info("Step 2: Determining music style...")
     
     try:
+        _check_cancellation()
+        
         music_style = _detect_music_style_with_retry(llm, music_prompt)
         logger.info(f"Detected music style: {music_style}")
         
@@ -188,6 +223,8 @@ def generate_and_add_bgm(state: WorkflowState) -> dict:
     logger.info("Step 3: Generating background music with Suno...")
     
     try:
+        _check_cancellation()
+        
         # Generate a title for the music
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         music_title = f"{product_name}_BGM_{timestamp}"

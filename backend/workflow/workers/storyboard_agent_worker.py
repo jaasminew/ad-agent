@@ -368,6 +368,12 @@ def _process_episode_with_streaming(
     
     # Process each beat with callback
     for idx, beat in enumerate(episode_config.beats):
+        # Check for cancellation before processing each beat
+        if task_manager and task_id and task_manager.is_cancelled(task_id):
+            logger.info(f"[Task {task_id}] Task cancelled by user during beat {idx + 1}")
+            from service.workflow_executor import TaskCancelledException
+            raise TaskCancelledException(f"Task {task_id} cancelled")
+        
         logger.info(f"\n{'='*60}")
         logger.info(f"Processing Beat {beat.beat} ({idx + 1}/{len(episode_config.beats)})")
         logger.info(f"{'='*60}")

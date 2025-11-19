@@ -84,6 +84,12 @@ def _generate_script_with_agent_streaming(
         def on_agent_action(self, action, **kwargs):
             """Called when agent decides on an action"""
             if self.task_manager and self.task_id:
+                # Check for cancellation before each action
+                if self.task_manager.is_cancelled(self.task_id):
+                    logger.info(f"[Task {self.task_id}] Task cancelled by user during script generation")
+                    from service.workflow_executor import TaskCancelledException
+                    raise TaskCancelledException(f"Task {self.task_id} cancelled")
+                
                 self.step_count += 1
                 
                 # Extract and display Thought from action log

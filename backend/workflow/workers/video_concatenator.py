@@ -18,6 +18,26 @@ if str(backend_path) not in sys.path:
 logger = logging.getLogger(__name__)
 
 
+def _check_cancellation():
+    """Check if task has been cancelled and raise exception if so."""
+    try:
+        from service.task_manager import TaskContext, get_task_manager
+        from service.workflow_executor import TaskCancelledException
+        
+        task_id = TaskContext.get_task_id()
+        if task_id:
+            task_manager = get_task_manager()
+            if task_manager.is_cancelled(task_id):
+                logger.info(f"[Task {task_id}] Task cancelled by user during video concatenation")
+                raise TaskCancelledException(f"Task {task_id} cancelled")
+    except Exception as e:
+        # If it's a cancellation exception, re-raise it
+        if e.__class__.__name__ == "TaskCancelledException":
+            raise
+        # Otherwise, silently ignore other errors
+        logger.debug(f"Failed to check cancellation: {e}")
+
+
 def _stream_progress(message: str, output: dict = None):
     """Send progress update to task manager if available."""
     try:
@@ -118,6 +138,9 @@ def concatenate_videos(state: WorkflowState) -> dict:
     # Video generation is enabled, proceed with concatenation
     _stream_progress("🎬 Video generation enabled, collecting videos...", {})
     logger.info("Video generation is enabled, proceeding with concatenation")
+    
+    # Check cancellation before starting
+    _check_cancellation()
     
     shot_results = state.get("shot_results", [])
     product_name = state.get("product_name", "ad")
