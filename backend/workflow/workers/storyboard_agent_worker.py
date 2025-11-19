@@ -266,6 +266,7 @@ def _process_episode_with_streaming(
     """
     from langchain_core.callbacks.base import BaseCallbackHandler
     from service.models import WorkflowStage
+    from .checklist_parser import parse_thought_into_blocks, has_checklist, get_checklist_summary
     import uuid
     
     class StoryboardStreamingCallback(BaseCallbackHandler):
@@ -292,14 +293,34 @@ def _process_episode_with_streaming(
                             thought_text = thought_part
                 
                 if thought_text:
-                    # Send thought message
+                    # Parse thought into structured content blocks
+                    content_blocks = parse_thought_into_blocks(thought_text)
+                    has_checklist_flag = has_checklist(content_blocks)
+                    
+                    # Build output data
+                    output_data = {
+                        "type": "thought",
+                        "content_blocks": [block.to_dict() for block in content_blocks],
+                    }
+                    
+                    # Add checklist summary if present
+                    if has_checklist_flag:
+                        summary = get_checklist_summary(content_blocks)
+                        if summary:
+                            output_data["checklist_summary"] = summary
+                    
+                    # Send structured thought
                     self.task_manager.add_llm_output(
                         task_id=self.task_id,
                         stage=WorkflowStage.STORYBOARD_GEN_AGENT,
                         message=f"💭 {thought_text}",
-                        output={"type": "thought"},
+                        output=output_data,
                     )
-                    logger.info(f"[Storyboard Agent] Thought: {thought_text[:100]}...")
+                    
+                    if has_checklist_flag:
+                        logger.info(f"[Storyboard Agent] Thought with checklist: {summary}")
+                    else:
+                        logger.info(f"[Storyboard Agent] Thought: {thought_text[:100]}...")
             
             # Send simple action message (only tool name, no parameters)
             message = f"🔧 Calling tool: {tool_name}"
