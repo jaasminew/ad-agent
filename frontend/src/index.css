@@ -117,3 +117,41 @@ body {
   background-color: hsl(var(--node-canvas));
   transition: background-color 150ms ease;
 }
+
+@keyframes node-card-shimmer {
+  0% {
+    transform: translateX(-60%);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.4;
+  }
+  60% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+}
+
+.node-card-running {
+  box-shadow: 0 0 32px hsl(var(--accent) / 0.25);
+}
+
+.node-card-running::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    120deg,
+    transparent 15%,
+    hsl(var(--accent) / 0.1) 35%,
+    hsl(var(--accent) / 0.3) 50%,
+    transparent 70%
+  );
+  animation: node-card-shimmer 2.2s ease-in-out infinite;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}

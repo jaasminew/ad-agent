@@ -184,6 +184,7 @@ Each generated storyboard is checked for:
 - **Attempt 1**: Default negative prompts
 - **Attempt 2**: Add detected distortion labels to negatives
 - **Attempt 3**: Final retry with all accumulated negatives
+- **Zero-progress guard**: If the MidJourney proxy aborts after staying at 0% progress for ~20s (error message says the task was paused), treat it as a failed attempt and rebuild the prompt before retrying. Pick a new reference or meaningfully rephrase the descriptive text so the prompt string changes—never resend the identical prompt after this error.
 - **If all fail**: Use best attempt (lowest distortion count), flag for review
 
 ## Data Models

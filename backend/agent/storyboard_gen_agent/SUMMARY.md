@@ -100,10 +100,11 @@ All models use Pydantic for validation:
 - Structure is ready for you to add inpainting later
 
 ### Retry Strategy
-- **As discussed**: Simple retry without alternate references
+- Simple retry without alternate references
 - Attempt 1: Default negative prompts
 - Attempt 2: Add detected distortion labels
 - Attempt 3: Final retry with all accumulated negatives
+- Zero-progress guard: If the MidJourney proxy aborts after ~20s at 0% progress, treat that attempt as failed and rebuild the prompt (new reference or materially different wording) before retrying—never resend the identical prompt after this error.
 - Best attempt: Lowest distortion count
 
 ### Episode Palette Storage

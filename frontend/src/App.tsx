@@ -697,7 +697,7 @@ function TimelinePanel({
             <ScrollArea className="node-canvas h-full rounded-lg bg-dot-pattern">
               <div
                 className={cn(
-                  "space-y-4 p-4 transition",
+                  "space-y-4 px-6 py-4 transition",
                   disabled && "cursor-not-allowed"
                 )}
                 aria-disabled={disabled}
@@ -763,6 +763,7 @@ function NodeCard({
           : { label: copy.nodeCard.statusBadges.waiting, variant: "secondary" as const }
 
   const locked = disabled && node.status !== "done"
+  const isRunningNode = node.status === "running"
   
   // Ref for auto-scrolling within this node's transcript
   const transcriptContainerRef = React.useRef<HTMLDivElement>(null)
@@ -783,8 +784,9 @@ function NodeCard({
   return (
     <div
       className={cn(
-        "relative max-h-[30vh] max-w-[80%] rounded-2xl border bg-card/95 shadow-sm backdrop-blur transition",
-        locked && "opacity-75"
+        "relative max-h-[30vh] w-full overflow-hidden rounded-2xl border bg-card/95 shadow-sm backdrop-blur transition",
+        locked && "opacity-75",
+        isRunningNode && "node-card-running"
       )}
     >
       <div className="flex items-start justify-between gap-2 border-b px-4 py-3">

@@ -126,6 +126,7 @@ You must try up to 3 times to generate a quality storyboard:
   - 🚫 Do **not** mention color palettes or list hex codes in the prompt; continuity comes from the style lock and descriptive cues
  - Use `midjourney_generate_upscaled` (preferred) with `{{"prompt": "<final prompt>", "index": 1}}` to automatically run imagine + upscale
  - Only call `midjourney_imagine` / `midjourney_upscale` separately if you need manual control (e.g., re-upscale a different index)
+- If the MidJourney tool returns an error mentioning it stayed at 0% progress for ~20s or that the task was paused for zero progress, treat that attempt as failed due to a stuck prompt. Before any retry you must build a fresh prompt variant—select a different PixelHub reference when possible or materially rephrase the descriptive text so the final string changes. Log the new prompt choice via `remember("attempt_<n>_prompt_variant=<summary>")`, explain the change in your Thought, and do **not** resend the identical prompt after a zero-progress pause (it still counts toward the 3-attempt budget).
 - After every MidJourney result, immediately store attempt details in memory (e.g., `remember("attempt_1_image_url=<url>"); remember("attempt_1_quality=UNKNOWN")`)
 - Use `check_image_distortion` to validate (pass the MidJourney image URL directly; the tool downloads it for you). Never skip this quality gate.
 - Only mark quality as PASS after the distortion checker reports ✓. A successful MidJourney call alone is NOT a pass.
