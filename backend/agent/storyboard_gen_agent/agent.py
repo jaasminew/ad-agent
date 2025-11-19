@@ -3,6 +3,7 @@
 import json
 import logging
 import uuid
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 try:
     # Try newer langchain structure
@@ -39,6 +40,9 @@ from .checklist import (
     ChecklistItem,
     build_checklist,
     format_checklist_markdown,
+    extract_checklist_statuses,
+    find_checklist_gaps,
+    find_optional_incomplete,
 )
 from tools.memory import MEM, recall as recall_tool
 from tools.upload_memory import clear_uploaded_urls, get_uploaded_urls, format_uploaded_urls_note
@@ -47,6 +51,34 @@ logger = logging.getLogger(__name__)
 
 UPLOADED_URL_NOTE_PREFIX = "uploaded_final_urls:"
 SHOT_MEMORY_NOTE_PREFIX = "shot_memory:"
+
+
+@dataclass
+class ChecklistValidationReport:
+    """Structured summary of checklist statuses for a beat."""
+
+    statuses: Dict[str, str]
+    missing_mandatory: List[str]
+    incomplete_optional: List[str]
+
+    def is_valid(self) -> bool:
+        """Return True when all mandatory and optional slugs are resolved."""
+        return not self.missing_mandatory and not self.incomplete_optional
+
+    def summary(self) -> str:
+        """Human readable summary."""
+        parts: List[str] = []
+        if self.missing_mandatory:
+            parts.append(
+                "Missing mandatory slugs: "
+                + ", ".join(sorted(self.missing_mandatory))
+            )
+        if self.incomplete_optional:
+            parts.append(
+                "Optional slugs unresolved (mark done or skipped): "
+                + ", ".join(sorted(self.incomplete_optional))
+            )
+        return "; ".join(parts) if parts else "Checklist complete"
 
 
 class StoryboardAgent:
@@ -331,13 +363,26 @@ Thought: {{agent_scratchpad}}
         
         # Execute agent
         memory_snapshot: List[str] = []
+        validation_report: Optional[ChecklistValidationReport] = None
+        checklist_confirmed = False
         try:
             result = self.executor.invoke({"input": input_prompt})
             
             logger.info(f"Agent execution completed for beat {beat.beat}")
             logger.debug(f"Agent output: {result.get('output', '')[:200]}...")
             memory_snapshot = list(MEM)
-            checklist_confirmed = True
+            validation_report = self._evaluate_checklist_completion(
+                beat_number=beat.beat,
+                checklist_items=checklist_items,
+                notes=memory_snapshot,
+            )
+            checklist_confirmed = validation_report.is_valid()
+            if not checklist_confirmed:
+                logger.warning(
+                    "Checklist validation failed for beat %s: %s",
+                    beat.beat,
+                    validation_report.summary(),
+                )
             new_notes = self._filter_new_shot_notes(memory_snapshot)
             self._persist_episode_state_from_notes(new_notes)
             shot_memory_entry = self._summarize_shot_memory(
@@ -360,6 +405,7 @@ Thought: {{agent_scratchpad}}
                 beat=beat,
                 agent_output=result,
                 checklist_confirmed=checklist_confirmed,
+                checklist_report=validation_report,
             )
             
             return beat_result
@@ -376,6 +422,7 @@ Thought: {{agent_scratchpad}}
         beat: Beat,
         agent_output: dict,
         checklist_confirmed: bool,
+        checklist_report: Optional[ChecklistValidationReport],
     ) -> BeatResult:
         """
         Extract BeatResult from agent's execution output.
@@ -397,11 +444,12 @@ Thought: {{agent_scratchpad}}
         shot_text = normalize_beat(beat)
         
         flagged = not checklist_confirmed
-        review_reason = (
-            "Checklist QA incomplete or unverified"
-            if flagged
-            else None
-        )
+        review_reason = None
+        if flagged:
+            review_reason = (
+                self._format_checklist_review_reason(checklist_report)
+                or "Checklist QA incomplete or unverified"
+            )
 
         # Placeholder result - in real implementation, extract from memory
         beat_result = BeatResult(
@@ -422,6 +470,14 @@ Thought: {{agent_scratchpad}}
         )
         
         return beat_result
+
+    def _format_checklist_review_reason(
+        self, report: Optional[ChecklistValidationReport]
+    ) -> Optional[str]:
+        """Convert a validation report into a readable review reason."""
+        if not report or report.is_valid():
+            return None
+        return f"Checklist gaps: {report.summary()}"
     
     def reset(self):
         """Reset the agent state for a new episode."""
@@ -562,6 +618,26 @@ Thought: {{agent_scratchpad}}
             if note not in seed_set:
                 filtered.append(note)
         return filtered
+
+    def _evaluate_checklist_completion(
+        self,
+        beat_number: int,
+        checklist_items: List[ChecklistItem],
+        notes: Optional[List[str]],
+    ) -> ChecklistValidationReport:
+        """Summarize checklist statuses and detect gaps."""
+        note_list = notes or []
+        statuses = extract_checklist_statuses(note_list, beat_number)
+        missing_mandatory = find_checklist_gaps(statuses, checklist_items)
+        incomplete_optional = find_optional_incomplete(statuses, checklist_items)
+        report = ChecklistValidationReport(
+            statuses=statuses,
+            missing_mandatory=missing_mandatory,
+            incomplete_optional=incomplete_optional,
+        )
+        if report.is_valid():
+            logger.debug("Checklist validated for beat %s", beat_number)
+        return report
 
     def _persist_episode_state_from_notes(self, notes: List[str]) -> None:
         """Capture essential controller-owned state from shot notes."""

@@ -13,7 +13,7 @@ from .utils import load_image
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MIN_CONFIDENCE = 0.82
+DEFAULT_MIN_CONFIDENCE = 0.9
 ENV_VAR_MIN_CONFIDENCE = "DISTORTION_CHECKER_MIN_CONFIDENCE"
 
 
@@ -70,7 +70,7 @@ class DistortionChecker:
             min_distortion_confidence: Minimum confidence required for a detected
                 distortion to be surfaced in the final result. If not provided,
                 the checker will look for the `DISTORTION_CHECKER_MIN_CONFIDENCE`
-                environment variable before falling back to the default of 0.82.
+                environment variable before falling back to the default of 0.9.
         """
         # Initialize detectors (lazy loading)
         self._hand_detector = None

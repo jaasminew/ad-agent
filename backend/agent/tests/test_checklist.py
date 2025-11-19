@@ -6,6 +6,7 @@ from storyboard_gen_agent.checklist import (
     format_checklist_markdown,
     extract_checklist_statuses,
     find_checklist_gaps,
+    find_optional_incomplete,
 )
 
 
@@ -54,4 +55,28 @@ def test_optional_items_do_not_block_validation():
 
     missing = find_checklist_gaps({"attempt2_generation": "skipped"}, [optional_item])
     assert missing == []
+
+
+def test_optional_items_must_be_closed_out():
+    items = build_checklist(is_first_beat=False)
+    statuses = {
+        "continuity_recall": "skipped",
+        "attempt1_generation": "done",
+        "attempt1_distortion": "done",
+    }
+
+    incomplete = find_optional_incomplete(statuses, items)
+    assert "attempt2_generation" in incomplete
+    assert "attempt3_distortion" in incomplete
+
+    statuses.update(
+        {
+            "attempt2_generation": "skipped",
+            "attempt2_distortion": "skipped",
+            "attempt3_generation": "skipped",
+            "attempt3_distortion": "skipped",
+        }
+    )
+
+    assert find_optional_incomplete(statuses, items) == []
 

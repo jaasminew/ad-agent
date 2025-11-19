@@ -173,3 +173,23 @@ def find_checklist_gaps(statuses: Dict[str, str], items: List[ChecklistItem]) ->
     return missing_mandatory
 
 
+def find_optional_incomplete(statuses: Dict[str, str], items: List[ChecklistItem]) -> List[str]:
+    """
+    Return optional items that never reached DONE or SKIPPED.
+
+    Optional checklist entries must always be resolved explicitly; leaving them
+    pending creates ambiguity about whether subsequent steps were required.
+    """
+
+    incomplete: List[str] = []
+
+    for item in items:
+        if item.mandatory:
+            continue
+        status = statuses.get(item.slug)
+        if status not in {"done", "skipped"}:
+            incomplete.append(item.slug)
+
+    return incomplete
+
+
