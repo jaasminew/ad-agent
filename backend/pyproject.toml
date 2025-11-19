@@ -1,45 +1,62 @@
 [project]
-name = "ad-agent"
-version = "0.1.0"
-description = "AI-powered advertising video generation workflow with Storyboard Agent"
-readme = "workflow.md"
-requires-python = ">=3.12,<3.13"
+name = "ad-agent-backend"
+version = "1.0.0"
+description = "AD Agent Backend - AI-powered advertising video generation service"
+requires-python = ">=3.10"
 dependencies = [
-    # LangChain & LangGraph
+    # FastAPI and server
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.5.0",
+    "python-dotenv>=1.0.0",
+    "python-multipart>=0.0.6",
+    
+    # LangChain (from workflow and agent)
     "langchain>=0.3.0",
-    "langchain-community>=0.3.0",
-    "langchain-openai>=0.3.0",
-    "langchain-anthropic>=0.3.0",
     "langchain-core>=0.3.0",
+    "langchain-community>=0.3.0",
+    "langchain-anthropic>=0.2.0",
+    "langchain-openai>=0.2.0",
     "langgraph>=0.2.0",
     
-    # AI APIs & Tools
+    # Agent tools dependencies
     "tavily-python>=0.5.0",
     "google-genai>=1.0.0",
-    "volcengine-python-sdk[ark]>=1.0.0",
+    "cos-python-sdk-v5>=1.9.0",
+    "colorthief>=0.2.1",
     
-    # Image Processing
-    "pillow>=10.0.0",
+    # Workflow tools dependencies
+    "pyjwt>=2.8.0",
     "mediapipe>=0.10.0",
     "opencv-python>=4.8.0",
     "numpy>=1.24.0",
-    "colorthief>=0.2.1",
-    
-    # Cloud Storage & APIs
-    "cos-python-sdk-v5>=1.9.0",
-    "requests>=2.31.0",
-    "pyjwt>=2.8.0",
-    
-    # Utilities
-    "python-dotenv>=1.0.0",
+    "volcengine-python-sdk[ark]>=1.0.0",
     "tenacity>=8.0.0",
-    "pydantic>=2.0.0",
+    
+    # Additional dependencies (from workflow)
+    "requests>=2.31.0",
+    "pillow>=10.0.0",
 ]
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
-    "pytest>=7.0.0",
-    "black>=23.0.0",
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "httpx>=0.25.0",
     "ruff>=0.1.0",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["service", "agent", "workflow"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]

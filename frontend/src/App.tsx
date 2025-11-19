@@ -49,11 +49,7 @@ import {
 } from "@/store/workflow-store"
 import { translations, type AppCopy, type Language } from "@/locales"
 
-const SAMPLE_VIDEO_URL =
-  "https://storage.googleapis.com/coverr-main/mp4/Mt_Baker.mp4"
 const LANGUAGE_STORAGE_KEY = "language"
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const shotListFromText = (value: string) =>
   value
@@ -67,13 +63,8 @@ function App() {
     isRunning,
     interrupted,
     startWorkflow,
-    setNodeStatus,
-    appendNodeTranscript,
-    setNodeSummary,
-    completeWorkflow,
     toggleNodeFeedback,
     finalResult,
-    resetFinalResult,
     history,
     interruptWorkflow,
   } = useWorkflowStore()
@@ -85,7 +76,9 @@ function App() {
     "Highlight hybrid noise-canceling, adaptive EQ, and 36h battery. Set mood: futuristic studio with neon rim light."
   )
   const [productImage, setProductImage] = React.useState<File | null>(null)
-  const [mustHaveShotsText, setMustHaveShotsText] = React.useState("")
+  const [mustHaveShotsText, setMustHaveShotsText] = React.useState(
+    "Problem hook in transit\nClose-up of earbuds + UI overlay\nLifestyle hero in neon studio"
+  )
   const [numberOfShots, setNumberOfShots] = React.useState("6")
   const [videoFormats, setVideoFormats] = React.useState<string[]>(["16:9 Landscape"])
   const [lightboxOpen, setLightboxOpen] = React.useState(false)
@@ -104,11 +97,7 @@ function App() {
     return "en"
   })
 
-  const controllerRef = React.useRef<{ cancelled: boolean; run: number } | null>(
-    null
-  )
   const copy = translations[language]
-  const streamingScripts = copy.workflow.streamingScripts
 
   const handleGenerate = React.useCallback(async () => {
     if (isRunning) return
@@ -171,112 +160,58 @@ function App() {
       videoFormats,
     }
 
-    const run = startWorkflow(payload)
-    controllerRef.current = { cancelled: false, run }
-
-    const order = ["script", "storyboard", "video-gen", "concat", "bgm"]
-
-    for (const nodeId of order) {
-      if (controllerRef.current?.cancelled) break
-      setNodeStatus(nodeId, "running")
-      const messages = streamingScripts[nodeId] ?? [copy.workflow.processingFallback]
-      for (const line of messages) {
-        if (controllerRef.current?.cancelled) break
-        appendNodeTranscript(nodeId, line)
-        await sleep(700)
-      }
-      if (controllerRef.current?.cancelled) break
-      const doneSummary = copy.nodes[nodeId]?.doneSummary
-      if (doneSummary) {
-        setNodeSummary(nodeId, doneSummary)
-      }
-      setNodeStatus(nodeId, "done")
-    }
-
-    if (controllerRef.current?.cancelled) {
-      controllerRef.current = null
+    try {
+      await startWorkflow(payload)
+    } catch (error) {
+      console.error("Failed to start workflow:", error)
       toast({
         variant: "destructive",
-        title: copy.toasts.workflowInterrupted.title,
-        description: copy.toasts.workflowInterrupted.description,
-      })
-      return
-    }
-
-    const compiledScript = Object.values(streamingScripts)
-      .flat()
-      .join("\n")
-
-    const result: WorkflowResult = {
-      id: `run-${run}-${Date.now()}`,
-      title: payload.productName,
-      script: compiledScript,
-      videoUrl: SAMPLE_VIDEO_URL,
-      createdAt: new Date().toISOString(),
-    }
-
-    completeWorkflow(result)
-    controllerRef.current = null
-    toast({
-      variant: "success",
-      title: copy.toasts.workflowFinished.title,
-      description: copy.toasts.workflowFinished.description,
+        title: "Failed to start workflow",
+        description: error instanceof Error ? error.message : "Unknown error",
     })
+    }
   }, [
-    appendNodeTranscript,
     brandIdentity,
-    completeWorkflow,
     copy,
     isRunning,
     mustHaveShotsText,
     numberOfShots,
     productImage,
     productName,
-    setNodeStatus,
-    setNodeSummary,
     startWorkflow,
-    streamingScripts,
     toast,
     videoFormats,
   ])
 
-  const handleInterrupt = React.useCallback(() => {
-    if (!controllerRef.current) return
-    controllerRef.current.cancelled = true
-    interruptWorkflow()
+  const handleInterrupt = React.useCallback(async () => {
+    try {
+      await interruptWorkflow()
     toast({
       variant: "destructive",
       title: copy.toasts.interruptSent.title,
       description: copy.toasts.interruptSent.description,
     })
+    } catch (error) {
+      console.error("Failed to interrupt workflow:", error)
+    }
   }, [copy, interruptWorkflow, toast])
 
   const handleRegenerate = React.useCallback(async () => {
     if (!finalResult || isRegenerating) return
     setIsRegenerating(true)
-    resetFinalResult()
-    setNodeStatus("video-gen", "running")
-    await sleep(1500)
-    setNodeStatus("video-gen", "done")
-    const refreshed: WorkflowResult = {
-      ...finalResult,
-      id: `${finalResult.id}-regen-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-    }
-    completeWorkflow(refreshed)
-    setIsRegenerating(false)
+    
+    // TODO: Implement actual regeneration logic with backend API
+    // For now, just show a message
     toast({
-      variant: "success",
       title: copy.toasts.finalRenderRefreshed.title,
       description: copy.toasts.finalRenderRefreshed.description,
     })
+    
+    setIsRegenerating(false)
   }, [
-    completeWorkflow,
     copy,
     finalResult,
     isRegenerating,
-    resetFinalResult,
-    setNodeStatus,
     toast,
   ])
 
@@ -762,7 +697,7 @@ function NodeCard({
   feedbackDraft,
   setFeedbackDraft,
 }: NodeCardProps) {
-  const nodeCopy = copy.nodes[node.id]
+  const nodeCopy = copy.nodes[node.id as keyof typeof copy.nodes]
   const label = nodeCopy?.label ?? node.label
   const summaryText =
     node.status === "done" && node.summary
@@ -778,6 +713,22 @@ function NodeCard({
           : { label: copy.nodeCard.statusBadges.waiting, variant: "secondary" as const }
 
   const locked = disabled && node.status !== "done"
+  
+  // Ref for auto-scrolling within this node's transcript
+  const transcriptContainerRef = React.useRef<HTMLDivElement>(null)
+  
+  // Auto-scroll to bottom when transcript updates (only scroll within the container)
+  React.useEffect(() => {
+    if (node.status === "running" && transcriptContainerRef.current) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        if (transcriptContainerRef.current) {
+          // Scroll the container to the bottom without affecting the page scroll
+          transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight
+        }
+      })
+    }
+  }, [node.transcript, node.status])
 
   return (
     <div
@@ -855,17 +806,136 @@ function NodeCard({
           </div>
         </div>
       </div>
-      <div className="scroll-area flex max-h-[22vh] flex-col gap-2 overflow-y-auto px-4 py-3 text-sm font-mono">
+      <div 
+        ref={transcriptContainerRef}
+        className="scroll-area flex max-h-[22vh] flex-col gap-2 overflow-y-auto px-4 py-3 text-sm font-mono"
+      >
         {node.transcript.length ? (
-          node.transcript.map((line, index) => (
-            <p key={`${node.id}-${index}`} className="text-foreground/80">
-              {line}
-            </p>
-          ))
+          <>
+            {node.transcript.map((line, index) => (
+              <TranscriptLine key={`${node.id}-${index}`} line={line} />
+            ))}
+          </>
         ) : (
           <p className="text-muted-foreground">{copy.nodeCard.waitingMessage}</p>
         )}
       </div>
+    </div>
+  )
+}
+
+interface TranscriptLineProps {
+  line: string
+}
+
+function TranscriptLine({ line }: TranscriptLineProps) {
+  // Detect line type and apply styling
+  const isThought = line.includes("🤔") || line.startsWith("Thought:")
+  const isAction = line.includes("🔧") || line.startsWith("Action:")
+  const isObservation = line.includes("📊") || line.startsWith("Observation:")
+  const isSuccess = line.includes("✅") || line.includes("✓")
+  const isError = line.includes("❌") || line.includes("✗") || line.startsWith("Error:")
+  const isProgress = line.includes("🎬") || line.includes("🎥") || line.includes("📝")
+  
+  // Extract URLs (images and videos)
+  const urlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|mp4|mov|avi))/gi
+  const urls = line.match(urlRegex) || []
+  
+  // Determine font weight (no colors)
+  const fontWeight = isThought
+    ? "font-normal"
+    : isAction || isProgress
+      ? "font-semibold"
+      : isObservation
+        ? "font-medium"
+        : isSuccess
+          ? "font-medium"
+          : isError
+            ? "font-semibold"
+            : "font-normal"
+  
+  return (
+    <div className="space-y-2">
+      <p className={cn(fontWeight, "text-foreground/80")}>{line}</p>
+      {urls.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {urls.map((url, idx) => (
+            <MediaPreview key={idx} url={url} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface MediaPreviewProps {
+  url: string
+}
+
+function MediaPreview({ url }: MediaPreviewProps) {
+  const isVideo = /\.(mp4|mov|avi)$/i.test(url)
+  const [isExpanded, setIsExpanded] = React.useState(false)
+  
+  if (isVideo) {
+    return (
+      <div className="relative">
+        {isExpanded ? (
+          <div className="relative w-full max-w-md">
+            <video
+              src={url}
+              controls
+              className="w-full rounded-lg border"
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              className="absolute right-2 top-2 bg-black/50 text-white"
+              onClick={() => setIsExpanded(false)}
+            >
+              Collapse
+            </Button>
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-xs"
+            onClick={() => setIsExpanded(true)}
+          >
+            🎬 Preview Video
+          </Button>
+        )}
+      </div>
+    )
+  }
+  
+  // Image preview
+  return (
+    <div className="relative">
+      {isExpanded ? (
+        <div className="relative">
+          <img
+            src={url}
+            alt="Preview"
+            className="max-h-48 w-auto rounded-lg border"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            className="absolute right-2 top-2 bg-black/50 text-white"
+            onClick={() => setIsExpanded(false)}
+          >
+            ×
+          </Button>
+        </div>
+      ) : (
+        <img
+          src={url}
+          alt="Preview"
+          className="h-16 w-16 cursor-pointer rounded-lg border object-cover hover:opacity-80"
+          onClick={() => setIsExpanded(true)}
+        />
+      )}
     </div>
   )
 }
@@ -1105,7 +1175,7 @@ function StackedFallback({
               <div key={node.id} className="rounded-lg border px-4 py-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold">
-                    {copy.nodes[node.id]?.label ?? node.label}
+                    {copy.nodes[node.id as keyof typeof copy.nodes]?.label ?? node.label}
                   </p>
                   <Badge variant="secondary">
                     {copy.nodeCard.statusBadges[node.status] ?? node.status}
@@ -1114,7 +1184,7 @@ function StackedFallback({
                 <p className="text-xs text-muted-foreground">
                   {node.status === "done" && node.summary
                     ? node.summary
-                    : copy.nodes[node.id]?.waitingSummary ?? node.summary}
+                    : copy.nodes[node.id as keyof typeof copy.nodes]?.waitingSummary ?? node.summary}
                 </p>
               </div>
             ))

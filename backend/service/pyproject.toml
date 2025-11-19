@@ -1,0 +1,29 @@
+[project]
+name = "ad-agent-service"
+version = "1.0.0"
+description = "AD Agent API Service - AI-powered advertising video generation"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.5.0",
+    "python-dotenv>=1.0.0",
+    # LangChain dependencies (从 workflow 继承)
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langchain-anthropic>=0.2.0",
+    "langchain-openai>=0.2.0",
+    "langgraph>=0.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "httpx>=0.25.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
