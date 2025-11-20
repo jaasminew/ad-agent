@@ -1,7 +1,9 @@
 """Main distortion checker pipeline."""
 
+import logging
+import os
 import time
-from typing import Union, List
+from typing import Union, List, Optional
 
 from .models import DetectionResult, Distortion
 from .detectors import HandDetector, PoseDetector, FaceDetector
@@ -9,24 +11,72 @@ from .analyzers import HandAnalyzer, PoseAnalyzer, FaceAnalyzer
 from .utils import load_image
 
 
+logger = logging.getLogger(__name__)
+
+DEFAULT_MIN_CONFIDENCE = 0.9
+ENV_VAR_MIN_CONFIDENCE = "DISTORTION_CHECKER_MIN_CONFIDENCE"
+
+
+def _resolve_min_confidence(explicit: Optional[float]) -> float:
+    """
+    Resolve the minimum confidence threshold, preferring an explicit value,
+    then the environment variable, and falling back to the default.
+    """
+    if explicit is not None:
+        return explicit
+
+    env_value = os.getenv(ENV_VAR_MIN_CONFIDENCE)
+    if env_value is None:
+        return DEFAULT_MIN_CONFIDENCE
+
+    try:
+        parsed = float(env_value)
+    except ValueError:
+        logger.warning(
+            "Invalid %s=%r (must be a float). Falling back to default %.2f.",
+            ENV_VAR_MIN_CONFIDENCE,
+            env_value,
+            DEFAULT_MIN_CONFIDENCE,
+        )
+        return DEFAULT_MIN_CONFIDENCE
+
+    if not 0.0 <= parsed <= 1.0:
+        logger.warning(
+            "%s must be between 0 and 1. Got %.2f; using default %.2f instead.",
+            ENV_VAR_MIN_CONFIDENCE,
+            parsed,
+            DEFAULT_MIN_CONFIDENCE,
+        )
+        return DEFAULT_MIN_CONFIDENCE
+
+    logger.info(
+        "Using %s=%.2f for distortion checker confidence threshold.",
+        ENV_VAR_MIN_CONFIDENCE,
+        parsed,
+    )
+    return parsed
+
+
 class DistortionChecker:
     """
     Main distortion checker that coordinates detection and analysis.
     """
     
-    def __init__(self, min_distortion_confidence: float = 0.82):
+    def __init__(self, min_distortion_confidence: Optional[float] = None):
         """
         Initialize detectors and analyzers.
         
         Args:
             min_distortion_confidence: Minimum confidence required for a detected
-                distortion to be surfaced in the final result.
+                distortion to be surfaced in the final result. If not provided,
+                the checker will look for the `DISTORTION_CHECKER_MIN_CONFIDENCE`
+                environment variable before falling back to the default of 0.9.
         """
         # Initialize detectors (lazy loading)
         self._hand_detector = None
         self._pose_detector = None
         self._face_detector = None
-        self.min_distortion_confidence = min_distortion_confidence
+        self.min_distortion_confidence = _resolve_min_confidence(min_distortion_confidence)
         
         # Initialize analyzers
         self.hand_analyzer = HandAnalyzer()

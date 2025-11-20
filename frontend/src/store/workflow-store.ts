@@ -156,7 +156,7 @@ const normalizeChecklistItem = (item: Record<string, unknown>, index: number): C
   optional: Boolean(item.optional),
 })
 
-const transformContentBlock = (block: Record<string, unknown>, index: number): ThoughtContentBlock | null => {
+const transformContentBlock = (block: Record<string, unknown>): ThoughtContentBlock | null => {
   if (!block || typeof block !== "object") return null
   
   const blockType = typeof block.type === "string" ? block.type : undefined
@@ -197,9 +197,7 @@ const buildTranscriptEntry = (message: string, output?: Record<string, unknown>)
   const outputType = typeof output.type === "string" ? output.type : undefined
   const rawBlocks = Array.isArray(output.content_blocks) ? output.content_blocks : []
   const contentBlocks = rawBlocks
-    .map((block, index) =>
-          transformContentBlock((block as Record<string, unknown>) ?? {}, index)
-        )
+    .map((block) => transformContentBlock((block as Record<string, unknown>) ?? {}))
     .filter((block): block is ThoughtContentBlock => Boolean(block))
   
   if (outputType === "thought" && contentBlocks.length) {
@@ -211,6 +209,30 @@ const buildTranscriptEntry = (message: string, output?: Record<string, unknown>)
   }
   
   return entry
+}
+
+const removeChecklistBlocksFromEntry = (entry: TranscriptEntry): TranscriptEntry => {
+  if (!entry.contentBlocks || entry.contentBlocks.length === 0) {
+    return entry
+  }
+  
+  const filteredBlocks = entry.contentBlocks.filter((block) => block.type !== "checklist")
+  if (filteredBlocks.length === entry.contentBlocks.length) {
+    return entry
+  }
+  
+  const nextEntry: TranscriptEntry = {
+    ...entry,
+    contentBlocks: filteredBlocks.length > 0 ? filteredBlocks : undefined,
+  }
+  
+  if (entry.metadata) {
+    const { checklistSummary, ...rest } = entry.metadata
+    void checklistSummary
+    nextEntry.metadata = Object.keys(rest).length > 0 ? rest : undefined
+  }
+  
+  return nextEntry
 }
 
 // AbortController for SSE streaming
@@ -384,14 +406,23 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     }),
   appendNodeTranscript: (id, entry) =>
     set((state) => ({
-      nodes: state.nodes.map((node) =>
-        node.id === id
-          ? {
-              ...node,
-              transcript: [...node.transcript, entry],
-            }
-          : node
-      ),
+      nodes: state.nodes.map((node) => {
+        if (node.id !== id) {
+          return node
+        }
+        
+        const entryHasChecklist =
+          entry.contentBlocks?.some((block) => block.type === "checklist") ?? false
+        
+        const sanitizedTranscript = entryHasChecklist
+          ? node.transcript.map((existingEntry) => removeChecklistBlocksFromEntry(existingEntry))
+          : node.transcript
+        
+        return {
+          ...node,
+          transcript: [...sanitizedTranscript, entry],
+        }
+      }),
     })),
   overwriteNodeTranscript: (id, entries) =>
     set((state) => ({

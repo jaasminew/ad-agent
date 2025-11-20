@@ -28,6 +28,7 @@ class HandAnalyzer:
         finger_distance_threshold: float = 0.03,
         palm_ratio_min: float = 0.6,
         palm_ratio_max: float = 1.8,
+        enable_extra_hand_check: bool = False,
     ):
         """
         Initialize hand analyzer.
@@ -38,12 +39,15 @@ class HandAnalyzer:
             finger_distance_threshold: Minimum distance between finger tips
             palm_ratio_min: Minimum palm aspect ratio
             palm_ratio_max: Maximum palm aspect ratio
+            enable_extra_hand_check: Whether to surface a distortion when more
+                than ``max_hands`` hands are detected.
         """
         self.max_hands = max_hands
         self.max_fingers_per_hand = max_fingers_per_hand
         self.finger_distance_threshold = finger_distance_threshold
         self.palm_ratio_min = palm_ratio_min
         self.palm_ratio_max = palm_ratio_max
+        self.enable_extra_hand_check = enable_extra_hand_check
     
     def analyze(
         self,
@@ -65,7 +69,7 @@ class HandAnalyzer:
         distortions = []
         
         # Check for extra hands
-        if len(hands) > self.max_hands:
+        if self.enable_extra_hand_check and len(hands) > self.max_hands:
             all_landmarks = []
             for hand in hands:
                 for lm in hand.landmarks:

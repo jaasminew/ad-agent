@@ -657,8 +657,11 @@ function TimelinePanel({
   setFeedbackDraft,
 }: TimelinePanelProps) {
   const timelineCopy = copy.timeline
+  const firstNodeId = nodes[0]?.id
   const nodeHasActivity = (node: WorkflowNode) =>
-    node.status !== "waiting" || node.transcript.length > 0
+    node.status !== "waiting" ||
+    node.transcript.length > 0 ||
+    (isRunning && node.id === firstNodeId)
 
   const nodesWithActivity = nodes.filter(nodeHasActivity)
   const shouldShowNodes = nodesWithActivity.length > 0
@@ -702,7 +705,7 @@ function TimelinePanel({
             <ScrollArea className="node-canvas h-full rounded-lg bg-dot-pattern">
               <div
                 className={cn(
-                  "space-y-4 px-6 py-4 transition",
+                  "w-full space-y-4 px-6 py-4 transition",
                   disabled && "cursor-not-allowed"
                 )}
                 aria-disabled={disabled}
@@ -713,6 +716,7 @@ function TimelinePanel({
                     copy={copy}
                     node={node}
                     disabled={disabled}
+                    isWorkflowRunning={isRunning}
                     onFeedback={onFeedback}
                     feedbackDraft={feedbackDraft}
                     setFeedbackDraft={setFeedbackDraft}
@@ -735,6 +739,7 @@ interface NodeCardProps {
   copy: AppCopy
   node: WorkflowNode
   disabled: boolean
+  isWorkflowRunning: boolean
   onFeedback: (
     node: WorkflowNode,
     sentiment: WorkflowNode["feedback"],
@@ -748,6 +753,7 @@ function NodeCard({
   copy,
   node,
   disabled,
+  isWorkflowRunning,
   onFeedback,
   feedbackDraft,
   setFeedbackDraft,
@@ -768,7 +774,7 @@ function NodeCard({
           : { label: copy.nodeCard.statusBadges.waiting, variant: "secondary" as const }
 
   const locked = disabled && node.status !== "done"
-  const isRunningNode = node.status === "running"
+  const isRunningNode = isWorkflowRunning && node.status === "running"
   
   // Ref for auto-scrolling within this node's transcript
   const transcriptContainerRef = React.useRef<HTMLDivElement>(null)
@@ -789,7 +795,7 @@ function NodeCard({
   return (
     <div
       className={cn(
-        "relative max-h-[30vh] w-full overflow-hidden rounded-2xl border bg-card/95 shadow-sm backdrop-blur transition",
+        "relative box-border max-h-[30vh] w-full max-w-full overflow-hidden rounded-2xl border bg-card/95 shadow-sm backdrop-blur transition",
         locked && "opacity-75",
         isRunningNode && "node-card-running"
       )}
@@ -1272,8 +1278,11 @@ function StackedFallback({
   isInterrupting,
 }: StackedFallbackProps) {
   const fallbackCopy = copy.stackedFallback
+  const firstNodeId = nodes[0]?.id
   const nodeHasActivity = (node: WorkflowNode) =>
-    node.status !== "waiting" || node.transcript.length > 0
+    node.status !== "waiting" ||
+    node.transcript.length > 0 ||
+    (isRunning && node.id === firstNodeId)
 
   const nodesWithActivity = nodes.filter(nodeHasActivity)
   const shouldShowNodes = nodesWithActivity.length > 0
