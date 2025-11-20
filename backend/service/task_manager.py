@@ -145,6 +145,11 @@ class TaskManager:
         
         contents = self.db.get_contents(task_id)
         
+        created_at = task.created_at
+        if hasattr(created_at, "isoformat"):
+            created_at_str = created_at.isoformat()
+        else:
+            created_at_str = str(created_at)
         return TaskQueryResponse(
             task_id=task.task_id,
             stage=WorkflowStage(task.stage),
@@ -153,7 +158,7 @@ class TaskManager:
             final_script=task.final_script,
             final_video_url=task.final_video_url,
             final_video_with_bgm_url=task.final_video_with_bgm_url,
-            created_at=task.created_at.isoformat(),
+            created_at=created_at_str,
             contents=contents,
         )
     
@@ -293,7 +298,16 @@ class TaskManager:
                 # Format shots into readable script
                 shots_list = []
                 for i, shot in enumerate(final_state["shots"], 1):
-                    desc = shot.get("description", shot.get("shot_description", ""))
+                    if isinstance(shot, dict):
+                        desc = (
+                            shot.get("description")
+                            or shot.get("shot_description")
+                            or shot.get("shot")
+                            or ""
+                        )
+                    else:
+                        # Many upstream workers store shots as plain strings
+                        desc = str(shot)
                     shots_list.append(f"Shot {i}: {desc}")
                 final_script = "\n\n".join(shots_list)
             

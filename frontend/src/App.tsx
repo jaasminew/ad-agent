@@ -234,6 +234,17 @@ function App() {
       ? copy.statusMessages.interrupted
       : copy.statusMessages.idle
 
+  const totalNodes = nodes.length
+  const completedNodes = nodes.filter((node) => node.status === "done").length
+  const runningNodes = nodes.filter((node) => node.status === "running").length
+  const hasActiveNodes = completedNodes + runningNodes > 0
+  const baseProgress =
+    totalNodes > 0 ? (completedNodes + runningNodes * 0.6) / totalNodes : 0
+  const statusProgress = Math.min(
+    1,
+    Math.max(baseProgress, isRunning && !hasActiveNodes ? 0.05 : 0)
+  )
+
   const toggleVideoFormat = React.useCallback((format: string) => {
     setVideoFormats((prev) =>
       prev.includes(format) ? prev.filter((item) => item !== format) : [...prev, format]
@@ -377,6 +388,7 @@ function App() {
                 lightboxOpen={lightboxOpen}
                 setLightboxOpen={setLightboxOpen}
                 status={statusMessage}
+                statusProgress={statusProgress}
               />
             </ResizablePanel>
           </ResizablePanelGroup>
@@ -1091,6 +1103,7 @@ interface FinalOutputPanelProps {
   lightboxOpen: boolean
   setLightboxOpen: (value: boolean) => void
   status: string
+  statusProgress: number
 }
 
 function FinalOutputPanel({
@@ -1102,8 +1115,10 @@ function FinalOutputPanel({
   lightboxOpen,
   setLightboxOpen,
   status,
+  statusProgress,
 }: FinalOutputPanelProps) {
   const finalCopy = copy.finalOutput
+  const progressPercent = Math.round(statusProgress * 100)
   return (
     <div className="h-full px-1">
       <Card className="column-panel flex h-full flex-col">
@@ -1116,10 +1131,25 @@ function FinalOutputPanel({
           </div>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col gap-4 overflow-hidden">
-          <Alert className="border-none bg-accent/10 text-accent">
-            <AlertTitle>{finalCopy.statusLabel}</AlertTitle>
-            <AlertDescription>{status}</AlertDescription>
-          </Alert>
+          <Card className="border-accent/20 bg-accent/5 shadow-none">
+            <CardHeader className="space-y-1 pb-2">
+              <CardTitle className="text-sm font-semibold text-accent">
+                {finalCopy.statusLabel}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">{status}</p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="h-2 w-full rounded-full bg-accent/20">
+                <div
+                  className="h-full rounded-full bg-accent transition-[width] duration-500 ease-out"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <div className="mt-2 text-right text-xs font-medium text-muted-foreground">
+                {progressPercent}%
+              </div>
+            </CardContent>
+          </Card>
           {!result ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center text-muted-foreground">
               <Skeleton className="h-48 w-full rounded-xl" />

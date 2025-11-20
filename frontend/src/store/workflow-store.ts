@@ -140,6 +140,14 @@ const generateTranscriptId = () => {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
+const CHECKLIST_CODE_BLOCK_REGEX = /```[\t ]*\n?[\t ]*Checklist:\s*\n[\s\S]*?```/gi
+
+const stripChecklistCodeBlocks = (text: string): string => {
+  if (!text) return text
+  const withoutBlocks = text.replace(CHECKLIST_CODE_BLOCK_REGEX, "").trim()
+  return withoutBlocks.replace(/\n{3,}/g, "\n\n").trim()
+}
+
 const normalizeChecklistStats = (block: Record<string, unknown>): ChecklistStats => ({
   totalItems: Number(block.total_items ?? block.totalItems ?? 0),
   checkedItems: Number(block.checked_items ?? block.checkedItems ?? 0),
@@ -206,6 +214,10 @@ const buildTranscriptEntry = (message: string, output?: Record<string, unknown>)
       outputType,
       checklistSummary: typeof output.checklist_summary === "string" ? output.checklist_summary : undefined,
     }
+    
+    const cleanedMessage = stripChecklistCodeBlocks(entry.message)
+    const fallback = entry.message.includes("💭") ? "💭 Checklist updated." : "Checklist updated."
+    entry.message = cleanedMessage.length ? cleanedMessage : fallback
   }
   
   return entry
