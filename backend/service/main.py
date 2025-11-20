@@ -104,6 +104,11 @@ async def create_task(request: CreateTaskRequest):
         logger.info(f"✓ Task created via API: {task_id}")
         return CreateTaskResponse(task_id=task_id)
     
+    except RuntimeError as e:
+        # Handle concurrent limit exceeded
+        logger.warning(f"Task creation rejected: {e}")
+        raise HTTPException(status_code=429, detail=str(e))
+    
     except Exception as e:
         logger.error(f"Failed to create task: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

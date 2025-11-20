@@ -1,5 +1,6 @@
 """Task Manager - Manages asynchronous task execution"""
 
+import os
 import uuid
 import threading
 import logging
@@ -54,7 +55,11 @@ class TaskManager:
         self.running_tasks: Dict[str, threading.Thread] = {}
         self.cancel_flags: Dict[str, threading.Event] = {}
         self.content_queues: Dict[str, Queue] = {}  # For real-time content pushing
-        logger.info("✓ TaskManager initialized")
+        
+        # Concurrent task limit configuration
+        self.max_concurrent_tasks = int(os.getenv("MAX_CONCURRENT_TASKS", "5"))
+        
+        logger.info(f"✓ TaskManager initialized (max concurrent tasks: {self.max_concurrent_tasks})")
     
     # ==================== Task Creation and Management ====================
     
@@ -66,7 +71,17 @@ class TaskManager:
             
         Returns:
             task_id: Task ID
+            
+        Raises:
+            RuntimeError: If concurrent task limit is reached
         """
+        # Check concurrent task limit
+        if len(self.running_tasks) >= self.max_concurrent_tasks:
+            raise RuntimeError(
+                f"Maximum concurrent tasks limit reached ({self.max_concurrent_tasks}). "
+                f"Please wait for existing tasks to complete."
+            )
+        
         task_id = str(uuid.uuid4())
         
         # Create database record
@@ -74,7 +89,7 @@ class TaskManager:
             task_id=task_id,
             product_name=request.product_name,
             brand_identity=request.brand_identity,
-            must_have_shots=request.must_have_shots or "",
+            must_have_shots=request.must_have_shots,
             product_images=request.product_images,
             video_format=request.video_format,
             max_shots=request.max_shots,
@@ -95,7 +110,7 @@ class TaskManager:
         thread.start()
         self.running_tasks[task_id] = thread
         
-        logger.info(f"✓ Task created and started: {task_id}")
+        logger.info(f"✓ Task created and started: {task_id} (running: {len(self.running_tasks)}/{self.max_concurrent_tasks})")
         return task_id
     
     def cancel_task(self, task_id: str) -> bool:
@@ -286,7 +301,7 @@ class TaskManager:
                 product_name=request.product_name,
                 brand_identity=request.brand_identity,
                 product_images=request.product_images,
-                must_have_shots=request.must_have_shots or "",
+                must_have_shots=request.must_have_shots,
                 max_shots=request.max_shots,
                 video_format=request.video_format,
             )
