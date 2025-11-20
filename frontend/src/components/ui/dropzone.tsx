@@ -37,6 +37,7 @@ export type DropzoneProps = Omit<DropzoneOptions, "onDrop"> & {
   children?: React.ReactNode
   onDrop?: (acceptedFiles: File[], fileRejections: FileRejection[], event: DropEvent) => void
   onError?: (error: Error) => void
+  required?: boolean
 }
 
 const Dropzone = ({
@@ -50,6 +51,7 @@ const Dropzone = ({
   onError,
   disabled,
   children,
+  required = false,
   ...props
 }: DropzoneProps) => {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -70,6 +72,8 @@ const Dropzone = ({
     },
     ...props,
   })
+  const rootProps = getRootProps()
+  const inputProps = getInputProps({ required })
 
   return (
     <DropzoneContext.Provider
@@ -85,9 +89,9 @@ const Dropzone = ({
           className
         )}
         disabled={disabled}
-        {...getRootProps()}
+        {...rootProps}
       >
-        <input {...getInputProps()} disabled={disabled} />
+        <input {...inputProps} disabled={disabled} aria-required={required || undefined} />
         {children}
       </Button>
     </DropzoneContext.Provider>

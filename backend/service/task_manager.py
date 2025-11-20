@@ -74,7 +74,7 @@ class TaskManager:
             task_id=task_id,
             product_name=request.product_name,
             brand_identity=request.brand_identity,
-            must_have_shots=request.must_have_shots,
+            must_have_shots=request.must_have_shots or "",
             product_images=request.product_images,
             video_format=request.video_format,
             max_shots=request.max_shots,
@@ -286,7 +286,7 @@ class TaskManager:
                 product_name=request.product_name,
                 brand_identity=request.brand_identity,
                 product_images=request.product_images,
-                must_have_shots=request.must_have_shots,
+                must_have_shots=request.must_have_shots or "",
                 max_shots=request.max_shots,
                 video_format=request.video_format,
             )

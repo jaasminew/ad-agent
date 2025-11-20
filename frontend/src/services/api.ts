@@ -10,7 +10,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 export interface CreateTaskRequest {
   product_name: string
   brand_identity: string
-  must_have_shots: string  // comma-separated
+  must_have_shots?: string  // comma-separated (optional)
   product_images: string
   video_format: string
   max_shots: number

@@ -37,7 +37,10 @@ class CreateTaskRequest(BaseModel):
     """Create task request"""
     product_name: str = Field(..., description="Product name")
     brand_identity: str = Field(..., description="Brand identity/positioning")
-    must_have_shots: str = Field(..., description="Required shots (comma-separated)")
+    must_have_shots: Optional[str] = Field(
+        default="",
+        description="Required shots (comma-separated). Optional input.",
+    )
     product_images: str = Field(..., description="Product image URL")
     video_format: str = Field(..., description="Video format (16:9, 9:16, 1:1)")
     max_shots: int = Field(..., ge=1, le=10, description="Maximum number of shots")

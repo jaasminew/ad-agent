@@ -284,13 +284,18 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       }
 
       // Create task
+      const shotsValue =
+        payload.mustHaveShots.length > 0 ? payload.mustHaveShots.join(", ") : undefined
+
       const createRequest: api.CreateTaskRequest = {
         product_name: payload.productName,
         brand_identity: payload.brandIdentity,
-        must_have_shots: payload.mustHaveShots.join(", "),
         product_images: productImageUrl,
         video_format: payload.videoFormats.join(", "),
         max_shots: payload.numberOfShots,
+      }
+      if (shotsValue) {
+        createRequest.must_have_shots = shotsValue
       }
 
       const { task_id } = await api.createTask(createRequest)

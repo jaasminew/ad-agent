@@ -4,7 +4,7 @@ import sys
 import os
 import logging
 from pathlib import Path
-from typing import Dict, Any, TYPE_CHECKING
+from typing import Dict, Any, TYPE_CHECKING, Optional
 
 # Add workflow directory to Python path
 workflow_path = Path(__file__).parent.parent / "workflow"
@@ -37,7 +37,7 @@ def execute_workflow(
     product_name: str,
     brand_identity: str,
     product_images: str,
-    must_have_shots: str,
+    must_have_shots: Optional[str],
     max_shots: int,
     video_format: str,
 ) -> Dict[str, Any]:
@@ -57,13 +57,14 @@ def execute_workflow(
         Final state dictionary
     """
     logger.info(f"Starting workflow execution for task: {task_id}")
+    normalized_shots = must_have_shots or ""
     
     # Initialize state
     state: WorkflowState = {
         "product_name": product_name,
         "brand_identity": brand_identity,
         "product_images": product_images,
-        "must_have_shots": must_have_shots,
+        "must_have_shots": normalized_shots,
         "num_shots": max_shots,
         "generate_video": True,  # Generate video by default
         "video_model": "kling",  # Use kling by default

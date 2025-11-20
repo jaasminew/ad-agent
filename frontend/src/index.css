@@ -155,3 +155,26 @@ body {
   pointer-events: none;
   mix-blend-mode: screen;
 }
+
+.input-panel-field {
+  background-color: hsl(var(--muted) / 0.35);
+  border-color: hsl(var(--border) / 0.7);
+  box-shadow: inset 0 1px 0 hsl(var(--background) / 0.25);
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.input-panel-field:not(:disabled):hover {
+  background-color: hsl(var(--muted) / 0.55);
+}
+
+.input-panel-field:focus-visible {
+  background-color: hsl(var(--muted) / 0.75);
+  border-color: hsl(var(--accent));
+}
+
+.input-panel-field:disabled {
+  background-color: hsl(var(--muted) / 0.2);
+}

@@ -18,7 +18,7 @@ class ADAgentClient:
         self,
         product_name: str,
         brand_identity: str,
-        must_have_shots: str,
+        must_have_shots: Optional[str] = None,
         product_images: str,
         video_format: str = "16:9",
         max_shots: int = 5,
@@ -28,16 +28,19 @@ class ADAgentClient:
         Returns:
             task_id: 任务 ID
         """
+        payload = {
+            "product_name": product_name,
+            "brand_identity": brand_identity,
+            "product_images": product_images,
+            "video_format": video_format,
+            "max_shots": max_shots,
+        }
+        if must_have_shots:
+            payload["must_have_shots"] = must_have_shots
+
         response = requests.post(
             f"{self.base_url}/tasks",
-            json={
-                "product_name": product_name,
-                "brand_identity": brand_identity,
-                "must_have_shots": must_have_shots,
-                "product_images": product_images,
-                "video_format": video_format,
-                "max_shots": max_shots,
-            },
+            json=payload,
         )
         response.raise_for_status()
         return response.json()["task_id"]

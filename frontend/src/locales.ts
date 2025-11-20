@@ -72,10 +72,9 @@ export const translations = {
         title: "Missing brand identity",
         description: "Share a few lines about the brand to guide the agent.",
       },
-      missingShots: {
-        title: "Must-have shots required",
-        description:
-          "List at least one shot so the storyboard agent has direction.",
+      missingProductImage: {
+        title: "Missing product image",
+        description: "Upload a hero image so the agent can stay on brand.",
       },
       invalidShotCount: {
         title: "Invalid shot count",
@@ -300,9 +299,9 @@ export const translations = {
         title: "缺少品牌调性",
         description: "写几句品牌背景，方便智能体对齐。",
       },
-      missingShots: {
-        title: "需要必须镜头",
-        description: "请至少列出一个镜头，方便分镜节点参考。",
+      missingProductImage: {
+        title: "缺少产品图片",
+        description: "请上传至少一张产品图，方便智能体对齐品牌。",
       },
       invalidShotCount: {
         title: "镜头数量无效",

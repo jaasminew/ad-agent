@@ -65,12 +65,30 @@ import { translations, type AppCopy, type Language } from "@/locales"
 import { toast } from "sonner"
 
 const LANGUAGE_STORAGE_KEY = "language"
+const INPUT_PANEL_FIELD_CLASS = "input-panel-field"
 
 const shotListFromText = (value: string) =>
   value
     .split(/[\n,|]/)
     .map((shot) => shot.trim())
     .filter(Boolean)
+
+function FieldLabel({ text, required }: { text: string; required?: boolean }) {
+  return (
+    <label className="text-xs font-semibold uppercase text-muted-foreground">
+      {text}
+      {required ? (
+        <>
+          <span className="text-destructive" aria-hidden="true">
+            {" "}
+            *
+          </span>
+          <span className="sr-only">required</span>
+        </>
+      ) : null}
+    </label>
+  )
+}
 
 function App() {
   const {
@@ -131,9 +149,9 @@ function App() {
       return
     }
 
-    if (!parsedShots.length) {
-      toast.error(copy.validation.missingShots.title, {
-        description: copy.validation.missingShots.description,
+    if (!productImage) {
+      toast.error(copy.validation.missingProductImage.title, {
+        description: copy.validation.missingProductImage.description,
       })
       return
     }
@@ -424,11 +442,7 @@ function App() {
             <AlertDialogCancel disabled={isInterrupting}>
               {copy.interruptDialog.cancel}
             </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmInterrupt}
-              disabled={isInterrupting}
-              className="inline-flex items-center bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive"
-            >
+            <AlertDialogAction onClick={handleConfirmInterrupt} disabled={isInterrupting}>
               {isInterrupting ? (
                 <>
                   <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
@@ -510,42 +524,45 @@ function InputPanel({
         </CardHeader>
         <CardContent className="scroll-area flex flex-1 flex-col gap-4 overflow-y-auto px-4">
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase text-muted-foreground">
-              {inputCopy.fields.productName.label}
-            </label>
+            <FieldLabel text={inputCopy.fields.productName.label} required />
             <Input
               value={formState.productName}
               onChange={(e) => onChange.productName(e.target.value)}
               placeholder={inputCopy.fields.productName.placeholder}
+              className={INPUT_PANEL_FIELD_CLASS}
               disabled={disabled}
+              required
+              aria-required="true"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase text-muted-foreground">
-              {inputCopy.fields.brandIdentity.label}
-            </label>
+            <FieldLabel text={inputCopy.fields.brandIdentity.label} required />
             <Textarea
               value={formState.brandIdentity}
               onChange={(e) => onChange.brandIdentity(e.target.value)}
               placeholder={inputCopy.fields.brandIdentity.placeholder}
-              className="min-h-[120px] resize-none"
+              className={cn(INPUT_PANEL_FIELD_CLASS, "min-h-[120px] resize-none")}
               disabled={disabled}
+              required
+              aria-required="true"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase text-muted-foreground">
-              {inputCopy.fields.productImage.label}
-            </label>
-            <Dropzone
-              accept={{ "image/*": [] }}
-              maxFiles={1}
-              onDrop={(files) => onChange.productImage(files[0] ?? null)}
-              src={formState.productImage ? [formState.productImage] : undefined}
-              disabled={disabled}
-            >
-              <DropzoneEmptyState />
-              <DropzoneContent />
-            </Dropzone>
+            <FieldLabel text={inputCopy.fields.productImage.label} required />
+            <div role="group" aria-label={inputCopy.fields.productImage.label} aria-required="true">
+              <Dropzone
+                accept={{ "image/*": [] }}
+                maxFiles={1}
+                onDrop={(files) => onChange.productImage(files[0] ?? null)}
+                src={formState.productImage ? [formState.productImage] : undefined}
+                disabled={disabled}
+                className={INPUT_PANEL_FIELD_CLASS}
+                required
+              >
+                <DropzoneEmptyState />
+                <DropzoneContent />
+              </Dropzone>
+            </div>
             <p className="text-xs text-muted-foreground">
               {formState.productImage
                 ? `${inputCopy.dropzone.selectedPrefix} ${formState.productImage.name}`
@@ -553,9 +570,7 @@ function InputPanel({
             </p>
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase text-muted-foreground">
-              {inputCopy.fields.mustHaveShots.label}
-            </label>
+            <FieldLabel text={inputCopy.fields.mustHaveShots.label} />
             <div className="relative">
               {showShotHelper ? (
                 <p className="pointer-events-none absolute left-4 right-4 top-3 whitespace-pre-line text-sm text-foreground/60">
@@ -565,15 +580,13 @@ function InputPanel({
               <Textarea
                 value={formState.mustHaveShotsText}
                 onChange={(e) => onChange.mustHaveShotsText(e.target.value)}
-                className="min-h-[110px] resize-none"
+                className={cn(INPUT_PANEL_FIELD_CLASS, "min-h-[110px] resize-none")}
                 disabled={disabled}
               />
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase text-muted-foreground">
-              {inputCopy.fields.numberOfShots.label}
-            </label>
+            <FieldLabel text={inputCopy.fields.numberOfShots.label} required />
             <Input
               type="number"
               min={1}
@@ -581,14 +594,20 @@ function InputPanel({
               value={formState.numberOfShots}
               onChange={(e) => onChange.numberOfShots(e.target.value)}
               placeholder={inputCopy.fields.numberOfShots.placeholder}
+              className={INPUT_PANEL_FIELD_CLASS}
               disabled={disabled}
+              required
+              aria-required="true"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase text-muted-foreground">
-              {inputCopy.fields.videoFormat.label}
-            </label>
-            <div className="flex flex-wrap gap-2">
+            <FieldLabel text={inputCopy.fields.videoFormat.label} required />
+            <div
+              className="flex flex-wrap gap-2"
+              role="group"
+              aria-label={inputCopy.fields.videoFormat.label}
+              aria-required="true"
+            >
               {inputCopy.videoFormatOptions.map((format) => {
                 const isSelected = formState.videoFormats.includes(format)
                 return (
