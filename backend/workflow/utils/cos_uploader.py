@@ -6,6 +6,7 @@ This module provides a simple interface for uploading files to Tencent Cloud COS
 """
 import os
 import logging
+import time
 from typing import Optional
 from pathlib import Path
 from datetime import datetime
@@ -16,6 +17,9 @@ logger = logging.getLogger(__name__)
 # ==================== Configuration ====================
 COS_CONFIG = {
     "scheme": "https",  # Use HTTPS for secure connections
+    "timeout": 60,  # Upload timeout in seconds (1 minute)
+    "max_retries": 3,  # Maximum number of retry attempts
+    "retry_delay": 2,  # Initial delay between retries in seconds
 }
 
 
@@ -59,10 +63,13 @@ class COSUploader:
             SecretId=self.secret_id,
             SecretKey=self.secret_key,
             Scheme=COS_CONFIG["scheme"],
+            Timeout=COS_CONFIG["timeout"],
         )
         self.client = CosS3Client(self.config)
+        self.max_retries = COS_CONFIG["max_retries"]
+        self.retry_delay = COS_CONFIG["retry_delay"]
         logger.info(
-            f"✓ COS uploader initialized - Bucket: {self.bucket}, Region: {self.region}"
+            f"✓ COS uploader initialized - Bucket: {self.bucket}, Region: {self.region}, Timeout: {COS_CONFIG['timeout']}s"
         )
 
     def upload_file(
@@ -85,7 +92,7 @@ class COSUploader:
 
         Raises:
             FileNotFoundError: If the local file doesn't exist
-            Exception: If upload fails
+            Exception: If upload fails after all retries
         """
         if not os.path.exists(local_file_path):
             raise FileNotFoundError(f"File not found: {local_file_path}")
@@ -98,24 +105,42 @@ class COSUploader:
 
         logger.info(f"Uploading file to COS: {local_file_path} -> {cos_key}")
 
-        try:
-            # Upload file
-            with open(local_file_path, "rb") as fp:
-                self.client.put_object(
-                    Bucket=self.bucket,
-                    Body=fp,
-                    Key=cos_key,
-                    EnableMD5=False,
+        last_error = None
+        for attempt in range(self.max_retries):
+            try:
+                # Upload file
+                with open(local_file_path, "rb") as fp:
+                    self.client.put_object(
+                        Bucket=self.bucket,
+                        Body=fp,
+                        Key=cos_key,
+                        EnableMD5=False,
+                    )
+
+                # Generate public URL
+                url = f"https://{self.bucket}.cos.{self.region}.myqcloud.com/{cos_key}"
+                logger.info(f"✓ File uploaded successfully: {url}")
+                return url
+
+            except Exception as e:
+                last_error = e
+                attempt_num = attempt + 1
+                logger.warning(
+                    f"Upload attempt {attempt_num}/{self.max_retries} failed: {e}"
                 )
-
-            # Generate public URL
-            url = f"https://{self.bucket}.cos.{self.region}.myqcloud.com/{cos_key}"
-            logger.info(f"✓ File uploaded successfully: {url}")
-            return url
-
-        except Exception as e:
-            logger.error(f"Failed to upload file to COS: {e}")
-            raise
+                
+                if attempt_num < self.max_retries:
+                    # Exponential backoff
+                    delay = self.retry_delay * (2 ** attempt)
+                    logger.info(f"Retrying in {delay} seconds...")
+                    time.sleep(delay)
+                else:
+                    logger.error(
+                        f"Failed to upload file to COS after {self.max_retries} attempts"
+                    )
+                    raise Exception(
+                        f"Upload failed after {self.max_retries} attempts: {last_error}"
+                    ) from last_error
 
     def upload_bytes(
         self,
@@ -138,7 +163,7 @@ class COSUploader:
             The public URL of the uploaded file
 
         Raises:
-            Exception: If upload fails
+            Exception: If upload fails after all retries
         """
         # Generate COS key if not provided
         if cos_key is None:
@@ -147,23 +172,41 @@ class COSUploader:
 
         logger.info(f"Uploading bytes data to COS: {cos_key} ({len(data)} bytes)")
 
-        try:
-            # Upload data
-            self.client.put_object(
-                Bucket=self.bucket,
-                Body=data,
-                Key=cos_key,
-                EnableMD5=False,
-            )
+        last_error = None
+        for attempt in range(self.max_retries):
+            try:
+                # Upload data
+                self.client.put_object(
+                    Bucket=self.bucket,
+                    Body=data,
+                    Key=cos_key,
+                    EnableMD5=False,
+                )
 
-            # Generate public URL
-            url = f"https://{self.bucket}.cos.{self.region}.myqcloud.com/{cos_key}"
-            logger.info(f"✓ Data uploaded successfully: {url}")
-            return url
+                # Generate public URL
+                url = f"https://{self.bucket}.cos.{self.region}.myqcloud.com/{cos_key}"
+                logger.info(f"✓ Data uploaded successfully: {url}")
+                return url
 
-        except Exception as e:
-            logger.error(f"Failed to upload data to COS: {e}")
-            raise
+            except Exception as e:
+                last_error = e
+                attempt_num = attempt + 1
+                logger.warning(
+                    f"Upload attempt {attempt_num}/{self.max_retries} failed: {e}"
+                )
+                
+                if attempt_num < self.max_retries:
+                    # Exponential backoff
+                    delay = self.retry_delay * (2 ** attempt)
+                    logger.info(f"Retrying in {delay} seconds...")
+                    time.sleep(delay)
+                else:
+                    logger.error(
+                        f"Failed to upload data to COS after {self.max_retries} attempts"
+                    )
+                    raise Exception(
+                        f"Upload failed after {self.max_retries} attempts: {last_error}"
+                    ) from last_error
 
     def delete_file(self, cos_key: str) -> bool:
         """
