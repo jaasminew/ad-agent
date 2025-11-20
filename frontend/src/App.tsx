@@ -307,7 +307,7 @@ function App() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen max-h-screen w-screen overflow-hidden bg-background flex flex-col">
       <div className="fixed right-6 top-6 z-50 flex gap-2">
         <Button
           size="icon"
@@ -330,7 +330,7 @@ function App() {
           {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
         </Button>
       </div>
-      <div className="mx-auto flex max-w-[1600px] flex-col gap-6 px-6 pt-8 pb-4">
+      <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col gap-6 px-6 pt-8 pb-4">
         <header className="flex flex-col gap-2">
           <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
             {copy.header.eyebrow}
@@ -349,10 +349,7 @@ function App() {
           </p>
         </header>
 
-        <main
-          className="hidden md:block"
-          style={{ height: "calc(100vh - 180px)" }}
-        >
+        <main className="hidden flex-1 min-h-0 md:block">
           <ResizablePanelGroup direction="horizontal" className="h-full">
             <ResizablePanel minSize={20} defaultSize={20}>
               <InputPanel

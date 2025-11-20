@@ -2,7 +2,7 @@ export const translations = {
   en: {
     header: {
       eyebrow: "Agent Control Room",
-      title: "Video Workflow Command Center",
+      title: "Commercial Video Generation Agent",
       description:
         "An autonomous agent that turns scripts into cinematic commercial videos through smart planning, reference search, and iterative visual refinement.",
       badge: "Preliminary Version",
