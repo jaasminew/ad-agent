@@ -11,6 +11,11 @@ agent_dir = Path(__file__).resolve().parent.parent.parent / "agent"
 if str(agent_dir) not in sys.path:
     sys.path.insert(0, str(agent_dir))
 
+# Add backend directory to Python path (for service modules)
+backend_dir = Path(__file__).resolve().parent.parent.parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
+
 from storyboard_gen_agent import (
     StoryboardAgent,
     EpisodeConfig,
@@ -18,6 +23,7 @@ from storyboard_gen_agent import (
     ProductConfig,
     EpisodeResult,
 )
+from service.tool_intents import emit_tool_intent_message, get_tool_intent_label
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +163,7 @@ def run_storyboard_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     
     from service.task_manager import TaskContext, get_task_manager
     from service.models import WorkflowStage
+    from service.tool_intents import emit_tool_intent_message, get_tool_intent_label
     
     logger.info("\n" + "=" * 80)
     logger.info("Running Storyboard Agent (Black Box)")
@@ -322,16 +329,15 @@ def _process_episode_with_streaming(
                     else:
                         logger.info(f"[Storyboard Agent] Thought: {thought_text[:100]}...")
             
-            # Send simple action message (only tool name, no parameters)
-            message = f"🔧 Calling tool: {tool_name}"
-            
-            self.task_manager.add_llm_output(
+            # Send abstracted tool intent message
+            emit_tool_intent_message(
+                task_manager=self.task_manager,
                 task_id=self.task_id,
                 stage=WorkflowStage.STORYBOARD_GEN_AGENT,
-                message=message,
-                output={"type": "tool_call", "tool": tool_name},
+                tool_name=tool_name,
             )
-            logger.info(f"[Storyboard Agent] {message}")
+            intent_label = get_tool_intent_label(tool_name)
+            logger.info(f"[Storyboard Agent] 🔧 {intent_label} ({tool_name})")
         
         def on_tool_end(self, output, **kwargs):
             """Called when a tool finishes running."""

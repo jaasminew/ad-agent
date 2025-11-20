@@ -73,6 +73,7 @@ def _generate_script_with_agent_streaming(
         sys.path.insert(0, str(backend_path))
     
     from service.models import WorkflowStage
+    from service.tool_intents import emit_tool_intent_message
     
     # Custom callback to capture agent's thoughts and actions
     class StreamingCallback(BaseCallbackHandler):
@@ -110,15 +111,13 @@ def _generate_script_with_agent_streaming(
                         output={"type": "thought"},
                     )
                 
-                # Send simple tool call message (only tool name, no parameters)
+                # Send abstracted tool intent message
                 tool_name = action.tool
-                message = f"🔧 Calling tool: {tool_name}"
-                
-                self.task_manager.add_llm_output(
+                emit_tool_intent_message(
+                    task_manager=self.task_manager,
                     task_id=self.task_id,
                     stage=WorkflowStage.SCRIPT_GEN_AGENT,
-                    message=message,
-                    output={"type": "tool_call", "tool": tool_name},
+                    tool_name=tool_name,
                 )
         
         def on_tool_end(self, output, **kwargs):
