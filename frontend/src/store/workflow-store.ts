@@ -396,7 +396,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   },
   setNodeStatus: (id, status) =>
     set((state) => {
-      const nodes = state.nodes.map((node) => {
+      const nodes = state.nodes.map<WorkflowNode>((node) => {
         if (node.id === id) {
           return {
             ...node,
