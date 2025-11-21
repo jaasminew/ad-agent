@@ -266,6 +266,7 @@ Thought: {{agent_scratchpad}}
                     is_first_beat=(idx == 0),
                     total_beats=len(episode_config.beats),
                     progress_summary=self._format_progress_summary(),
+                    video_format=episode_config.video_format,
                 )
                 self.beat_results.append(beat_result)
                 
@@ -326,6 +327,7 @@ Thought: {{agent_scratchpad}}
         is_first_beat: bool = False,
         total_beats: int = 1,
         progress_summary: Optional[str] = None,
+        video_format: str = "16:9",
     ) -> BeatResult:
         """
         Process a single beat using the ReAct agent.
@@ -335,6 +337,7 @@ Thought: {{agent_scratchpad}}
             product_config: Product configuration
             is_first_beat: Whether this is the first beat
             total_beats: Total number of beats in episode
+            video_format: Video format aspect ratio (16:9, 9:16, 1:1, etc.)
             
         Returns:
             BeatResult with all generation details
@@ -357,6 +360,7 @@ Thought: {{agent_scratchpad}}
             progress_summary=progress_summary or "No beats completed yet.",
             global_memory_notes=global_memory_notes,
             checklist_markdown=checklist_markdown,
+            video_format=video_format,
         )
         
         logger.debug(f"Agent input prompt: {input_prompt}")

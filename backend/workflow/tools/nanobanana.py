@@ -38,7 +38,7 @@ class NanobananaClient:
         self._cos_available = None
 
     def generate_image(
-        self, prompt: str, input_image_paths: Union[str, List[str]], upload_to_cos: bool = True
+        self, prompt: str, input_image_paths: Union[str, List[str]], upload_to_cos: bool = True, aspect_ratio: str = "16:9"
     ) -> dict:
         """
         Generate image based on text prompt and input image(s).
@@ -47,6 +47,7 @@ class NanobananaClient:
             prompt: Text description for image generation
             input_image_paths: Path or URL to the input reference image, or a list of paths/URLs
             upload_to_cos: Whether to upload the generated image to COS
+            aspect_ratio: Aspect ratio of the generated images. Supported values are "1:1", "3:4", "4:3", "9:16", and "16:9"
 
         Returns:
             Dictionary containing:
@@ -56,6 +57,11 @@ class NanobananaClient:
             - error: str (if failed)
         """
         try:
+            # Validate aspect ratio
+            valid_aspect_ratios = ["1:1", "3:4", "4:3", "9:16", "16:9"]
+            if aspect_ratio not in valid_aspect_ratios:
+                raise ValueError(f"Invalid aspect ratio: {aspect_ratio}. Supported values are: {', '.join(valid_aspect_ratios)}")
+            
             # Normalize input to list
             if isinstance(input_image_paths, str):
                 input_image_paths = [input_image_paths]
@@ -88,14 +94,23 @@ class NanobananaClient:
                 images.append(image)
 
             # Generate image
-            logger.info(f"Generating image with prompt: {prompt} and {len(images)} input image(s)")
+            logger.info(f"Generating image with prompt: {prompt} and {len(images)} input image(s), aspect ratio: {aspect_ratio}")
             
             # Build contents list: [image1, image2, ..., prompt]
             contents = images + [prompt]
             
+            # Build generation config with aspect ratio
+            generation_config = types.GenerateContentConfig(
+                response_modalities=["image"],
+                image_generation_config=types.ImageGenerationConfig(
+                    aspect_ratio=aspect_ratio
+                )
+            )
+            
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=contents,
+                config=generation_config,
             )
 
             # Extract generated image
@@ -184,7 +199,7 @@ def get_nanobanana_client() -> NanobananaClient:
 # ==================== LangChain Tools ====================
 
 @tool("nanobanana_generate")
-def nanobanana_generate(prompt: str, input_image_paths: Union[str, List[str]], upload_to_cos: bool = True) -> str:
+def nanobanana_generate(prompt: str, input_image_paths: Union[str, List[str]], upload_to_cos: bool = True, aspect_ratio: str = "1:1") -> str:
     """Generate an image based on text prompt and reference image(s) using Google Gemini.
     The generated image will be saved locally and optionally uploaded to Tencent Cloud COS.
 
@@ -197,6 +212,7 @@ def nanobanana_generate(prompt: str, input_image_paths: Union[str, List[str]], u
         prompt: Text description for the image generation. Be creative and detailed!
         input_image_paths: Path or URL to the input reference image, or a list of paths/URLs for multiple images
         upload_to_cos: Whether to upload the generated image to Tencent Cloud COS (default: True)
+        aspect_ratio: Aspect ratio of the generated images. Supported values are "1:1", "3:4", "4:3", "9:16", and "16:9" (default: "1:1")
 
     Returns:
         The URL of the uploaded image (if COS is enabled) or the local file path.
@@ -209,12 +225,12 @@ def nanobanana_generate(prompt: str, input_image_paths: Union[str, List[str]], u
     
     logger.info(
         f"🍌 [nanobanana_generate] Called - Prompt: '{prompt}', "
-        f"{image_info}, Upload: {upload_to_cos}"
+        f"{image_info}, Upload: {upload_to_cos}, Aspect Ratio: {aspect_ratio}"
     )
 
     try:
         client = get_nanobanana_client()
-        result = client.generate_image(prompt, input_image_paths, upload_to_cos)
+        result = client.generate_image(prompt, input_image_paths, upload_to_cos, aspect_ratio)
 
         if result["success"]:
             # Return COS URL if available, otherwise return local path

@@ -173,10 +173,12 @@ def run_storyboard_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     brand_identity = state["brand_identity"]
     product_images = state["product_images"]
     shots = state["shots"]
+    video_format = state.get("video_format", "16:9")  # Get video format from state, default to 16:9
     
     logger.info(f"Product: {product_name}")
     logger.info(f"Brand Identity: {brand_identity}")
     logger.info(f"Product Image: {product_images}")
+    logger.info(f"Video Format: {video_format}")
     logger.info(f"Total shots: {len(shots)}")
     
     # Get task manager for real-time updates
@@ -200,6 +202,7 @@ def run_storyboard_agent(state: Dict[str, Any]) -> Dict[str, Any]:
             target_object=product_name.lower().replace(" ", "_"),
         ),
         beats=beats,
+        video_format=video_format,  # Pass video format to episode config
     )
     
     logger.info(f"\nEpisode Config:")

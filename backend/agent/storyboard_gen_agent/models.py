@@ -26,6 +26,7 @@ class EpisodeConfig(BaseModel):
     title: str = Field(..., description="Episode title")
     product_config: ProductConfig = Field(..., description="Product configuration")
     beats: List[Beat] = Field(..., description="List of beats to process")
+    video_format: str = Field(default="16:9", description="Video format aspect ratio (16:9, 9:16, 1:1, etc.)")
 
 
 class GenerationAttempt(BaseModel):
