@@ -65,6 +65,19 @@ class Database:
                 )
             """)
             
+            # Create stage_snapshots table for restart functionality
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS stage_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    task_id TEXT NOT NULL,
+                    stage TEXT NOT NULL,
+                    state_json TEXT NOT NULL,
+                    created_at TIMESTAMP NOT NULL,
+                    UNIQUE(task_id, stage),
+                    FOREIGN KEY (task_id) REFERENCES tasks(task_id)
+                )
+            """)
+            
             # Create indexes
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_contents_task_id 
@@ -74,6 +87,11 @@ class Database:
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_tasks_status 
                 ON tasks(status)
+            """)
+            
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_stage_snapshots_task_id
+                ON stage_snapshots(task_id)
             """)
             
             conn.commit()

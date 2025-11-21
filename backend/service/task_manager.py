@@ -139,6 +139,71 @@ class TaskManager:
         
         return False
     
+    def restart_task_from_stage(self, task_id: str, stage: WorkflowStage) -> bool:
+        """Restart task from a specific stage
+        
+        Args:
+            task_id: Task ID
+            stage: Stage to restart from
+            
+        Returns:
+            Whether restart was initiated successfully
+            
+        Raises:
+            RuntimeError: If concurrent task limit is reached
+            ValueError: If task not found or snapshot not available
+        """
+        # Check if task exists
+        task = self.db.get_task(task_id)
+        if not task:
+            raise ValueError(f"Task not found: {task_id}")
+        
+        # Check if snapshot exists for the requested stage
+        snapshot = self.db.get_stage_snapshot(task_id, stage)
+        if snapshot is None:
+            raise ValueError(
+                f"No snapshot found for stage {stage.value}. "
+                f"Task may not have reached this stage yet."
+            )
+        
+        # Check if task is already running
+        if task_id in self.running_tasks:
+            raise ValueError(f"Task {task_id} is already running. Cancel it first.")
+        
+        # Check concurrent task limit
+        if len(self.running_tasks) >= self.max_concurrent_tasks:
+            raise RuntimeError(
+                f"Maximum concurrent tasks limit reached ({self.max_concurrent_tasks}). "
+                f"Please wait for existing tasks to complete."
+            )
+        
+        logger.info(f"Restarting task {task_id} from stage: {stage.value}")
+        
+        # Create cancel flag
+        self.cancel_flags[task_id] = threading.Event()
+        
+        # Create content queue
+        self.content_queues[task_id] = Queue()
+        
+        # Update task status to processing
+        self.db.update_task_status(
+            task_id=task_id,
+            status=TaskStatus.PROCESSING,
+            stage=stage,
+        )
+        
+        # Start background execution thread
+        thread = threading.Thread(
+            target=self._execute_workflow_from_stage,
+            args=(task_id, stage),
+            daemon=True,
+        )
+        thread.start()
+        self.running_tasks[task_id] = thread
+        
+        logger.info(f"✓ Task restart initiated: {task_id} from stage {stage.value} (running: {len(self.running_tasks)}/{self.max_concurrent_tasks})")
+        return True
+    
     def is_cancelled(self, task_id: str) -> bool:
         """Check if task is cancelled"""
         if task_id in self.cancel_flags:
@@ -307,66 +372,123 @@ class TaskManager:
             )
             
             # Update final results
-            # Extract script from state
-            final_script = None
-            if "shots" in final_state and final_state["shots"]:
-                # Format shots into readable script
-                shots_list = []
-                for i, shot in enumerate(final_state["shots"], 1):
-                    if isinstance(shot, dict):
-                        desc = (
-                            shot.get("description")
-                            or shot.get("shot_description")
-                            or shot.get("shot")
-                            or ""
-                        )
-                    else:
-                        # Many upstream workers store shots as plain strings
-                        desc = str(shot)
-                    shots_list.append(f"Shot {i}: {desc}")
-                final_script = "\n\n".join(shots_list)
-            
-            self.db.update_task_final_urls(
-                task_id=task_id,
-                final_script=final_script,
-                final_video_url=final_state.get("final_video_url"),
-                final_video_with_bgm_url=final_state.get("final_video_with_bgm_url"),
-            )
-            
-            # Update status to completed
-            self.db.update_task_status(
-                task_id=task_id,
-                status=TaskStatus.COMPLETED,
-                stage=WorkflowStage.COMPLETED,
-            )
-            
-            logger.info(f"✓ Workflow completed successfully for task: {task_id}")
+            self._update_final_results(task_id, final_state)
             
         except Exception as e:
-            logger.error(f"❌ Workflow failed for task {task_id}: {e}", exc_info=True)
-            
-            # Check if cancellation caused the failure
-            if self.is_cancelled(task_id):
-                self.db.update_task_status(
-                    task_id=task_id,
-                    status=TaskStatus.CANCELLED,
-                    error_message="Task cancelled by user",
-                )
-            else:
-                self.db.update_task_status(
-                    task_id=task_id,
-                    status=TaskStatus.FAILED,
-                    error_message=str(e),
-                )
+            self._handle_workflow_error(task_id, e)
         
         finally:
-            # Cleanup resources
-            TaskContext.clear()
-            if task_id in self.running_tasks:
-                del self.running_tasks[task_id]
-            if task_id in self.cancel_flags:
-                del self.cancel_flags[task_id]
-            # Keep content_queue for subsequent queries
+            self._cleanup_task(task_id)
+    
+    def _execute_workflow_from_stage(self, task_id: str, stage: WorkflowStage):
+        """Execute workflow from a specific stage in background thread
+        
+        Args:
+            task_id: Task ID
+            stage: Stage to start from
+        """
+        # Set thread-local task ID
+        TaskContext.set_task_id(task_id)
+        
+        try:
+            logger.info(f"Starting workflow execution from stage {stage.value} for task: {task_id}")
+            
+            # Import workflow (lazy import to avoid circular dependency)
+            from .workflow_executor import execute_workflow_from_stage
+            
+            # Execute workflow from stage
+            final_state = execute_workflow_from_stage(
+                task_manager=self,
+                task_id=task_id,
+                start_stage=stage,
+            )
+            
+            # Update final results
+            self._update_final_results(task_id, final_state)
+            
+        except Exception as e:
+            self._handle_workflow_error(task_id, e)
+        
+        finally:
+            self._cleanup_task(task_id)
+    
+    def _update_final_results(self, task_id: str, final_state: Dict[str, Any]):
+        """Update final results in database
+        
+        Args:
+            task_id: Task ID
+            final_state: Final workflow state
+        """
+        # Extract script from state
+        final_script = None
+        if "shots" in final_state and final_state["shots"]:
+            # Format shots into readable script
+            shots_list = []
+            for i, shot in enumerate(final_state["shots"], 1):
+                if isinstance(shot, dict):
+                    desc = (
+                        shot.get("description")
+                        or shot.get("shot_description")
+                        or shot.get("shot")
+                        or ""
+                    )
+                else:
+                    # Many upstream workers store shots as plain strings
+                    desc = str(shot)
+                shots_list.append(f"Shot {i}: {desc}")
+            final_script = "\n\n".join(shots_list)
+        
+        self.db.update_task_final_urls(
+            task_id=task_id,
+            final_script=final_script,
+            final_video_url=final_state.get("final_video_url"),
+            final_video_with_bgm_url=final_state.get("final_video_with_bgm_url"),
+        )
+        
+        # Update status to completed
+        self.db.update_task_status(
+            task_id=task_id,
+            status=TaskStatus.COMPLETED,
+            stage=WorkflowStage.COMPLETED,
+        )
+        
+        logger.info(f"✓ Workflow completed successfully for task: {task_id}")
+    
+    def _handle_workflow_error(self, task_id: str, error: Exception):
+        """Handle workflow execution error
+        
+        Args:
+            task_id: Task ID
+            error: Exception that occurred
+        """
+        logger.error(f"❌ Workflow failed for task {task_id}: {error}", exc_info=True)
+        
+        # Check if cancellation caused the failure
+        if self.is_cancelled(task_id):
+            self.db.update_task_status(
+                task_id=task_id,
+                status=TaskStatus.CANCELLED,
+                error_message="Task cancelled by user",
+            )
+        else:
+            self.db.update_task_status(
+                task_id=task_id,
+                status=TaskStatus.FAILED,
+                error_message=str(error),
+            )
+    
+    def _cleanup_task(self, task_id: str):
+        """Cleanup task resources
+        
+        Args:
+            task_id: Task ID
+        """
+        TaskContext.clear()
+        if task_id in self.running_tasks:
+            del self.running_tasks[task_id]
+        if task_id in self.cancel_flags:
+            del self.cancel_flags[task_id]
+        # Keep content_queue for subsequent queries
 
 
 # ==================== Global Instance ====================

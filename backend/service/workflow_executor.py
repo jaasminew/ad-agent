@@ -74,6 +74,9 @@ def execute_workflow(
     # ==================== Stage 1: Script Generation ====================
     logger.info(f"[Task {task_id}] Stage 1: Script Generation")
     _check_cancelled(task_manager, task_id)
+    
+    # Save snapshot before executing this stage
+    task_manager.db.save_stage_snapshot(task_id, WorkflowStage.SCRIPT_GEN_AGENT, state)
     task_manager.db.update_task_stage(task_id, WorkflowStage.SCRIPT_GEN_AGENT)
     
     try:
@@ -92,6 +95,9 @@ def execute_workflow(
     # ==================== Stage 2: Storyboard Generation ====================
     logger.info(f"[Task {task_id}] Stage 2: Storyboard Generation")
     _check_cancelled(task_manager, task_id)
+    
+    # Save snapshot before executing this stage
+    task_manager.db.save_stage_snapshot(task_id, WorkflowStage.STORYBOARD_GEN_AGENT, state)
     task_manager.db.update_task_stage(task_id, WorkflowStage.STORYBOARD_GEN_AGENT)
     
     try:
@@ -110,6 +116,9 @@ def execute_workflow(
     # ==================== Stage 3: Video Generation ====================
     logger.info(f"[Task {task_id}] Stage 3: Video Generation")
     _check_cancelled(task_manager, task_id)
+    
+    # Save snapshot before executing this stage
+    task_manager.db.save_stage_snapshot(task_id, WorkflowStage.VIDEO_GENERATOR, state)
     task_manager.db.update_task_stage(task_id, WorkflowStage.VIDEO_GENERATOR)
     
     try:
@@ -145,6 +154,9 @@ def execute_workflow(
     # ==================== Stage 5: Video Concatenation ====================
     logger.info(f"[Task {task_id}] Stage 5: Video Concatenation")
     _check_cancelled(task_manager, task_id)
+    
+    # Save snapshot before executing this stage
+    task_manager.db.save_stage_snapshot(task_id, WorkflowStage.VIDEO_CONCATENATER, state)
     task_manager.db.update_task_stage(task_id, WorkflowStage.VIDEO_CONCATENATER)
     
     try:
@@ -163,6 +175,9 @@ def execute_workflow(
     # ==================== Stage 6: BGM Generation ====================
     logger.info(f"[Task {task_id}] Stage 6: BGM Generation")
     _check_cancelled(task_manager, task_id)
+    
+    # Save snapshot before executing this stage
+    task_manager.db.save_stage_snapshot(task_id, WorkflowStage.BGM_GENERATOR, state)
     task_manager.db.update_task_stage(task_id, WorkflowStage.BGM_GENERATOR)
     
     try:
@@ -297,4 +312,90 @@ def _record_worker_output(
                 },
             )
 
+
+def execute_workflow_from_stage(
+    task_manager: 'TaskManager',
+    task_id: str,
+    start_stage: WorkflowStage,
+) -> Dict[str, Any]:
+    """Execute workflow from a specific stage using saved snapshot
+    
+    Args:
+        task_manager: Task manager
+        task_id: Task ID
+        start_stage: Stage to start from
+        
+    Returns:
+        Final workflow state
+        
+    Raises:
+        ValueError: If snapshot not found or invalid
+        TaskCancelledException: If task is cancelled
+    """
+    logger.info(f"[Task {task_id}] Executing workflow from stage: {start_stage.value}")
+    
+    # Load the snapshot for the specified stage
+    snapshot = task_manager.db.get_stage_snapshot(task_id, start_stage)
+    if snapshot is None:
+        raise ValueError(f"No snapshot found for stage {start_stage.value}")
+    
+    # Reconstruct the state from snapshot
+    state = snapshot.copy()
+    
+    logger.info(f"[Task {task_id}] Loaded snapshot with keys: {list(state.keys())}")
+    
+    # Delete snapshots for stages after the restart point
+    # (they will be regenerated)
+    stage_order = [
+        WorkflowStage.SCRIPT_GEN_AGENT,
+        WorkflowStage.STORYBOARD_GEN_AGENT,
+        WorkflowStage.VIDEO_GENERATOR,
+        WorkflowStage.VIDEO_CONCATENATER,
+        WorkflowStage.BGM_GENERATOR,
+    ]
+    
+    # Define stage execution sequence starting from start_stage
+    stages_to_execute = []
+    found_start = False
+    for stage in stage_order:
+        if stage == start_stage:
+            found_start = True
+        if found_start:
+            stages_to_execute.append(stage)
+    
+    # Execute each stage
+    for stage in stages_to_execute:
+        _check_cancelled(task_manager, task_id)
+        
+        # Save snapshot before executing this stage
+        task_manager.db.save_stage_snapshot(task_id, stage, state)
+        
+        logger.info(f"[Task {task_id}] Stage {len(stages_to_execute) - stages_to_execute.index(stage)}/{len(stages_to_execute)}: {stage.value}")
+        
+        # Update task stage
+        task_manager.db.update_task_stage(task_id, stage)
+        
+        # Execute stage
+        if stage == WorkflowStage.SCRIPT_GEN_AGENT:
+            state = write_ad_script_with_agent(state)
+        
+        elif stage == WorkflowStage.STORYBOARD_GEN_AGENT:
+            state = run_storyboard_agent(state)
+        
+        elif stage == WorkflowStage.VIDEO_GENERATOR:
+            state = aggregate_results(state)
+            state = generate_videos_sequentially(state)
+        
+        elif stage == WorkflowStage.VIDEO_CONCATENATER:
+            state = concatenate_videos(state)
+        
+        elif stage == WorkflowStage.BGM_GENERATOR:
+            state = generate_and_add_bgm(state)
+        
+        # Record stage completion
+        _record_stage_completion(task_manager, task_id, stage, state)
+        
+        logger.info(f"[Task {task_id}] ✓ {stage.value} completed")
+    
+    return state
 
