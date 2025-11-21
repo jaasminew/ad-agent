@@ -286,6 +286,8 @@ Thought: {{agent_scratchpad}}
                     review_reason=f"Processing error: {str(e)}",
                 )
                 self.beat_results.append(beat_result)
+                # Re-raise the exception to stop processing
+                raise
             finally:
                 self._post_process_beat(beat_result)
         
