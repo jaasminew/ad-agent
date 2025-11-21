@@ -113,6 +113,21 @@ export const translations = {
       errorTitle: "Failed to interrupt",
       errorDescription: "Please try again in a moment.",
     },
+    restartDialog: {
+      title: "Restart from this stage?",
+      description:
+        "This will restart the workflow from {stage} and re-execute all subsequent stages. Previous results will be cleared.",
+      cancel: "Cancel",
+      confirm: "Restart",
+      confirming: "Restarting…",
+      successTitle: "Workflow restarted",
+      successDescription: "Restarted from stage: {stage}",
+      errorTitle: "Restart failed",
+      errorDescription: "Failed to restart workflow. Please try again.",
+      cannotRestartWhileRunning: "Cannot restart while running",
+      cannotRestartWhileRunningDescription: "Please wait for the current task to complete or stop it first.",
+    },
+    restartButtonAria: "Restart from this stage",
     workflow: {
       processingFallback: "Processing...",
       streamingScripts: {
@@ -340,6 +355,21 @@ export const translations = {
       errorTitle: "中断失败",
       errorDescription: "稍后再试一次。",
     },
+    restartDialog: {
+      title: "从此阶段重新开始？",
+      description:
+        "这将从 {stage} 阶段重新开始工作流，并重新执行所有后续阶段。之前的结果将被清除。",
+      cancel: "取消",
+      confirm: "重新开始",
+      confirming: "正在重启…",
+      successTitle: "工作流已重启",
+      successDescription: "已从 {stage} 阶段重新开始",
+      errorTitle: "重启失败",
+      errorDescription: "无法重启工作流，请重试。",
+      cannotRestartWhileRunning: "运行中无法重启",
+      cannotRestartWhileRunningDescription: "请等待当前任务完成或先停止任务。",
+    },
+    restartButtonAria: "从此阶段重新开始",
     workflow: {
       processingFallback: "处理中…",
       streamingScripts: {

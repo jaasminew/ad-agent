@@ -10,6 +10,7 @@ import {
   Moon,
   PauseOctagon,
   PlayCircle,
+  RotateCcw,
   Sparkles,
   Sun,
   ThumbsDown,
@@ -101,6 +102,7 @@ function App() {
     finalResult,
     history,
     interruptWorkflow,
+    restartWorkflowFromStage,
   } = useWorkflowStore()
 
   const [productName, setProductName] = React.useState("")
@@ -117,6 +119,9 @@ function App() {
   const [theme, setTheme] = React.useState<"dark" | "light">("dark")
   const [interruptDialogOpen, setInterruptDialogOpen] = React.useState(false)
   const [isInterrupting, setIsInterrupting] = React.useState(false)
+  const [restartDialogOpen, setRestartDialogOpen] = React.useState(false)
+  const [restartStage, setRestartStage] = React.useState<string | null>(null)
+  const [isRestarting, setIsRestarting] = React.useState(false)
   const [language, setLanguage] = React.useState<Language>(() => {
     if (typeof window !== "undefined") {
       const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY)
@@ -228,6 +233,41 @@ function App() {
       copy.interruptDialog.errorTitle,
       interruptWorkflow,
     ]
+  )
+
+  const handleRestartRequest = React.useCallback((nodeId: string) => {
+    if (isRunning) {
+      toast.error(copy.restartDialog.cannotRestartWhileRunning || "Cannot restart while running", {
+        description: copy.restartDialog.cannotRestartWhileRunningDescription || "Please wait for current task to complete",
+      })
+      return
+    }
+    setRestartStage(nodeId)
+    setRestartDialogOpen(true)
+  }, [copy, isRunning])
+
+  const handleConfirmRestart = React.useCallback(
+    async (event?: React.MouseEvent<HTMLButtonElement>) => {
+      event?.preventDefault()
+      if (!restartStage) return
+      
+      setIsRestarting(true)
+      try {
+        await restartWorkflowFromStage(restartStage as any)
+        toast.success(copy.restartDialog?.successTitle || "Workflow restarted", {
+          description: (copy.restartDialog?.successDescription || "Restarted from stage: {stage}").replace("{stage}", restartStage),
+        })
+        setRestartDialogOpen(false)
+      } catch (error) {
+        console.error("Failed to restart workflow:", error)
+        toast.error(copy.restartDialog?.errorTitle || "Restart failed", {
+          description: error instanceof Error ? error.message : (copy.restartDialog?.errorDescription || "Failed to restart workflow"),
+        })
+      } finally {
+        setIsRestarting(false)
+      }
+    },
+    [copy, restartStage, restartWorkflowFromStage]
   )
 
   const handleRegenerate = React.useCallback(async () => {
@@ -397,6 +437,7 @@ function App() {
                 }}
                 feedbackDraft={feedbackDraft}
                 setFeedbackDraft={setFeedbackDraft}
+                onRestart={handleRestartRequest}
               />
             </ResizablePanel>
             <ResizableHandle />
@@ -430,7 +471,7 @@ function App() {
       </div>
       <AlertDialog
         open={interruptDialogOpen}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (isInterrupting) return
           setInterruptDialogOpen(open)
         }}
@@ -462,6 +503,44 @@ function App() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Restart Confirmation Dialog */}
+      <AlertDialog
+        open={restartDialogOpen}
+        onOpenChange={(open: boolean) => {
+          if (isRestarting) return
+          setRestartDialogOpen(open)
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{copy.restartDialog?.title || "Restart Workflow"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {copy.restartDialog?.description?.replace("{stage}", restartStage || "") || 
+                `Are you sure you want to restart from ${restartStage}? This will re-execute this stage and all subsequent stages.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRestarting}>
+              {copy.restartDialog?.cancel || "Cancel"}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmRestart} disabled={isRestarting}>
+              {isRestarting ? (
+                <>
+                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                  {copy.restartDialog?.confirming || "Restarting..."}
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="mr-2 h-4 w-4" />
+                  {copy.restartDialog?.confirm || "Restart"}
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Toaster theme={theme} />
       {lightboxOpen && finalResult
         ? createPortal(
@@ -679,6 +758,7 @@ interface TimelinePanelProps {
   ) => void
   feedbackDraft: Record<string, string>
   setFeedbackDraft: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  onRestart?: (nodeId: string) => void
 }
 
 function TimelinePanel({
@@ -690,6 +770,7 @@ function TimelinePanel({
   onFeedback,
   feedbackDraft,
   setFeedbackDraft,
+  onRestart,
 }: TimelinePanelProps) {
   const timelineCopy = copy.timeline
   const firstNodeId = nodes[0]?.id
@@ -755,6 +836,7 @@ function TimelinePanel({
                     onFeedback={onFeedback}
                     feedbackDraft={feedbackDraft}
                     setFeedbackDraft={setFeedbackDraft}
+                    onRestart={onRestart}
                   />
                 ))}
               </div>
@@ -782,6 +864,7 @@ interface NodeCardProps {
   ) => void
   feedbackDraft: Record<string, string>
   setFeedbackDraft: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  onRestart?: (nodeId: string) => void
 }
 
 function NodeCard({
@@ -792,6 +875,7 @@ function NodeCard({
   onFeedback,
   feedbackDraft,
   setFeedbackDraft,
+  onRestart,
 }: NodeCardProps) {
   const nodeCopy = copy.nodes[node.id as keyof typeof copy.nodes]
   const label = nodeCopy?.label ?? node.label
@@ -841,6 +925,19 @@ function NodeCard({
           <p className="text-xs text-muted-foreground">{summaryText}</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Restart button - only show if node is done and workflow is not running */}
+          {node.status === "done" && !isWorkflowRunning && onRestart && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => onRestart(node.id)}
+              aria-label={copy.restartButtonAria || "Restart from this stage"}
+              title={copy.restartButtonAria || "Restart from this stage"}
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          )}
           <Badge
             variant={statusBadge.variant}
             className="flex items-center justify-center gap-1"
