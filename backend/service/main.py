@@ -25,8 +25,11 @@ from .models import (
     CancelTaskResponse,
     AssessmentRequest,
     AssessmentResponse,
+    RestartTaskRequest,
+    RestartTaskResponse,
     TaskQueryResponse,
     TaskStatus,
+    WorkflowStage,
 )
 
 logger = logging.getLogger(__name__)
@@ -147,6 +150,46 @@ async def cancel_task(task_id: str):
         )
     else:
         raise HTTPException(status_code=400, detail="Failed to cancel task")
+
+
+@app.post("/v1/tasks/{task_id}/restart", response_model=RestartTaskResponse)
+async def restart_task(task_id: str, request: RestartTaskRequest):
+    """Restart task from a specific stage
+    
+    Args:
+        task_id: Task ID
+        request: Restart request containing the stage
+        
+    Returns:
+        RestartTaskResponse: Restart result
+    """
+    try:
+        # Attempt to restart the task
+        success = task_manager.restart_task_from_stage(task_id, request.stage)
+        
+        if success:
+            logger.info(f"✓ Task restarted via API: {task_id} from stage {request.stage.value}")
+            return RestartTaskResponse(
+                success=True,
+                message=f"Task restart initiated from stage: {request.stage.value}",
+                task_id=task_id
+            )
+        else:
+            raise HTTPException(status_code=400, detail="Failed to restart task")
+    
+    except ValueError as e:
+        # Handle validation errors (task not found, snapshot not found, etc.)
+        logger.warning(f"Task restart rejected: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    except RuntimeError as e:
+        # Handle concurrent limit exceeded
+        logger.warning(f"Task restart rejected: {e}")
+        raise HTTPException(status_code=429, detail=str(e))
+    
+    except Exception as e:
+        logger.error(f"Failed to restart task: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/v1/tasks/{task_id}", response_model=TaskQueryResponse)
@@ -274,6 +317,7 @@ async def root():
         "endpoints": {
             "create_task": "POST /v1/tasks",
             "cancel_task": "POST /v1/tasks/{task_id}/cancel",
+            "restart_task": "POST /v1/tasks/{task_id}/restart",
             "query_task": "GET /v1/tasks/{task_id}",
             "query_task_stream": "GET /v1/tasks/{task_id}?stream=true",
             "assessment": "POST /v1/tasks/{task_id}/assessment",

@@ -70,6 +70,18 @@ class AssessmentResponse(BaseModel):
     message: str
 
 
+class RestartTaskRequest(BaseModel):
+    """Restart task request"""
+    stage: WorkflowStage = Field(..., description="Stage to restart from")
+
+
+class RestartTaskResponse(BaseModel):
+    """Restart task response"""
+    success: bool
+    message: str
+    task_id: str
+
+
 # ==================== Content Block Models ====================
 
 class LLMOutputData(BaseModel):
