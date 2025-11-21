@@ -161,6 +161,8 @@ body {
   background-color: hsl(var(--muted) / 0.35);
   border-color: hsl(var(--border) / 0.7);
   box-shadow: inset 0 1px 0 hsl(var(--background) / 0.25);
+  padding: 0.875rem 1rem;
+  height: auto;
   transition:
     background-color 150ms ease,
     border-color 150ms ease,

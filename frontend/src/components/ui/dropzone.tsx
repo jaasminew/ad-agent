@@ -8,7 +8,7 @@ import {
 } from "react-dropzone"
 
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { cn, formatFileNameForDisplay } from "@/lib/utils"
 
 type DropzoneContextType = {
   src?: File[]
@@ -103,6 +103,14 @@ type WithChildren = {
   className?: string
 }
 
+type DropzoneContentProps = WithChildren & {
+  replaceHint?: string
+}
+
+type DropzoneEmptyStateProps = WithChildren & {
+  uploadHint?: string
+}
+
 const useDropzoneContext = () => {
   const context = React.useContext(DropzoneContext)
   if (!context) throw new Error("Dropzone components must be used within <Dropzone>")
@@ -111,17 +119,22 @@ const useDropzoneContext = () => {
 
 const maxItems = 3
 
-const DropzoneContent = ({ children, className }: WithChildren) => {
+const DropzoneContent = ({
+  children,
+  className,
+  replaceHint = "Drag & drop or click to replace",
+}: DropzoneContentProps) => {
   const { src } = useDropzoneContext()
   if (!src?.length) return null
   if (children) return <div className={className}>{children}</div>
 
+  const displayedNames = src.map((file) => formatFileNameForDisplay(file.name))
   const label =
     src.length > maxItems
-      ? `${new Intl.ListFormat("en").format(src.slice(0, maxItems).map((file) => file.name))} and ${
+      ? `${new Intl.ListFormat("en").format(displayedNames.slice(0, maxItems))} and ${
           src.length - maxItems
         } more`
-      : new Intl.ListFormat("en").format(src.map((file) => file.name))
+      : new Intl.ListFormat("en").format(displayedNames)
 
   return (
     <div className={cn("flex w-full flex-col items-center gap-2", className)}>
@@ -129,12 +142,16 @@ const DropzoneContent = ({ children, className }: WithChildren) => {
         <UploadIcon className="h-5 w-5" />
       </div>
       <p className="text-sm font-medium text-foreground">{label}</p>
-      <p className="text-xs text-muted-foreground">Drag & drop or click to replace</p>
+      <p className="text-xs text-muted-foreground">{replaceHint}</p>
     </div>
   )
 }
 
-const DropzoneEmptyState = ({ children, className }: WithChildren) => {
+const DropzoneEmptyState = ({
+  children,
+  className,
+  uploadHint = "Drag & drop or click to upload",
+}: DropzoneEmptyStateProps) => {
   const { src, accept, maxFiles, minSize, maxSize } = useDropzoneContext()
   if (src?.length) return null
   if (children) return <div className={className}>{children}</div>
@@ -159,7 +176,7 @@ const DropzoneEmptyState = ({ children, className }: WithChildren) => {
       <p className="text-sm font-medium text-foreground">
         Upload {maxFiles === 1 ? "a file" : "files"}
       </p>
-      <p className="text-xs text-muted-foreground">Drag & drop or click to upload</p>
+      <p className="text-xs text-muted-foreground">{uploadHint}</p>
       {caption ? <p className="text-xs text-muted-foreground">{caption}.</p> : null}
     </div>
   )

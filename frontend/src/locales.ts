@@ -26,22 +26,22 @@ export const translations = {
       fields: {
         productName: {
           label: "Product Name",
-          placeholder: "Product teaser for NOVA earbuds",
+          placeholder: "Polaroid camera",
         },
         brandIdentity: {
           label: "Brand Identity",
-          placeholder:
-            "Highlight hybrid noise-canceling, adaptive EQ, and 36h battery. Set mood: futuristic studio with neon rim light.",
+          placeholder: "playful, authentic, nostalgic",
         },
         productImage: {
           label: "Product Image",
         },
         mustHaveShots: {
           label: "Must Have Shots",
+          placeholder: "a blonde girl uses polaroid to take picture of an orange cat in an indoor setting",
         },
         numberOfShots: {
           label: "Number of Shots",
-          placeholder: "6",
+          placeholder: "≤ 3 for smoother experience",
         },
         videoFormat: {
           label: "Video Format",
@@ -50,12 +50,9 @@ export const translations = {
       dropzone: {
         helperText: "Upload packaging renders, hero shots, or brand references.",
         selectedPrefix: "Selected:",
+        replaceHint: "Drag & drop or click to replace",
+        uploadHint: "Drag & drop or click to upload",
       },
-      shotHelperSuggestions: [
-        "Problem hook in transit",
-        "Close-up of earbuds + UI overlay",
-        "Lifestyle hero in neon studio",
-      ],
       videoFormatOptions: ["16:9 Landscape", "9:16 Vertical", "1:1 Square"],
       actions: {
         generate: "Generate",
@@ -269,21 +266,22 @@ export const translations = {
       fields: {
         productName: {
           label: "产品名称",
-          placeholder: "NOVA 耳机产品预告",
+          placeholder: "宝丽来相机",
         },
         brandIdentity: {
           label: "品牌调性",
-          placeholder: "突出混合降噪、自适应 EQ、36 小时续航。氛围：霓虹边缘灯未来感棚拍。",
+          placeholder: "自由、真实、怀旧",
         },
         productImage: {
           label: "产品图片",
         },
         mustHaveShots: {
           label: "必须出现的镜头",
+          placeholder: "金发女孩在室内用宝丽来为一只橘猫拍照。",
         },
         numberOfShots: {
           label: "镜头数量",
-          placeholder: "6",
+          placeholder: "≤ 3 可获得更流畅的体验",
         },
         videoFormat: {
           label: "视频比例",
@@ -292,12 +290,9 @@ export const translations = {
       dropzone: {
         helperText: "上传包装渲染、主视觉或品牌参考。",
         selectedPrefix: "已选择：",
+        replaceHint: "拖拽文件或点击替换",
+        uploadHint: "拖拽文件或点击上传",
       },
-      shotHelperSuggestions: [
-        "通勤场景提出痛点",
-        "耳机特写 + UI 叠加",
-        "霓虹棚里的生活方式主角",
-      ],
       videoFormatOptions: ["16:9 横屏", "9:16 竖屏", "1:1 方形"],
       actions: {
         generate: "生成",

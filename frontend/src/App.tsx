@@ -51,7 +51,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Toaster } from "@/components/ui/sonner"
 import { Dropzone, DropzoneContent, DropzoneEmptyState } from "@/components/ui/dropzone"
 import { Checkbox } from "@/components/ui/checkbox"
-import { cn } from "@/lib/utils"
+import { cn, formatFileNameForDisplay } from "@/lib/utils"
 import {
   useWorkflowStore,
   type WorkflowNode,
@@ -593,8 +593,6 @@ function InputPanel({
   isInterrupting,
 }: InputPanelProps) {
   const inputCopy = copy.inputPanel
-  const showShotHelper = !formState.mustHaveShotsText.trim().length
-  const shotHelperText = inputCopy.shotHelperSuggestions.join("\n")
 
   return (
     <div className="h-full px-1">
@@ -642,31 +640,25 @@ function InputPanel({
                 className={INPUT_PANEL_FIELD_CLASS}
                 required
               >
-                <DropzoneEmptyState />
-                <DropzoneContent />
+                <DropzoneEmptyState uploadHint={inputCopy.dropzone.uploadHint} />
+                <DropzoneContent replaceHint={inputCopy.dropzone.replaceHint} />
               </Dropzone>
             </div>
             <p className="text-xs text-muted-foreground">
               {formState.productImage
-                ? `${inputCopy.dropzone.selectedPrefix} ${formState.productImage.name}`
+                ? `${inputCopy.dropzone.selectedPrefix} ${formatFileNameForDisplay(formState.productImage.name)}`
                 : inputCopy.dropzone.helperText}
             </p>
           </div>
           <div className="space-y-2">
             <FieldLabel text={inputCopy.fields.mustHaveShots.label} />
-            <div className="relative">
-              {showShotHelper ? (
-                <p className="pointer-events-none absolute left-4 right-4 top-3 whitespace-pre-line text-sm text-foreground/60">
-                  {shotHelperText}
-                </p>
-              ) : null}
-              <Textarea
-                value={formState.mustHaveShotsText}
-                onChange={(e) => onChange.mustHaveShotsText(e.target.value)}
-                className={cn(INPUT_PANEL_FIELD_CLASS, "min-h-[110px] resize-none")}
-                disabled={disabled}
-              />
-            </div>
+            <Textarea
+              value={formState.mustHaveShotsText}
+              onChange={(e) => onChange.mustHaveShotsText(e.target.value)}
+              placeholder={inputCopy.fields.mustHaveShots.placeholder}
+              className={cn(INPUT_PANEL_FIELD_CLASS, "min-h-[110px] resize-none")}
+              disabled={disabled}
+            />
           </div>
           <div className="space-y-2">
             <FieldLabel text={inputCopy.fields.numberOfShots.label} required />
