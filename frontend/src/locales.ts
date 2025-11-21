@@ -154,14 +154,14 @@ export const translations = {
       },
       alertTitle: "Workflow stopped",
       alertDescription:
-        "Resume the run or update your prompt before re-launching.",
+        "Don't worry, your previous results are safe. Restart this node to continue your workflow.",
       emptyState: "Nodes appear after you start a run or once outputs are ready.",
     },
     nodeCard: {
       statusBadges: {
         waiting: "Waiting",
         running: "Running",
-        done: "Done",
+        done: "Saved",
         error: "Error",
       },
       waitingMessage: "Waiting for output…",
@@ -380,14 +380,14 @@ export const translations = {
         idle: "空闲",
       },
       alertTitle: "工作流已停止",
-      alertDescription: "可继续运行或更新提示后再启动。",
+      alertDescription: "别担心，之前的结果都已保存。重新启动此节点即可继续你的工作流。",
       emptyState: "启动运行或生成输出后即可查看节点。",
     },
     nodeCard: {
       statusBadges: {
         waiting: "等待",
         running: "运行中",
-        done: "完成",
+        done: "已保存",
         error: "出错",
       },
       waitingMessage: "等待输出…",

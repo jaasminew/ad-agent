@@ -147,6 +147,47 @@ export async function cancelTask(taskId: string): Promise<CancelTaskResponse> {
 }
 
 /**
+ * Restart a task from a specific stage
+ */
+export interface RestartTaskRequest {
+  stage: string
+}
+
+export interface RestartTaskResponse {
+  success: boolean
+  message: string
+}
+
+export async function restartTask(
+  taskId: string,
+  request: RestartTaskRequest
+): Promise<RestartTaskResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/v1/tasks/${taskId}/restart`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Unknown error' }))
+      throw new APIError(
+        error.detail || 'Failed to restart task',
+        response.status,
+        error
+      )
+    }
+
+    return await response.json()
+  } catch (error) {
+    if (error instanceof APIError) throw error
+    throw new APIError(`Network error: ${error instanceof Error ? error.message : 'Unknown'}`)
+  }
+}
+
+/**
  * Query task status (non-streaming)
  */
 export async function queryTask(taskId: string): Promise<TaskQueryResponse> {

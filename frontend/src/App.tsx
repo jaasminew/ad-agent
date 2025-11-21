@@ -803,7 +803,7 @@ function NodeCard({
     node.status === "running"
       ? { label: copy.nodeCard.statusBadges.running, variant: "outline" as const }
       : node.status === "done"
-        ? { label: copy.nodeCard.statusBadges.done, variant: "default" as const }
+        ? { label: copy.nodeCard.statusBadges.done, variant: "success" as const }
         : node.status === "error"
           ? { label: copy.nodeCard.statusBadges.error, variant: "destructive" as const }
           : { label: copy.nodeCard.statusBadges.waiting, variant: "secondary" as const }
@@ -841,7 +841,20 @@ function NodeCard({
           <p className="text-xs text-muted-foreground">{summaryText}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
+          <Badge
+            variant={statusBadge.variant}
+            className="flex items-center justify-center gap-1"
+            title={statusBadge.label}
+          >
+            {node.status === "error" ? (
+              <>
+                <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only">{statusBadge.label}</span>
+              </>
+            ) : (
+              statusBadge.label
+            )}
+          </Badge>
           <div className="flex items-center gap-1 text-muted-foreground">
             <Button
               variant={node.feedback === "up" ? "default" : "ghost"}

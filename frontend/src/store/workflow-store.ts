@@ -82,6 +82,7 @@ interface WorkflowState {
   currentForm?: WorkflowFormPayload
   currentTaskId?: string
   startWorkflow: (payload: WorkflowFormPayload) => Promise<number>
+  restartWorkflowFromStage: (stage: api.WorkflowStage) => Promise<void>
   interruptWorkflow: () => Promise<void>
   setNodeStatus: (id: string, status: NodeStatus) => void
   appendNodeTranscript: (id: string, entry: TranscriptEntry) => void
@@ -325,6 +326,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
               }
               get().completeWorkflow(result)
             } else if (completeEvent.status === "failed") {
+              const runningNode = get().nodes.find((node) => node.status === "running")
+              if (runningNode) {
+                get().setNodeStatus(runningNode.id, "error")
+              }
               set({ isRunning: false, interrupted: true })
             } else if (completeEvent.status === "cancelled") {
               set({ isRunning: false, interrupted: true })
@@ -362,6 +367,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
                     buildTranscriptEntry(`Error: ${toolData.error}`)
                   )
                 }
+                if (!toolData.success) {
+                  get().setNodeStatus(nodeId, "error")
+                }
               }
             }
           }
@@ -378,6 +386,131 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     }
 
     return nextRun
+  },
+  
+  restartWorkflowFromStage: async (stage) => {
+    const { currentTaskId, isRunning } = get()
+    
+    if (!currentTaskId) {
+      throw new Error("No current task to restart")
+    }
+    
+    if (isRunning) {
+      throw new Error("Cannot restart while workflow is running. Please cancel first.")
+    }
+
+    // Reset nodes from the restart stage onwards
+    const stageOrder = ["script_gen_agent", "storyboard_gen_agent", "video_generator", "video_concatenater", "bgm_generator"]
+    const startIndex = stageOrder.indexOf(stage)
+    
+    set((state) => ({
+      isRunning: true,
+      interrupted: false,
+      finalResult: undefined,
+      nodes: state.nodes.map((node, idx) => {
+        if (idx >= startIndex) {
+          return {
+            ...node,
+            status: "waiting" as NodeStatus,
+            transcript: [],
+          }
+        }
+        return node
+      }),
+    }))
+
+    try {
+      // Call restart API
+      await api.restartTask(currentTaskId, { stage })
+      
+      // Start streaming updates for the restarted task
+      streamAbortController = new AbortController()
+      
+      try {
+        for await (const event of api.streamTaskUpdates(currentTaskId, streamAbortController.signal)) {
+          if ("status" in event) {
+            // Complete event
+            const completeEvent = event as api.SSECompleteEvent
+            if (completeEvent.status === "completed") {
+              // Query final results
+              const taskData = await api.queryTask(currentTaskId)
+              
+              // Prefer BGM version if available, otherwise use final_video_url
+              const finalVideoUrl = taskData.final_video_with_bgm_url || taskData.final_video_url || ""
+              
+              const result: WorkflowResult = {
+                id: currentTaskId,
+                title: taskData.product_name,
+                script: taskData.final_script || "",
+                videoUrl: finalVideoUrl,
+                createdAt: taskData.created_at,
+              }
+              get().completeWorkflow(result)
+            } else if (completeEvent.status === "failed") {
+              const runningNode = get().nodes.find((node) => node.status === "running")
+              if (runningNode) {
+                get().setNodeStatus(runningNode.id, "error")
+              }
+              set({ isRunning: false, interrupted: true })
+            } else if (completeEvent.status === "cancelled") {
+              set({ isRunning: false, interrupted: true })
+            }
+            break
+          } else {
+            // Content event
+            const contentEvent = event as api.SSEContentEvent
+            const { data } = contentEvent
+
+            if (contentEvent.type === "llm_output") {
+              const llmData = data as api.LLMOutputData
+              const nodeId = stageToNodeId[llmData.stage]
+              if (nodeId) {
+                get().setNodeStatus(nodeId, "running")
+                get().appendNodeTranscript(nodeId, buildTranscriptEntry(llmData.message, llmData.output))
+                if (llmData.reasoning) {
+                  get().appendNodeTranscript(
+                    nodeId,
+                    buildTranscriptEntry(`Reasoning: ${llmData.reasoning}`)
+                  )
+                }
+              }
+            } else if (contentEvent.type === "tool_calling") {
+              const toolData = data as api.ToolCallingData
+              const nodeId = stageToNodeId[toolData.stage]
+              if (nodeId) {
+                get().appendNodeTranscript(
+                  nodeId,
+                  buildTranscriptEntry(`🔧 ${toolData.tool_name}: ${toolData.success ? "✓" : "✗"}`)
+                )
+                if (toolData.error) {
+                  get().appendNodeTranscript(
+                    nodeId,
+                    buildTranscriptEntry(`Error: ${toolData.error}`)
+                  )
+                }
+                if (!toolData.success) {
+                  get().setNodeStatus(nodeId, "error")
+                }
+              }
+            }
+          }
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          console.error("Streaming error:", error)
+          set({ isRunning: false, interrupted: true })
+        }
+      }
+    } catch (error) {
+      console.error("Failed to restart workflow:", error)
+      set({ isRunning: false, interrupted: true })
+      
+      // Re-throw API errors with status code to allow specific handling
+      if (error instanceof api.APIError) {
+        throw error
+      }
+      throw new Error(error instanceof Error ? error.message : "Unknown error")
+    }
   },
   
   interruptWorkflow: async () => {
