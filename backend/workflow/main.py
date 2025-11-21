@@ -38,7 +38,8 @@ def run_ad_workflow(
     product_images: str,
     must_have_shots: str,
     generate_video: bool = False,
-    video_model: str = "kling"
+    video_model: str = "kling",
+    video_format: str = "16:9"
 ) -> dict:
     """
     Run the complete AD Agent workflow with integrated Storyboard Agent.
@@ -103,6 +104,7 @@ def run_ad_workflow(
         "must_have_shots": must_have_shots,
         "generate_video": generate_video,
         "video_model": video_model,
+        "video_format": video_format,
         "messages": [],
     }
     

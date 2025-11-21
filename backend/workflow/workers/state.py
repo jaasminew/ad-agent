@@ -16,6 +16,7 @@ class WorkflowState(TypedDict, total=False):
     - num_shots: Number of shots to generate (default: 3)
     - generate_video: Whether to generate video (from environment variable)
     - video_model: Which video model to use ("veo", "kling", "seedance")
+    - video_format: Video format aspect ratio ("16:9", "9:16", "1:1", etc.)
     
     Intermediate states:
     - shots: List of shot descriptions
@@ -35,6 +36,7 @@ class WorkflowState(TypedDict, total=False):
     num_shots: int  # Number of shots to generate
     generate_video: bool  # Control whether to generate video
     video_model: str  # Video generation model
+    video_format: str  # Video format aspect ratio
     
     # === Intermediate states ===
     shots: List[str]
