@@ -728,7 +728,7 @@ function TimelinePanel({
                 : timelineCopy.statusBadge.idle}
           </Badge>
         </CardHeader>
-        <CardContent className="flex-1 overflow-hidden">
+        <CardContent className="flex h-full flex-col gap-3 overflow-hidden">
           {interrupted ? (
             <Alert variant="destructive" className="mb-4">
               <AlertTriangle className="h-4 w-4" />
@@ -737,7 +737,7 @@ function TimelinePanel({
             </Alert>
           ) : null}
           {shouldShowNodes ? (
-            <ScrollArea className="node-canvas h-full rounded-lg bg-dot-pattern">
+            <ScrollArea className="node-canvas grow rounded-lg bg-dot-pattern">
               <div
                 className={cn(
                   "w-full space-y-4 px-6 py-4 transition",
@@ -760,7 +760,7 @@ function TimelinePanel({
               </div>
             </ScrollArea>
           ) : (
-            <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-muted text-center text-sm text-muted-foreground">
+            <div className="flex grow items-center justify-center rounded-lg border border-dashed border-muted text-center text-sm text-muted-foreground">
               {timelineCopy.emptyState}
             </div>
           )}
