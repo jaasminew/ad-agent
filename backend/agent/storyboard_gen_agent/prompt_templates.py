@@ -66,7 +66,7 @@ def load_tools_metadata():
     return _escape_curly_braces(tools_text)
 
 
-SYSTEM_PROMPT_TEMPLATE = f"""You are a Storyboard Generation Agent for creating advertisement images.
+SYSTEM_PROMPT_TEMPLATE = """You are a Storyboard Generation Agent for creating advertisement images.
 
 Your goal is to transform script beats into high-quality, product-integrated storyboard frames.
 
