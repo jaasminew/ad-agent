@@ -63,6 +63,7 @@ import {
 } from "@/store/workflow-store"
 import { translations, type AppCopy, type Language } from "@/locales"
 import { toast } from "sonner"
+import { LandingPage } from "./landing/LandingPage"
 
 const LANGUAGE_STORAGE_KEY = "language"
 const INPUT_PANEL_FIELD_CLASS = "input-panel-field"
@@ -125,6 +126,8 @@ function App() {
     }
     return "en"
   })
+
+  const [hasStarted, setHasStarted] = React.useState(false)
 
   const copy = translations[language]
 
@@ -306,6 +309,10 @@ function App() {
     setLanguage((prev) => (prev === "en" ? "zh" : "en"))
   }, [])
 
+  if (!hasStarted) {
+    return <LandingPage onEnter={() => setHasStarted(true)} />
+  }
+
   return (
     <div className="h-screen max-h-screen w-screen overflow-hidden bg-background flex flex-col">
       <div className="fixed right-6 top-6 z-50 flex gap-2">
@@ -330,7 +337,7 @@ function App() {
           {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
         </Button>
       </div>
-      <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col gap-6 px-6 pt-8 pb-4">
+      <div className="mx-auto flex h-full w-full flex-col gap-6 px-6 pt-8 pb-4">
         <header className="flex flex-col gap-2">
           <p className="text-xs uppercase tracking-[0.4em] text-muted-foreground">
             {copy.header.eyebrow}
@@ -378,7 +385,7 @@ function App() {
               />
             </ResizablePanel>
             <ResizableHandle />
-            <ResizablePanel defaultSize={45} minSize={35}>
+            <ResizablePanel defaultSize={55} minSize={35}>
               <TimelinePanel
                 copy={copy}
                 nodes={nodes}
@@ -393,7 +400,7 @@ function App() {
               />
             </ResizablePanel>
             <ResizableHandle />
-            <ResizablePanel minSize={25} defaultSize={35}>
+            <ResizablePanel minSize={25} defaultSize={25}>
               <FinalOutputPanel
                 copy={copy}
                 result={finalResult}

@@ -230,9 +230,9 @@ export const translations = {
   zh: {
     header: {
       eyebrow: "智能体控制室",
-      title: "视频工作流指挥中心",
+      title: "商业广告视频生成智能体",
       description:
-        "一款借助智能规划、参考检索与迭代视觉润色，将脚本化为电影级商业广告的视频智能体。",
+        "一款自主演算的智能体，借助智能规划、参考检索与迭代视觉润色，将脚本转化为电影级商业广告视频。",
       badge: "Preliminary Version",
     },
     statusMessages: {
