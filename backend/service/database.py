@@ -290,4 +290,118 @@ class Database:
             
             row = cursor.fetchone()
             return row["max_id"] if row["max_id"] else 0
+    
+    # ==================== Stage Snapshot Operations ====================
+    
+    def save_stage_snapshot(
+        self,
+        task_id: str,
+        stage: WorkflowStage,
+        state: Dict[str, Any],
+    ):
+        """Save workflow state snapshot at the beginning of a stage
+        
+        Args:
+            task_id: Task ID
+            stage: Workflow stage
+            state: Current workflow state (input to this stage)
+        """
+        # Convert Pydantic models to dicts for JSON serialization
+        serializable_state = {}
+        for key, value in state.items():
+            if hasattr(value, 'model_dump'):
+                # Pydantic v2
+                serializable_state[key] = value.model_dump()
+            elif hasattr(value, 'dict'):
+                # Pydantic v1
+                serializable_state[key] = value.dict()
+            elif isinstance(value, list):
+                # Handle lists that might contain Pydantic models
+                serializable_list = []
+                for item in value:
+                    if hasattr(item, 'model_dump'):
+                        serializable_list.append(item.model_dump())
+                    elif hasattr(item, 'dict'):
+                        serializable_list.append(item.dict())
+                    else:
+                        serializable_list.append(item)
+                serializable_state[key] = serializable_list
+            else:
+                serializable_state[key] = value
+        
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO stage_snapshots (task_id, stage, state_json, created_at)
+                VALUES (?, ?, ?, ?)
+            """, (
+                task_id,
+                stage.value,
+                json.dumps(serializable_state, ensure_ascii=False),
+                datetime.now(),
+            ))
+            conn.commit()
+        
+        logger.debug(f"Saved stage snapshot for task {task_id}, stage {stage.value}")
+    
+    def get_stage_snapshot(
+        self,
+        task_id: str,
+        stage: WorkflowStage,
+    ) -> Optional[Dict[str, Any]]:
+        """Get workflow state snapshot for a specific stage
+        
+        Args:
+            task_id: Task ID
+            stage: Workflow stage
+            
+        Returns:
+            State dict if exists, None otherwise
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT state_json
+                FROM stage_snapshots
+                WHERE task_id = ? AND stage = ?
+            """, (task_id, stage.value))
+            
+            row = cursor.fetchone()
+            if row:
+                try:
+                    return json.loads(row["state_json"])
+                except Exception as e:
+                    logger.error(f"Failed to parse stage snapshot: {e}")
+                    return None
+            return None
+    
+    def get_all_stage_snapshots(self, task_id: str) -> Dict[str, Dict[str, Any]]:
+        """Get all stage snapshots for a task
+        
+        Args:
+            task_id: Task ID
+            
+        Returns:
+            Dict mapping stage name to state dict
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT stage, state_json
+                FROM stage_snapshots
+                WHERE task_id = ?
+                ORDER BY id ASC
+            """, (task_id,))
+            
+            rows = cursor.fetchall()
+            snapshots = {}
+            
+            for row in rows:
+                try:
+                    snapshots[row["stage"]] = json.loads(row["state_json"])
+                except Exception as e:
+                    logger.error(f"Failed to parse stage snapshot: {e}")
+            
+            return snapshots
+
 
