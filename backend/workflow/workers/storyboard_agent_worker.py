@@ -404,6 +404,7 @@ def _process_episode_with_streaming(
                 is_first_beat=(idx == 0),
                 total_beats=len(episode_config.beats),
                 callback=callback,
+                video_format=episode_config.video_format,
             )
             
             agent.beat_results.append(beat_result)
@@ -493,6 +494,7 @@ def _process_beat_with_callback(
     is_first_beat: bool,
     total_beats: int,
     callback,
+    video_format: str = "16:9",
 ) -> "BeatResult":
     """
     Process a single beat with callback injected.
@@ -522,6 +524,7 @@ def _process_beat_with_callback(
         progress_summary=progress_summary or "No beats completed yet.",
         global_memory_notes=global_memory_notes,
         checklist_markdown=checklist_markdown,
+        video_format=video_format,
     )
     
     logger.debug(f"Agent input prompt: {input_prompt}")
