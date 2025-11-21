@@ -393,8 +393,8 @@ def execute_workflow_from_stage(
         elif stage == WorkflowStage.BGM_GENERATOR:
             state = generate_and_add_bgm(state)
         
-        # Record stage completion
-        _record_stage_completion(task_manager, task_id, stage, state)
+        # Record stage output (only for non-agent stages)
+        _record_worker_output(task_manager, task_id, stage, state, state)
         
         logger.info(f"[Task {task_id}] ✓ {stage.value} completed")
     
