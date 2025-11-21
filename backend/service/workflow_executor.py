@@ -343,6 +343,24 @@ def execute_workflow_from_stage(
     # Reconstruct the state from snapshot
     state = snapshot.copy()
     
+    # Ensure critical fields from task record are present
+    # (in case snapshot was from an old version or missing fields)
+    task = task_manager.db.get_task(task_id)
+    if task:
+        # Add missing fields from task record if not in snapshot
+        if "video_format" not in state and task.video_format:
+            state["video_format"] = task.video_format
+        if "product_name" not in state and task.product_name:
+            state["product_name"] = task.product_name
+        if "brand_identity" not in state and task.brand_identity:
+            state["brand_identity"] = task.brand_identity
+        if "product_images" not in state and task.product_images:
+            state["product_images"] = task.product_images
+        if "must_have_shots" not in state and task.must_have_shots:
+            state["must_have_shots"] = task.must_have_shots
+        if "num_shots" not in state and task.max_shots:
+            state["num_shots"] = task.max_shots
+    
     logger.info(f"[Task {task_id}] Loaded snapshot with keys: {list(state.keys())}")
     
     # Delete snapshots for stages after the restart point
@@ -378,20 +396,26 @@ def execute_workflow_from_stage(
         
         # Execute stage
         if stage == WorkflowStage.SCRIPT_GEN_AGENT:
-            state = write_ad_script_with_agent(state)
+            result = write_ad_script_with_agent(state)
+            state = {**state, **result}
         
         elif stage == WorkflowStage.STORYBOARD_GEN_AGENT:
-            state = run_storyboard_agent(state)
+            result = run_storyboard_agent(state)
+            state = {**state, **result}
         
         elif stage == WorkflowStage.VIDEO_GENERATOR:
-            state = aggregate_results(state)
-            state = generate_videos_sequentially(state)
+            result = aggregate_results(state)
+            state = {**state, **result}
+            result = generate_videos_sequentially(state)
+            state = {**state, **result}
         
         elif stage == WorkflowStage.VIDEO_CONCATENATER:
-            state = concatenate_videos(state)
+            result = concatenate_videos(state)
+            state = {**state, **result}
         
         elif stage == WorkflowStage.BGM_GENERATOR:
-            state = generate_and_add_bgm(state)
+            result = generate_and_add_bgm(state)
+            state = {**state, **result}
         
         # Record stage output (only for non-agent stages)
         _record_worker_output(task_manager, task_id, stage, state, state)
