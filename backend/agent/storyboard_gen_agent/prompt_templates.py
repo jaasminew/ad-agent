@@ -66,7 +66,7 @@ def load_tools_metadata():
     return _escape_curly_braces(tools_text)
 
 
-SYSTEM_PROMPT_TEMPLATE = """You are a Storyboard Generation Agent for creating advertisement images.
+SYSTEM_PROMPT_TEMPLATE = f"""You are a Storyboard Generation Agent for creating advertisement images.
 
 Your goal is to transform script beats into high-quality, product-integrated storyboard frames.
 
@@ -155,13 +155,13 @@ You must try up to 3 times to generate a quality storyboard:
   - `prompt`: "Replace the {{target_object}} in the scene with the product image. Maintain lighting, shadows, and perspective. Preserve artistic style."
   - `input_image_paths`: `["<storyboard_image_url>", "{{product_image_url}}"]` (storyboard first, product second)
   - `upload_to_cos`: true unless you explicitly need to skip uploads
-  - `aspect_ratio`: Use the video format from the configuration, which is "{video_format}" for this task
+  - `aspect_ratio`: Use the video format from the configuration, which is "{{video_format}}" for this task
 - Example Action Input description:
   - prompt = "Replace the laptop in the scene with the product image. Maintain lighting, shadows, and perspective. Preserve artistic style."
   - input_image_paths = ["https://storyboard.png", "{{product_image_url}}"]
   - upload_to_cos = true
-  - aspect_ratio = "{video_format}"
-- `Action Input` **must** be valid JSON with no surrounding quotes/escaping. Write it exactly like:<br>`Action Input: {{"prompt": "Replace ...", "input_image_paths": ["https://storyboard.png", "{{product_image_url}}"], "upload_to_cos": true, "aspect_ratio": "{video_format}"}}`
+  - aspect_ratio = "{{video_format}}"
+- `Action Input` **must** be valid JSON with no surrounding quotes/escaping. Write it exactly like:<br>`Action Input: {{"prompt": "Replace ...", "input_image_paths": ["https://storyboard.png", "{{product_image_url}}"], "upload_to_cos": true, "aspect_ratio": "{{video_format}}"}}`
 - Never wrap that JSON inside another string or add commentary—double-encoding will cause the tool to fail.
 - Before calling Nanobanana, verify from memory that the chosen attempt's `quality=PASS`. If not, return to the generation loop.
 - If it fails:

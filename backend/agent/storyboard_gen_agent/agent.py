@@ -213,7 +213,7 @@ Thought: {{agent_scratchpad}}
 
         prompt = PromptTemplate(
             template=template,
-            input_variables=["input", "agent_scratchpad"],
+            input_variables=["input", "agent_scratchpad", "video_format"],
             partial_variables={
                 "tools": tool_descriptions,
                 "tool_names": tool_names,
@@ -372,7 +372,9 @@ Thought: {{agent_scratchpad}}
         validation_report: Optional[ChecklistValidationReport] = None
         checklist_confirmed = False
         try:
-            result = self.executor.invoke({"input": input_prompt})
+            result = self.executor.invoke(
+                {"input": input_prompt, "video_format": video_format}
+            )
             
             logger.info(f"Agent execution completed for beat {beat.beat}")
             logger.debug(f"Agent output: {result.get('output', '')[:200]}...")
