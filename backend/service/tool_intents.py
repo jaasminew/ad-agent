@@ -13,7 +13,6 @@ _TOOL_INTENT_LABELS: Dict[str, str] = {
     "extract_color_palette": "Extracting color inspiration",
     "midjourney_imagine": "Drafting a new concept frame",
     "midjourney_upscale": "Enhancing the selected concept frame",
-    "midjourney_generate_upscaled": "Generating and refining a concept frame",
     "check_image_distortion": "Running a visual quality check",
     "nanobanana_generate": "Compositing the product into the scene",
     "remember": "Saving a working note",

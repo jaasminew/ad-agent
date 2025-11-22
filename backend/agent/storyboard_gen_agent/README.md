@@ -159,9 +159,10 @@ for ep in episodes:
 3. Extract/Store Color Palette (first beat only)
    ↓
 4-6. Generation Loop (max 3 attempts):
-   ├─ Generate + upscale with `midjourney_generate_upscaled`
-   ├─ (Optional) Re-upscale specific indices if needed
-   ├─ Check for distortions
+   ├─ Generate grid with `midjourney_imagine`
+   ├─ Immediately call `midjourney_upscale` on that task ID (start with index 1)
+   ├─ If distortion check fails, upscale another index from the same grid before re-imagining
+   ├─ Check for distortions after each upscale
    └─ Retry with negative prompts if needed
    ↓
 7. Replace Object with Product (Nanobanana)

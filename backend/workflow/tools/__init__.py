@@ -1,7 +1,7 @@
 # tools/__init__.py
 from .web_search import web_search
 from .memory import remember, recall
-from .midjourney import midjourney_imagine, midjourney_upscale, midjourney_generate_upscaled
+from .midjourney import midjourney_imagine, midjourney_upscale
 from .pixelhub import list_tags, search_images_by_tags
 from .nanobanana import nanobanana_generate
 from .veo_video import veo_generate_video
@@ -36,7 +36,6 @@ __all__ = [
     "recall",
     "midjourney_imagine",
     "midjourney_upscale",
-    "midjourney_generate_upscaled",
     "list_tags",
     "search_images_by_tags",
     "nanobanana_generate",

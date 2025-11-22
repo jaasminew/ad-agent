@@ -5,6 +5,9 @@ from pathlib import Path
 import logging
 import os
 import sys
+import dotenv
+
+dotenv.load_dotenv()
 
 try:
     from . import (

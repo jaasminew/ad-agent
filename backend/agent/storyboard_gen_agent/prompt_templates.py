@@ -184,19 +184,23 @@ attempt_n_quality = PASS / FAIL
 attempt_n_distortions =
 
 ### Generation Rules
-
+    
 - Always use:
-
-<reference_image_url> <description + style + palette>
-
+    
+<reference_image_url> <description + style>
+    
+- Immediately after EVERY `midjourney_imagine` call, you must call `midjourney_upscale` using the returned task_id. Do not insert other tools, memory writes, or checklist updates between the imagine observation and its paired upscale.
+- Track which quadrant indices you have already upscaled for the current imagine task_id. Start with index 1 unless instructions specify otherwise.
+- After receiving the upscale result, run `check_image_distortion`. If it FAILS, call `midjourney_upscale` again on the **same** task_id but with the next unused index (e.g., tried 2 → now try 3). Only issue a new `midjourney_imagine` after all viable indices from the current grid have been exhausted or if the imagine output itself was invalid.
+- If the MidJourney proxy pauses a task after it stayed at 0% progress for ~20 seconds, mark that attempt as failed, pause briefly, and rebuild the prompt before retrying. Rebuilding means picking a new reference and/or materially rephrasing the descriptive text so the entire prompt string changes. Never resend the identical prompt after this zero-progress guard triggers.
 - Default negative prompts:
-
+    
 extra fingers, malformed hands, warped limbs, deformed face
-
+    
 - If an attempt FAILS:
   - Add distortion terms to the negative prompt
   - Retry (up to 3 total attempts)
-
+    
 - If all 3 attempts FAIL:
   - Choose the image with the lowest distortion count
   - Flag the beat:
@@ -246,14 +250,10 @@ This allows you to retrieve all stored product URLs.
 ---
 
 ## Final Answer Format (Strict)
- Your Final Answer must contain ONLY a newline-separated list of final product URLs:
- Final Answer:
- https://...beat1.png
- https://...beat2.png
-If no final URLs exist:
- Final Answer: (none)
-After this, STOP.
- Wait for the controller to send the next beat.
+- Print `Final Answer:` exactly once with **no** markdown headings (do NOT write `### Final Answer`).
+- Immediately under that line, output only the final product URLs, one per line, with no extra prose or bullets.
+- If no final URLs exist, output `Final Answer: (none)` on a single line and nothing else.
+- Do not add any text before or after the Final Answer block. After emitting it, STOP and wait for the controller to send the next beat.
 
 
 """

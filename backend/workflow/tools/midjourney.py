@@ -156,53 +156,6 @@ def _submit_upscale_and_poll(task_id: str, index: int) -> Tuple[str, Dict[str, A
     return upscale_task_id, task
 
 
-def _parse_generate_upscaled_params(
-    params: Union[str, Dict[str, Any]]
-) -> Tuple[str, int]:
-    """Extract prompt and index values for the combined controller tool."""
-    prompt_value: Optional[str] = None
-    index_value: Optional[Any] = None
-
-    if isinstance(params, dict):
-        prompt_value = params.get("prompt")
-        index_value = params.get("index")
-    elif isinstance(params, str):
-        candidate = params.strip()
-        if not candidate:
-            raise ValueError("Prompt cannot be empty.")
-        if candidate.startswith("{") and candidate.endswith("}"):
-            try:
-                parsed = json.loads(candidate)
-            except json.JSONDecodeError:
-                prompt_value = candidate
-            else:
-                if isinstance(parsed, dict):
-                    prompt_value = parsed.get("prompt")
-                    index_value = parsed.get("index")
-                else:
-                    prompt_value = str(parsed)
-        else:
-            prompt_value = candidate
-    else:
-        prompt_value = str(params).strip()
-
-    if not prompt_value:
-        raise ValueError("Prompt is required. Provide it directly or via a JSON payload.")
-
-    if index_value is None:
-        index_value = 1
-
-    try:
-        index_int = int(index_value)
-    except (TypeError, ValueError):
-        raise ValueError(f"Index must be an integer between 1-4, received: {index_value!r}")
-
-    if not (1 <= index_int <= 4):
-        raise ValueError(f"Index must be between 1-4, received: {index_int}")
-
-    return prompt_value, index_int
-
-
 def _parse_progress_percentage(progress_value: Any) -> Optional[float]:
     """Extract numeric percentage (0-100) from progress field."""
     if progress_value is None:
@@ -471,57 +424,5 @@ Upscaled Image URL: {image_url}"""
         return f"Error: {str(e)}"
     except Exception as e:
         logger.error(f"❌ [midjourney_upscale] Exception: {e}")
-        return f"Error: {str(e)}"
-
-
-@tool("midjourney_generate_upscaled")
-def midjourney_generate_upscaled(params: Union[str, Dict[str, Any]]) -> str:
-    """Generate and automatically upscale a Midjourney image in one call.
-
-    Args:
-        params: Either a raw Midjourney prompt string or a JSON/dict payload with
-                {"prompt": "...", "index": 1-4}. The index defaults to 1.
-
-    Returns:
-        JSON-formatted string containing imagine and upscale metadata.
-    """
-    logger.info(f"🧩 [midjourney_generate_upscaled] Called with params: {params}")
-
-    try:
-        raw_prompt, upscale_index = _parse_generate_upscaled_params(params)
-        canonical_prompt = _canonicalize_midjourney_prompt(raw_prompt)
-    except ValueError as format_error:
-        logger.error(f"❌ [midjourney_generate_upscaled] Invalid input: {format_error}")
-        return f"Error: {format_error}"
-
-    if canonical_prompt != str(raw_prompt).strip():
-        logger.debug(f"[midjourney_generate_upscaled] Normalized prompt: '{canonical_prompt}'")
-
-    try:
-        imagine_task_id, imagine_task = _submit_imagine_and_poll(canonical_prompt)
-        logger.info(f"[midjourney_generate_upscaled] Imagine complete: {imagine_task_id}")
-
-        upscale_task_id, upscale_task = _submit_upscale_and_poll(imagine_task_id, upscale_index)
-        logger.info(f"[midjourney_generate_upscaled] Upscale complete: {upscale_task_id}")
-
-        response_payload = {
-            "prompt": canonical_prompt,
-            "upscale_index": upscale_index,
-            "imagine_task_id": imagine_task_id,
-            "imagine_image_url": imagine_task.get("imageUrl"),
-            "imagine_progress": imagine_task.get("progress"),
-            "imagine_prompt_en": imagine_task.get("promptEn", canonical_prompt),
-            "upscale_task_id": upscale_task_id,
-            "upscaled_image_url": upscale_task.get("imageUrl"),
-            "upscale_progress": upscale_task.get("progress"),
-        }
-
-        return json.dumps(response_payload, indent=2, ensure_ascii=False)
-
-    except TimeoutError as e:
-        logger.error(f"⏱️ [midjourney_generate_upscaled] Timeout: {e}")
-        return f"Error: {str(e)}"
-    except Exception as e:
-        logger.error(f"❌ [midjourney_generate_upscaled] Exception: {e}")
         return f"Error: {str(e)}"
 

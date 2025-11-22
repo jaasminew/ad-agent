@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from langchain.tools import tool
@@ -222,6 +222,251 @@ def _normalize_tags(tags_value: Any) -> List[str]:
     return []
 
 
+def _normalize_color_text(text: str) -> str:
+    """Lowercase and strip punctuation so color keywords can be compared reliably."""
+    normalized = text.lower().replace("-", " ")
+    normalized = re.sub(r"[^a-z0-9\s]", " ", normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+COLOR_FAMILY_KEYWORDS: Dict[str, List[str]] = {
+    "blue": [
+        "blue",
+        "deep blue",
+        "navy",
+        "royal blue",
+        "midnight blue",
+        "cobalt",
+        "indigo",
+        "azure",
+        "cerulean",
+        "sky blue",
+        "baby blue",
+        "ice blue",
+        "sapphire",
+        "denim",
+        "ocean blue",
+        "prussian blue",
+        "teal",
+        "turquoise",
+        "cyan",
+        "aqua",
+        "aquamarine",
+    ],
+    "green": [
+        "green",
+        "forest green",
+        "emerald",
+        "olive",
+        "sage",
+        "mint",
+        "lime",
+        "chartreuse",
+        "seafoam",
+        "moss",
+        "jade",
+        "hunter green",
+    ],
+    "red": [
+        "red",
+        "crimson",
+        "scarlet",
+        "ruby",
+        "burgundy",
+        "maroon",
+        "wine",
+        "cherry",
+        "carmine",
+        "garnet",
+    ],
+    "orange": [
+        "orange",
+        "amber",
+        "tangerine",
+        "apricot",
+        "coral",
+        "copper",
+        "rust",
+        "vermillion",
+        "sunset orange",
+    ],
+    "yellow": [
+        "yellow",
+        "mustard",
+        "lemon",
+        "sunflower",
+        "goldenrod",
+        "citrine",
+        "dandelion",
+    ],
+    "purple": [
+        "purple",
+        "violet",
+        "lavender",
+        "plum",
+        "amethyst",
+        "mauve",
+        "lilac",
+    ],
+    "pink": [
+        "pink",
+        "rose",
+        "blush",
+        "fuchsia",
+        "magenta",
+        "salmon",
+        "bubblegum",
+        "hot pink",
+    ],
+    "brown": [
+        "brown",
+        "chocolate",
+        "coffee",
+        "mocha",
+        "taupe",
+        "sepia",
+        "umber",
+        "espresso",
+        "caramel",
+        "hazel",
+    ],
+    "black": [
+        "black",
+        "charcoal",
+        "jet",
+        "ebony",
+        "onyx",
+        "ink",
+    ],
+    "white": [
+        "white",
+        "ivory",
+        "cream",
+        "alabaster",
+        "snow",
+        "pearl",
+    ],
+    "gray": [
+        "gray",
+        "grey",
+        "slate",
+        "ash",
+        "graphite",
+        "pewter",
+        "smoke",
+    ],
+    "gold": [
+        "gold",
+        "golden",
+        "champagne",
+    ],
+    "silver": [
+        "silver",
+        "platinum",
+        "chrome",
+    ],
+    "beige": [
+        "beige",
+        "khaki",
+        "sand",
+        "tan",
+        "ecru",
+    ],
+}
+
+_COLOR_PHRASE_KEYWORDS: Dict[str, str] = {}
+_COLOR_WORD_KEYWORDS: Dict[str, str] = {}
+for family, keywords in COLOR_FAMILY_KEYWORDS.items():
+    for keyword in keywords:
+        normalized_keyword = _normalize_color_text(keyword)
+        if not normalized_keyword:
+            continue
+        if " " in normalized_keyword:
+            _COLOR_PHRASE_KEYWORDS[normalized_keyword] = family
+        else:
+            _COLOR_WORD_KEYWORDS[normalized_keyword] = family
+
+
+def _detect_color_family_from_text(text: str) -> Optional[str]:
+    """Attempt to map a freeform tag into one of the coarse color families."""
+    normalized = _normalize_color_text(text)
+    if not normalized:
+        return None
+
+    for phrase, family in _COLOR_PHRASE_KEYWORDS.items():
+        if phrase in normalized:
+            return family
+
+    for token in normalized.split():
+        if token in _COLOR_WORD_KEYWORDS:
+            return _COLOR_WORD_KEYWORDS[token]
+    return None
+
+
+def _extract_color_family_from_tags(tags: Any) -> Optional[str]:
+    """Inspect a list of tags and return the first recognizable color family."""
+    tag_list: List[str]
+    if isinstance(tags, list):
+        tag_list = [str(tag) for tag in tags]
+    elif isinstance(tags, str):
+        tag_list = [tags]
+    else:
+        return None
+
+    for tag in tag_list:
+        family = _detect_color_family_from_text(tag)
+        if family:
+            return family
+    return None
+
+
+def _tags_match_color_family(tags: Any, target_family: Optional[str]) -> bool:
+    """Check whether the provided tag collection matches the given color family."""
+    if not target_family:
+        return False
+
+    tag_list: List[str]
+    if isinstance(tags, list):
+        tag_list = [str(tag) for tag in tags]
+    elif isinstance(tags, str):
+        tag_list = [tags]
+    else:
+        return False
+
+    for tag in tag_list:
+        if _detect_color_family_from_text(tag) == target_family:
+            return True
+    return False
+
+
+def _apply_color_realm_filter(
+    sorted_results: List[Dict[str, Any]],
+    max_results: int = 2,
+) -> Tuple[List[Dict[str, Any]], Optional[str], int]:
+    """
+    Keep the anchor result and only include additional candidates whose tags map to the same color family.
+    Returns the filtered list, the reference family, and the number of discarded candidates.
+    """
+    if not sorted_results or max_results <= 0:
+        return [], None, 0
+
+    anchor = sorted_results[0]
+    reference_family = _extract_color_family_from_tags(anchor.get("tags"))
+    if not reference_family:
+        return sorted_results[:max_results], None, 0
+
+    filtered: List[Dict[str, Any]] = [anchor]
+    discarded = 0
+    for candidate in sorted_results[1:]:
+        if _tags_match_color_family(candidate.get("tags"), reference_family):
+            filtered.append(candidate)
+            if len(filtered) == max_results:
+                break
+        else:
+            discarded += 1
+    return filtered, reference_family, discarded
+
+
 def _coerce_int(value: Any, field_name: str, tool_name: str) -> Any:
     if isinstance(value, int):
         return value
@@ -384,7 +629,8 @@ def list_tags(page: int = 1, limit: int = 1000) -> str:
 @tool("search_images_by_tags", args_schema=SearchImagesInput)
 def search_images_by_tags(tags: List[str], page: int = 1, limit: int = 20) -> str:
     """Search images by tags using relevance ranking (OR logic). Returns the top matches
-    (max 2) sorted by matched tags and highlights the single best match explicitly.
+    (max 2) sorted by matched tags and highlights the single best match explicitly. Additional
+    results are only accepted if they share the color/tone family of the top match.
     IMPORTANT: Only use tags that exist in the system (call list_tags first).
 
     Args:
@@ -425,19 +671,41 @@ def search_images_by_tags(tags: List[str], page: int = 1, limit: int = 20) -> st
             ),
             reverse=True,
         )
-        top_results = sorted_results[:2]
-        top_match = top_results[0] if top_results else None
+        filtered_results, reference_color_family, discarded_candidates = _apply_color_realm_filter(
+            sorted_results,
+            max_results=2,
+        )
+        top_match = filtered_results[0] if filtered_results else None
+
+        if reference_color_family:
+            logger.info(
+                "🎨 [search_images_by_tags] Anchored color realm '%s' retained %d result(s), discarded %d mismatched candidate(s)",
+                reference_color_family,
+                len(filtered_results),
+                discarded_candidates,
+            )
+        else:
+            logger.debug("[search_images_by_tags] Color realm filter skipped (no color tags detected in top result).")
 
         response = {
             "total": total,
             "current_page": current_page,
             "available_results_count": len(results),
-            "results_count": len(top_results),
+            "results_count": len(filtered_results),
             "top_match": top_match,
-            "results": top_results,
+            "results": filtered_results,
+            "color_filter": {
+                "filter_applied": bool(reference_color_family),
+                "reference_family": reference_color_family,
+                "discarded_candidates": discarded_candidates if reference_color_family else 0,
+            },
         }
 
-        logger.info(f"✓ [search_images_by_tags] Found {total} images, returned {len(results)} results")
+        logger.info(
+            "✓ [search_images_by_tags] Found %d images, returning %d filtered result(s)",
+            total,
+            len(filtered_results),
+        )
         return json.dumps(response, ensure_ascii=False, indent=2)
 
     except PixelHubAPIError as e:

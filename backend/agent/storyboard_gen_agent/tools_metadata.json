@@ -1,7 +1,7 @@
 {
   "tools_metadata": {
     "version": "1.0.0",
-    "last_updated": "2025-11-15",
+    "last_updated": "2025-11-22",
     "description": "Metadata documentation for all available tools in the storyboard generation agent",
     "tools": [
       {
@@ -50,12 +50,13 @@
         "name": "search_images_by_tags",
         "category": "image_search",
         "source_file": "tools/pixelhub.py",
-        "function": "Search for images by tags using relevance ranking with OR logic. Returns the top-ranked match explicitly plus up to two highest-matching images (sorted by matched tags).",
+        "function": "Search for images by tags using relevance ranking with OR logic. Returns the top-ranked match explicitly plus up to two highest-matching images (sorted by matched tags) while enforcing that secondary references share the top match's color family.",
         "usage_guidelines": [
           "MUST call list_tags first to get available tags",
           "Only use tags that exist in the system",
           "Use multiple tags for better relevance ranking",
-          "Images are sorted by number of matched tags (most relevant first)"
+          "Images are sorted by number of matched tags (most relevant first)",
+          "After locking the best reference, only retain additional references whose tags match that image's color/tone family; discard all others"
         ],
         "inputs": {
           "tags": {
@@ -83,7 +84,7 @@
             "total": "Total number of matching images",
             "current_page": "Current page number",
             "available_results_count": "Number of candidates returned by the API before truncation",
-            "results_count": "Number of results returned (max 2)",
+            "results_count": "Number of results returned (max 2 after color filtering)",
             "top_match": {
               "id": "Image ID",
               "url": "Image URL",
@@ -99,7 +100,12 @@
                 "matched_tag_count": "Number of tags matched",
                 "tags": ["List of all tags for this image"]
               }
-            ]
+            ],
+            "color_filter": {
+              "filter_applied": "Boolean flag indicating if a color family anchor was detected",
+              "reference_family": "Detected color family label (e.g., 'blue') that anchors filtering",
+              "discarded_candidates": "Number of candidate images removed for mismatched color families"
+            }
           }
         },
         "example_usage": "search_images_by_tags({\"tags\": [\"sunset\", \"beach\", \"ocean\"], \"page\": 1, \"limit\": 20})",
@@ -184,11 +190,13 @@
         "source_file": "tools/midjourney.py",
         "function": "Generate storyboard images based on reference image and description. Synchronous operation that polls until completion. Generates 4 images in a 2x2 grid",
         "usage_guidelines": [
-          "All prompts must be in the format `<reference_url> <description>`, do not add any other text or parameters",
+          "All prompts must be in the format `<reference_url> <description>`, do not add any other text or aspect ratio parameters",
           "Operation is synchronous and may take 1-5 minutes",
           "Generates 4 image variations in one task",
           "Save the task_id from output for upscaling",
-          "Maximum poll time is 5 minutes"
+          "Immediately pass the observed task_id to midjourney_upscale before performing any other action",
+          "Maximum poll time is 5 minutes",
+          "If the task is paused after staying at 0% progress for ~20 seconds, treat the attempt as failed and rebuild the prompt (new reference and/or rephrased description) before retrying—never resend the identical prompt after this pause guard triggers"
         ],
         "inputs": {
           "prompt": {
@@ -210,10 +218,11 @@
         "source_file": "tools/midjourney.py",
         "function": "Upscale a specific image (1-4) from a completed Midjourney task. Synchronous operation that polls until completion",
         "usage_guidelines": [
-          "MUST use after midjourney_imagine to get high-resolution version",
+          "Call immediately after midjourney_imagine using the task_id from the previous observation",
           "Requires a task_id from a completed imagine/variation/reroll task",
           "Index must be between 1-4 (1=top-left, 2=top-right, 3=bottom-left, 4=bottom-right)",
-          "Operation is synchronous and may take 1-3 minutes"
+          "Operation is synchronous and may take 1-3 minutes",
+          "If check_image_distortion reports distortions, reuse the same task_id and upscale a different index before sending a new midjourney_imagine"
         ],
         "inputs": {
           "task_id": {
@@ -234,38 +243,6 @@
           "structure": "Formatted text containing original task ID, upscale task ID, selected index, and upscaled image URL"
         },
         "example_usage": "midjourney_upscale(task_id='1234567890', index=1)",
-        "dependencies": ["MIDJOURNEY_PROXY_BASE_URL environment variable"]
-      },
-      {
-        "name": "midjourney_generate_upscaled",
-        "category": "image_generation",
-        "source_file": "tools/midjourney.py",
-        "function": "Run Midjourney imagine and upscale sequentially in a single call. Returns structured JSON with both task IDs and URLs.",
-        "usage_guidelines": [
-          "Preferred way to generate storyboard frames: pass the final Midjourney prompt and optional index (defaults to 1)",
-          "Always format prompts as `<reference_url> <description>` before calling—do not add color palettes or hex codes to the descriptive text",
-          "If you need a different crop, set `index` to 1-4; the tool validates the range",
-          "Falls back to separate midjourney_imagine / midjourney_upscale only when you need manual control",
-          "Output is JSON – parse fields like `imagine_task_id`, `upscale_task_id`, and `upscaled_image_url` for downstream steps"
-        ],
-        "inputs": {
-          "prompt": {
-            "type": "str",
-            "required": true,
-            "description": "Midjourney prompt string in the required `<reference_url> <description>` format"
-          },
-          "index": {
-            "type": "int",
-            "required": false,
-            "default": 1,
-            "description": "Image index to upscale (1-4). Defaults to 1 if omitted."
-          }
-        },
-        "outputs": {
-          "type": "JSON string",
-          "structure": "{ \"prompt\": str, \"upscale_index\": int, \"imagine_task_id\": str, \"imagine_image_url\": str, \"upscale_task_id\": str, \"upscaled_image_url\": str, ... }"
-        },
-        "example_usage": "midjourney_generate_upscaled({\"prompt\": \"https://ref.jpg scene description --ar 16:9\", \"index\": 2})",
         "dependencies": ["MIDJOURNEY_PROXY_BASE_URL environment variable"]
       },
       {
