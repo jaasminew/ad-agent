@@ -8,6 +8,7 @@ export type InterruptionType =
   | "workflow_failed"
   | "network_error"
   | "api_error"
+  | "concurrent_limit_exceeded"
   | "user_cancelled"
   | "unknown";
 
@@ -582,9 +583,21 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         }
       } catch (error) {
         console.error("Failed to start workflow:", error);
-        markRunInterrupted(
-          buildDetailsFromError("api_error", error, "Failed to start workflow"),
-        );
+        
+        // Check if it's a 429 (concurrent limit exceeded) error
+        if (error instanceof api.APIError && error.status === 429) {
+          markRunInterrupted(
+            buildDetailsFromError(
+              "concurrent_limit_exceeded",
+              error,
+              "Server is at maximum concurrent task limit. Please try again later."
+            ),
+          );
+        } else {
+          markRunInterrupted(
+            buildDetailsFromError("api_error", error, "Failed to start workflow"),
+          );
+        }
       }
 
       return nextRun;
@@ -731,13 +744,25 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         }
       } catch (error) {
         console.error("Failed to restart workflow:", error);
-        markRunInterrupted(
-          buildDetailsFromError(
-            "api_error",
-            error,
-            "Failed to restart workflow",
-          ),
-        );
+        
+        // Check if it's a 429 (concurrent limit exceeded) error
+        if (error instanceof api.APIError && error.status === 429) {
+          markRunInterrupted(
+            buildDetailsFromError(
+              "concurrent_limit_exceeded",
+              error,
+              "Server is at maximum concurrent task limit. Please try again later."
+            ),
+          );
+        } else {
+          markRunInterrupted(
+            buildDetailsFromError(
+              "api_error",
+              error,
+              "Failed to restart workflow",
+            ),
+          );
+        }
 
         if (error instanceof api.APIError) {
           throw error;
