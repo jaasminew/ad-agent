@@ -222,8 +222,8 @@ def _normalize_tags(tags_value: Any) -> List[str]:
     return []
 
 
-def _normalize_color_text(text: str) -> str:
-    """Lowercase and strip punctuation so color keywords can be compared reliably."""
+def _normalize_tag_text(text: str) -> str:
+    """Lowercase and strip punctuation so keyword lookups can be compared reliably."""
     normalized = text.lower().replace("-", " ")
     normalized = re.sub(r"[^a-z0-9\s]", " ", normalized)
     return re.sub(r"\s+", " ", normalized).strip()
@@ -378,7 +378,7 @@ _COLOR_PHRASE_KEYWORDS: Dict[str, str] = {}
 _COLOR_WORD_KEYWORDS: Dict[str, str] = {}
 for family, keywords in COLOR_FAMILY_KEYWORDS.items():
     for keyword in keywords:
-        normalized_keyword = _normalize_color_text(keyword)
+        normalized_keyword = _normalize_tag_text(keyword)
         if not normalized_keyword:
             continue
         if " " in normalized_keyword:
@@ -389,7 +389,7 @@ for family, keywords in COLOR_FAMILY_KEYWORDS.items():
 
 def _detect_color_family_from_text(text: str) -> Optional[str]:
     """Attempt to map a freeform tag into one of the coarse color families."""
-    normalized = _normalize_color_text(text)
+    normalized = _normalize_tag_text(text)
     if not normalized:
         return None
 
@@ -439,32 +439,129 @@ def _tags_match_color_family(tags: Any, target_family: Optional[str]) -> bool:
     return False
 
 
-def _apply_color_realm_filter(
+LOCATION_KEYWORDS: Dict[str, List[str]] = {
+    "indoor": [
+        "indoor",
+        "indoors",
+        "inside",
+        "interior",
+        "studio",
+        "loft",
+        "apartment",
+        "office",
+        "workspace",
+        "kitchen",
+        "living room",
+        "bedroom",
+        "hallway",
+        "atrium",
+        "classroom",
+        "library",
+        "warehouse interior",
+    ],
+    "outdoor": [
+        "outdoor",
+        "outdoors",
+        "outside",
+        "exterior",
+        "street",
+        "park",
+        "garden",
+        "forest",
+        "beach",
+        "mountain",
+        "field",
+        "plaza",
+        "courtyard",
+        "rooftop",
+        "urban exterior",
+        "nature",
+        "seaside",
+        "desert",
+    ],
+}
+
+_LOCATION_KEYWORD_MAP: Dict[str, str] = {}
+for label, keywords in LOCATION_KEYWORDS.items():
+    for keyword in keywords:
+        normalized_keyword = _normalize_tag_text(keyword)
+        if normalized_keyword:
+            _LOCATION_KEYWORD_MAP[normalized_keyword] = label
+
+
+def _detect_location_label_from_text(text: str) -> Optional[str]:
+    normalized = _normalize_tag_text(text)
+    if not normalized:
+        return None
+    for keyword, label in _LOCATION_KEYWORD_MAP.items():
+        if keyword in normalized:
+            return label
+    return None
+
+
+def _extract_location_label_from_tags(tags: Any) -> Optional[str]:
+    tag_list: List[str]
+    if isinstance(tags, list):
+        tag_list = [str(tag) for tag in tags]
+    elif isinstance(tags, str):
+        tag_list = [tags]
+    else:
+        return None
+
+    for tag in tag_list:
+        label = _detect_location_label_from_text(tag)
+        if label:
+            return label
+    return None
+
+
+def _tags_match_location_label(tags: Any, target_label: Optional[str]) -> bool:
+    if not target_label:
+        return False
+
+    tag_list: List[str]
+    if isinstance(tags, list):
+        tag_list = [str(tag) for tag in tags]
+    elif isinstance(tags, str):
+        tag_list = [tags]
+    else:
+        return False
+
+    for tag in tag_list:
+        if _detect_location_label_from_text(tag) == target_label:
+            return True
+    return False
+
+
+def _apply_reference_filters(
     sorted_results: List[Dict[str, Any]],
     max_results: int = 2,
-) -> Tuple[List[Dict[str, Any]], Optional[str], int]:
+) -> Tuple[List[Dict[str, Any]], Optional[str], Optional[str], Dict[str, int]]:
     """
-    Keep the anchor result and only include additional candidates whose tags map to the same color family.
-    Returns the filtered list, the reference family, and the number of discarded candidates.
+    Keep the anchor result and only include additional candidates whose tags map to the
+    same color family and indoor/outdoor label. Returns the filtered list, detected
+    attributes, and discard statistics.
     """
     if not sorted_results or max_results <= 0:
-        return [], None, 0
+        return [], None, None, {"color_mismatch": 0, "location_mismatch": 0}
 
     anchor = sorted_results[0]
     reference_family = _extract_color_family_from_tags(anchor.get("tags"))
-    if not reference_family:
-        return sorted_results[:max_results], None, 0
+    reference_location = _extract_location_label_from_tags(anchor.get("tags"))
 
     filtered: List[Dict[str, Any]] = [anchor]
-    discarded = 0
+    discarded_stats = {"color_mismatch": 0, "location_mismatch": 0}
     for candidate in sorted_results[1:]:
-        if _tags_match_color_family(candidate.get("tags"), reference_family):
-            filtered.append(candidate)
-            if len(filtered) == max_results:
-                break
-        else:
-            discarded += 1
-    return filtered, reference_family, discarded
+        if reference_family and not _tags_match_color_family(candidate.get("tags"), reference_family):
+            discarded_stats["color_mismatch"] += 1
+            continue
+        if reference_location and not _tags_match_location_label(candidate.get("tags"), reference_location):
+            discarded_stats["location_mismatch"] += 1
+            continue
+        filtered.append(candidate)
+        if len(filtered) == max_results:
+            break
+    return filtered, reference_family, reference_location, discarded_stats
 
 
 def _coerce_int(value: Any, field_name: str, tool_name: str) -> Any:
@@ -671,21 +768,24 @@ def search_images_by_tags(tags: List[str], page: int = 1, limit: int = 20) -> st
             ),
             reverse=True,
         )
-        filtered_results, reference_color_family, discarded_candidates = _apply_color_realm_filter(
+        filtered_results, reference_color_family, reference_location_label, discarded_stats = _apply_reference_filters(
             sorted_results,
             max_results=2,
         )
         top_match = filtered_results[0] if filtered_results else None
 
-        if reference_color_family:
+        if reference_color_family or reference_location_label:
             logger.info(
-                "🎨 [search_images_by_tags] Anchored color realm '%s' retained %d result(s), discarded %d mismatched candidate(s)",
-                reference_color_family,
+                "🎨 [search_images_by_tags] Anchor filters - color: %s, location: %s | retained %d result(s), discarded %d (color=%d, location=%d)",
+                reference_color_family or "N/A",
+                reference_location_label or "N/A",
                 len(filtered_results),
-                discarded_candidates,
+                discarded_stats["color_mismatch"] + discarded_stats["location_mismatch"],
+                discarded_stats["color_mismatch"],
+                discarded_stats["location_mismatch"],
             )
         else:
-            logger.debug("[search_images_by_tags] Color realm filter skipped (no color tags detected in top result).")
+            logger.debug("[search_images_by_tags] Reference filters skipped (no color or location tags detected in top result).")
 
         response = {
             "total": total,
@@ -697,7 +797,12 @@ def search_images_by_tags(tags: List[str], page: int = 1, limit: int = 20) -> st
             "color_filter": {
                 "filter_applied": bool(reference_color_family),
                 "reference_family": reference_color_family,
-                "discarded_candidates": discarded_candidates if reference_color_family else 0,
+                "discarded_candidates": discarded_stats["color_mismatch"] if reference_color_family else 0,
+            },
+            "location_filter": {
+                "filter_applied": bool(reference_location_label),
+                "reference_label": reference_location_label,
+                "discarded_candidates": discarded_stats["location_mismatch"] if reference_location_label else 0,
             },
         }
 

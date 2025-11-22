@@ -50,13 +50,14 @@
         "name": "search_images_by_tags",
         "category": "image_search",
         "source_file": "tools/pixelhub.py",
-        "function": "Search for images by tags using relevance ranking with OR logic. Returns the top-ranked match explicitly plus up to two highest-matching images (sorted by matched tags) while enforcing that secondary references share the top match's color family.",
+        "function": "Search for images by tags using relevance ranking with OR logic. Returns the top-ranked match explicitly plus up to two highest-matching images (sorted by matched tags) while enforcing that secondary references share both the top match's color family and indoor/outdoor label.",
         "usage_guidelines": [
           "MUST call list_tags first to get available tags",
           "Only use tags that exist in the system",
           "Use multiple tags for better relevance ranking",
           "Images are sorted by number of matched tags (most relevant first)",
-          "After locking the best reference, only retain additional references whose tags match that image's color/tone family; discard all others"
+          "After locking the best reference, only retain additional references whose tags match that image's color/tone family; discard all others",
+          "Additionally ensure every secondary reference carries the same indoor/outdoor tag as the anchor image; drop any candidate that does not match both constraints"
         ],
         "inputs": {
           "tags": {
@@ -105,6 +106,11 @@
               "filter_applied": "Boolean flag indicating if a color family anchor was detected",
               "reference_family": "Detected color family label (e.g., 'blue') that anchors filtering",
               "discarded_candidates": "Number of candidate images removed for mismatched color families"
+            },
+            "location_filter": {
+              "filter_applied": "Boolean flag indicating if an indoor/outdoor anchor tag was detected",
+              "reference_label": "Indoor/outdoor label derived from the anchor (e.g., 'indoor', 'outdoor')",
+              "discarded_candidates": "Number of candidate images removed for mismatched indoor/outdoor tags"
             }
           }
         },

@@ -1,0 +1,92 @@
+{
+  "episode_id": "0cd2ac39-4fe9-4680-a411-09278ae18dee",
+  "title": "Creative Workspace - Summer Campaign",
+  "episode_palette": [
+    "#966f42",
+    "#28281f",
+    "#e4dfd7",
+    "#b9b3b0"
+  ],
+  "beats": [
+    {
+      "beat_number": 1,
+      "shot_text": "Morning Coffee Shop — A young creative professional sits by a large sunlit window in a cozy coffee shop. Action: Opens their laptop and smiles while reading an email, morning light streaming in",
+      "reference_image_url": null,
+      "color_palette": null,
+      "attempts": [],
+      "total_attempts": 1,
+      "storyboard_image_url": "",
+      "storyboard_task_id": "",
+      "quality_check_passed": false,
+      "final_image_url": null,
+      "product_replacement_success": false,
+      "product_replacement_error": null,
+      "flagged_for_review": true,
+      "review_reason": "No checklist entries recorded in memory"
+    },
+    {
+      "beat_number": 2,
+      "shot_text": "Collaborative Brainstorm — A diverse team of four people gathered around a wooden table, laptops open, sticky notes on the wall. Action: Team members gesture enthusiastically while discussing ideas, one person takes notes on their laptop",
+      "reference_image_url": null,
+      "color_palette": null,
+      "attempts": [],
+      "total_attempts": 1,
+      "storyboard_image_url": "",
+      "storyboard_task_id": "",
+      "quality_check_passed": false,
+      "final_image_url": null,
+      "product_replacement_success": false,
+      "product_replacement_error": null,
+      "flagged_for_review": true,
+      "review_reason": "No checklist entries recorded in memory"
+    },
+    {
+      "beat_number": 3,
+      "shot_text": "Outdoor Innovation — A person working on a laptop in a vibrant urban park, trees and city skyline in background. Action: Types intently while sipping from a reusable water bottle, looking inspired and focused",
+      "reference_image_url": null,
+      "color_palette": null,
+      "attempts": [],
+      "total_attempts": 1,
+      "storyboard_image_url": "",
+      "storyboard_task_id": "",
+      "quality_check_passed": false,
+      "final_image_url": null,
+      "product_replacement_success": false,
+      "product_replacement_error": null,
+      "flagged_for_review": true,
+      "review_reason": "No checklist entries recorded in memory"
+    }
+  ],
+  "total_beats": 3,
+  "successful_beats": 0,
+  "flagged_beats": 3,
+  "product_url_memory": {},
+  "global_memory": [
+    [
+      "https://ad-agent-tko-1309327302.cos.ap-tokyo.myqcloud.com/nanobanana/20251122_225716_nanobanana_generated_20251122_225716.png",
+      "https://ad-agent-tko-1309327302.cos.ap-tokyo.myqcloud.com/nanobanana/20251122_225941_nanobanana_generated_20251122_225941.png",
+      "https://ad-agent-tko-1309327302.cos.ap-tokyo.myqcloud.com/nanobanana/20251122_230207_nanobanana_generated_20251122_230207.png"
+    ],
+    [
+      "Beat 1 - Morning Coffee Shop",
+      "Young creative professional with short dark hair, wearing a casual navy shirt and glasses, sitting by a sunlit window.",
+      "realistic cinematic",
+      "#4d3d22, #e0b46c, #a09e78, #678898",
+      "Medium shot framed to capture the character's smile and laptop, with warm sunlight highlighting the scene."
+    ],
+    [
+      "Beat 2 - Collaborative Brainstorm",
+      "Diverse team of four at a wooden table, laptops open, engaging gestures, sticky notes behind",
+      "realistic cinematic",
+      "#695b47, #e4cab6, #b0b893, #b3aba4",
+      "Wide shot capturing the group dynamics and workspace atmosphere."
+    ],
+    [
+      "Beat 3 - Outdoor Innovation",
+      "Young creative professional with short dark hair, casual outfit, focused demeanor, reusable water bottle",
+      "realistic cinematic",
+      "#966f42, #28281f, #e4dfd7, #b9b3b0",
+      "Medium shot of character typing on laptop, vibrant park backdrop, engaged expression."
+    ]
+  ]
+}
