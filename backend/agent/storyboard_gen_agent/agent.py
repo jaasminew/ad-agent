@@ -3,18 +3,27 @@
 import json
 import logging
 import uuid
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+LANGCHAIN_CLASSIC_HELP = (
+    "StoryboardAgent requires the classic LangChain APIs. "
+    "Install the optional dependency with "
+    "`uv pip install 'langchain-classic>=1.0.0'` (or add it to pyproject)."
+)
+
 try:
-    # Try newer langchain structure
+    # Preferred: langchain-classic keeps AgentExecutor/create_react_agent APIs stable
     from langchain_classic.agents import AgentExecutor, create_react_agent
-except ImportError:
-    # Fallback to older langchain structure
-    from langchain.agents import AgentExecutor, create_react_agent
+except ImportError as classic_exc:
+    try:
+        # Older LangChain (<0.2) still exports these symbols
+        from langchain.agents import AgentExecutor, create_react_agent  # type: ignore[attr-defined]
+    except ImportError as modern_exc:  # pragma: no cover - only hit on misconfigured envs
+        raise ImportError(LANGCHAIN_CLASSIC_HELP) from modern_exc
+
 try:
     from langchain_classic.prompts import PromptTemplate
 except ImportError:
-    from langchain.prompts import PromptTemplate
+    from langchain.prompts import PromptTemplate  # type: ignore[attr-defined]
 from langchain_core.language_models import BaseChatModel
 
 from .models import (
@@ -36,14 +45,7 @@ from .utils import (
     format_global_memory_notes,
     build_global_memory_with_uploaded_urls,
 )
-from .checklist import (
-    ChecklistItem,
-    build_checklist,
-    format_checklist_markdown,
-    extract_checklist_statuses,
-    find_checklist_gaps,
-    find_optional_incomplete,
-)
+from .checklist import extract_checklist_statuses
 from tools.memory import MEM, recall as recall_tool
 from tools.upload_memory import clear_uploaded_urls, get_uploaded_urls, format_uploaded_urls_note
 
@@ -51,34 +53,6 @@ logger = logging.getLogger(__name__)
 
 UPLOADED_URL_NOTE_PREFIX = "uploaded_final_urls:"
 SHOT_MEMORY_NOTE_PREFIX = "shot_memory:"
-
-
-@dataclass
-class ChecklistValidationReport:
-    """Structured summary of checklist statuses for a beat."""
-
-    statuses: Dict[str, str]
-    missing_mandatory: List[str]
-    incomplete_optional: List[str]
-
-    def is_valid(self) -> bool:
-        """Return True when all mandatory and optional slugs are resolved."""
-        return not self.missing_mandatory and not self.incomplete_optional
-
-    def summary(self) -> str:
-        """Human readable summary."""
-        parts: List[str] = []
-        if self.missing_mandatory:
-            parts.append(
-                "Missing mandatory slugs: "
-                + ", ".join(sorted(self.missing_mandatory))
-            )
-        if self.incomplete_optional:
-            parts.append(
-                "Optional slugs unresolved (mark done or skipped): "
-                + ", ".join(sorted(self.incomplete_optional))
-            )
-        return "; ".join(parts) if parts else "Checklist complete"
 
 
 class StoryboardAgent:
@@ -345,8 +319,6 @@ Thought: {{agent_scratchpad}}
             BeatResult with all generation details
         """
         # Build input prompt for agent
-        checklist_items = build_checklist(is_first_beat=is_first_beat)
-        checklist_markdown = format_checklist_markdown(checklist_items)
         self._start_shot_episode()
         global_memory_notes = self._format_global_memory_for_prompt()
 
@@ -361,7 +333,6 @@ Thought: {{agent_scratchpad}}
             is_first_beat=is_first_beat,
             progress_summary=progress_summary or "No beats completed yet.",
             global_memory_notes=global_memory_notes,
-            checklist_markdown=checklist_markdown,
             video_format=video_format,
         )
         
@@ -369,8 +340,8 @@ Thought: {{agent_scratchpad}}
         
         # Execute agent
         memory_snapshot: List[str] = []
-        validation_report: Optional[ChecklistValidationReport] = None
         checklist_confirmed = False
+        checklist_gap_reason: Optional[str] = None
         try:
             result = self.executor.invoke(
                 {"input": input_prompt, "video_format": video_format}
@@ -379,17 +350,15 @@ Thought: {{agent_scratchpad}}
             logger.info(f"Agent execution completed for beat {beat.beat}")
             logger.debug(f"Agent output: {result.get('output', '')[:200]}...")
             memory_snapshot = list(MEM)
-            validation_report = self._evaluate_checklist_completion(
-                beat_number=beat.beat,
-                checklist_items=checklist_items,
-                notes=memory_snapshot,
-            )
-            checklist_confirmed = validation_report.is_valid()
-            if not checklist_confirmed:
+            (
+                checklist_confirmed,
+                checklist_gap_reason,
+            ) = self._evaluate_dynamic_checklist(beat.beat, memory_snapshot)
+            if not checklist_confirmed and checklist_gap_reason:
                 logger.warning(
                     "Checklist validation failed for beat %s: %s",
                     beat.beat,
-                    validation_report.summary(),
+                    checklist_gap_reason,
                 )
             new_notes = self._filter_new_shot_notes(memory_snapshot)
             self._persist_episode_state_from_notes(new_notes)
@@ -413,7 +382,7 @@ Thought: {{agent_scratchpad}}
                 beat=beat,
                 agent_output=result,
                 checklist_confirmed=checklist_confirmed,
-                checklist_report=validation_report,
+                checklist_gap_reason=checklist_gap_reason,
             )
             
             return beat_result
@@ -430,7 +399,7 @@ Thought: {{agent_scratchpad}}
         beat: Beat,
         agent_output: dict,
         checklist_confirmed: bool,
-        checklist_report: Optional[ChecklistValidationReport],
+        checklist_gap_reason: Optional[str],
     ) -> BeatResult:
         """
         Extract BeatResult from agent's execution output.
@@ -455,7 +424,7 @@ Thought: {{agent_scratchpad}}
         review_reason = None
         if flagged:
             review_reason = (
-                self._format_checklist_review_reason(checklist_report)
+                checklist_gap_reason
                 or "Checklist QA incomplete or unverified"
             )
 
@@ -479,14 +448,6 @@ Thought: {{agent_scratchpad}}
         
         return beat_result
 
-    def _format_checklist_review_reason(
-        self, report: Optional[ChecklistValidationReport]
-    ) -> Optional[str]:
-        """Convert a validation report into a readable review reason."""
-        if not report or report.is_valid():
-            return None
-        return f"Checklist gaps: {report.summary()}"
-    
     def reset(self):
         """Reset the agent state for a new episode."""
         self.episode_id = None
@@ -627,25 +588,27 @@ Thought: {{agent_scratchpad}}
                 filtered.append(note)
         return filtered
 
-    def _evaluate_checklist_completion(
-        self,
-        beat_number: int,
-        checklist_items: List[ChecklistItem],
-        notes: Optional[List[str]],
-    ) -> ChecklistValidationReport:
-        """Summarize checklist statuses and detect gaps."""
-        note_list = notes or []
-        statuses = extract_checklist_statuses(note_list, beat_number)
-        missing_mandatory = find_checklist_gaps(statuses, checklist_items)
-        incomplete_optional = find_optional_incomplete(statuses, checklist_items)
-        report = ChecklistValidationReport(
-            statuses=statuses,
-            missing_mandatory=missing_mandatory,
-            incomplete_optional=incomplete_optional,
-        )
-        if report.is_valid():
-            logger.debug("Checklist validated for beat %s", beat_number)
-        return report
+    def _evaluate_dynamic_checklist(
+        self, beat_number: int, notes: List[str]
+    ) -> Tuple[bool, Optional[str]]:
+        """Validate that the agent created and closed out its self-authored checklist."""
+        statuses = extract_checklist_statuses(notes or [], beat_number)
+        if not statuses:
+            return False, "No checklist entries recorded in memory"
+
+        pending = [slug for slug, status in statuses.items() if status == "pending"]
+        if pending:
+            return False, f"Pending checklist slugs: {', '.join(sorted(pending))}"
+
+        invalid = [
+            slug
+            for slug, status in statuses.items()
+            if status not in {"done", "skipped"}
+        ]
+        if invalid:
+            return False, f"Unknown checklist statuses for: {', '.join(sorted(invalid))}"
+
+        return True, None
 
     def _persist_episode_state_from_notes(self, notes: List[str]) -> None:
         """Capture essential controller-owned state from shot notes."""

@@ -137,13 +137,12 @@
         "name": "nanobanana_generate",
         "category": "image_generation",
         "source_file": "tools/nanobanana.py",
-        "function": "Generate images based on text prompts and reference image(s) using Google Gemini. Perfect for creating variations or modifications of existing images",
+        "function": "Generate images based on text prompts and reference image(s) using Google Gemini. Used for object replacement.",
         "usage_guidelines": [
-          "Provide detailed and creative prompts",
+          "Only use this tool for product replacement, do not use it for image generation",
           "Can use single or multiple reference images",
           "Supports both local file paths and URLs",
-          "Generated images are saved locally and optionally uploaded to COS",
-          "Use for image variations, modifications, or style transfers"
+          "Generated images are saved locally and optionally uploaded to COS"
         ],
         "inputs": {
           "prompt": {
@@ -183,9 +182,9 @@
         "name": "midjourney_imagine",
         "category": "image_generation",
         "source_file": "tools/midjourney.py",
-        "function": "Generate images using Midjourney AI. Synchronous operation that polls until completion. Generates 4 images in a 2x2 grid",
+        "function": "Generate storyboard images based on reference image and description. Synchronous operation that polls until completion. Generates 4 images in a 2x2 grid",
         "usage_guidelines": [
-          "Use Midjourney-style prompts with parameters (--ar 16:9, --v 6, etc.)",
+          "All prompts must be in the format `<reference_url> <description>`, do not add any other text or parameters",
           "Operation is synchronous and may take 1-5 minutes",
           "Generates 4 image variations in one task",
           "Save the task_id from output for upscaling",
@@ -211,10 +210,10 @@
         "source_file": "tools/midjourney.py",
         "function": "Upscale a specific image (1-4) from a completed Midjourney task. Synchronous operation that polls until completion",
         "usage_guidelines": [
+          "MUST use after midjourney_imagine to get high-resolution version",
           "Requires a task_id from a completed imagine/variation/reroll task",
           "Index must be between 1-4 (1=top-left, 2=top-right, 3=bottom-left, 4=bottom-right)",
-          "Operation is synchronous and may take 1-3 minutes",
-          "Use after midjourney_imagine to get high-resolution version"
+          "Operation is synchronous and may take 1-3 minutes"
         ],
         "inputs": {
           "task_id": {

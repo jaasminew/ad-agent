@@ -501,13 +501,10 @@ def _process_beat_with_callback(
     
     This reimplements the core logic of agent.process_beat but with callback support.
     """
-    from storyboard_gen_agent.checklist import build_checklist, format_checklist_markdown
     from storyboard_gen_agent.prompt_templates import BEAT_PROCESSING_PROMPT
     from tools.memory import MEM
     
     # Build input prompt (same as agent.process_beat)
-    checklist_items = build_checklist(is_first_beat=is_first_beat)
-    checklist_markdown = format_checklist_markdown(checklist_items)
     agent._start_shot_episode()
     global_memory_notes = agent._format_global_memory_for_prompt()
     progress_summary = agent._format_progress_summary()
@@ -523,7 +520,6 @@ def _process_beat_with_callback(
         is_first_beat=is_first_beat,
         progress_summary=progress_summary or "No beats completed yet.",
         global_memory_notes=global_memory_notes,
-        checklist_markdown=checklist_markdown,
         video_format=video_format,
     )
     
@@ -540,7 +536,9 @@ def _process_beat_with_callback(
         logger.info(f"Agent execution completed for beat {beat.beat}")
         logger.debug(f"Agent output: {result.get('output', '')[:200]}...")
         memory_snapshot = list(MEM)
-        checklist_confirmed = True
+        checklist_confirmed, checklist_gap_reason = agent._evaluate_dynamic_checklist(
+            beat.beat, memory_snapshot
+        )
         new_notes = agent._filter_new_shot_notes(memory_snapshot)
         agent._persist_episode_state_from_notes(new_notes)
         summary_items = agent._summarize_shot_memory(
@@ -561,6 +559,7 @@ def _process_beat_with_callback(
             beat=beat,
             agent_output=result,
             checklist_confirmed=checklist_confirmed,
+            checklist_gap_reason=checklist_gap_reason,
         )
         
         return beat_result

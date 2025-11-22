@@ -1,12 +1,28 @@
 """Example usage of the Storyboard Generation Agent."""
 
+import importlib
+from pathlib import Path
 import logging
-from storyboard_gen_agent import (
-    StoryboardAgent,
-    EpisodeConfig,
-    Beat,
-    ProductConfig,
-)
+import os
+import sys
+
+try:
+    from . import (
+        StoryboardAgent,
+        EpisodeConfig,
+        Beat,
+        ProductConfig,
+    )
+except ImportError:
+    # Allow running this example directly without installing the package
+    PACKAGE_PARENT = Path(__file__).resolve().parent.parent
+    if str(PACKAGE_PARENT) not in sys.path:
+        sys.path.insert(0, str(PACKAGE_PARENT))
+    storyboard_module = importlib.import_module("storyboard_gen_agent")
+    StoryboardAgent = storyboard_module.StoryboardAgent
+    EpisodeConfig = storyboard_module.EpisodeConfig
+    Beat = storyboard_module.Beat
+    ProductConfig = storyboard_module.ProductConfig
 
 # Configure logging
 logging.basicConfig(
@@ -24,7 +40,7 @@ def main():
     episode = EpisodeConfig(
         title="Creative Workspace - Summer Campaign",
         product_config=ProductConfig(
-            product_image_url="https://example.com/product-laptop.png",
+            product_image_url="https://macfinder.co.uk/wp-content/uploads/2023/12/img-MacBook-Pro-Retina-16-Inch-24323-scaled.jpg",
             target_object="laptop"
         ),
         beats=[
@@ -53,13 +69,20 @@ def main():
     logger.info("🎬 Starting Storyboard Generation Example")
     logger.info("="*80)
     
+    # Ensure API key is present before initializing the LLM
+    if not os.getenv("OPENAI_API_KEY"):
+        logger.error(
+            "OPENAI_API_KEY environment variable not set. "
+            "Export your key (see backend/agent/README.md) before running this example."
+        )
+        return
+
     # Initialize LLM (using OpenAI as it's in the project dependencies)
     logger.info("\n🤖 Initializing LLM...")
     from langchain_openai import ChatOpenAI
     llm = ChatOpenAI(
-        model="gpt-4",
+        model="gpt-4o-mini",
         temperature=0.7,
-        max_tokens=4096,
     )
     
     # Initialize agent
