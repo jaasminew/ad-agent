@@ -144,6 +144,24 @@ CREATE TABLE contents (
 
 ## 开发
 
+### 测试并发限制
+
+测试并发任务限制功能:
+
+```bash
+# 设置较低的并发限制以便测试
+export MAX_CONCURRENT_TASKS=2
+
+# 运行测试脚本
+python test_concurrent_limit.py
+```
+
+查看示例代码了解如何处理 429 错误:
+
+```bash
+python example_concurrent_limit.py
+```
+
 ### 运行测试
 
 ```bash
