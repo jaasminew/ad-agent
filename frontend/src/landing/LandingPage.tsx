@@ -126,7 +126,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
                     <div className="absolute inset-0 top-12 p-4 flex flex-col items-center gap-6">
                         {/* Connecting Line (SVG) */}
                         <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-30">
-                            <line x1="50%" y1="40" x2="50%" y2="100%" stroke="white" strokeWidth="2" strokeDasharray="4 4" />
+                            <line x1="50%" y1="40" x2="50%" y2="250" stroke="white" strokeWidth="2" strokeDasharray="4 4" />
                         </svg>
 
                         {/* Node 1 (Active - Accent) */}

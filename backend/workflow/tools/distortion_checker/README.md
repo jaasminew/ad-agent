@@ -26,7 +26,7 @@ print(result)
 
 ## Configuration
 
-- `DISTORTION_CHECKER_MIN_CONFIDENCE` (default: `0.82`): Minimum confidence score
+- `DISTORTION_CHECKER_MIN_CONFIDENCE` (default: `0.9`): Minimum confidence score
   a detected distortion must meet before it is reported. Increase this value
   (for example, `0.9`) to make the checker less sensitive and reduce false
   positives. Decrease it to surface more borderline detections.

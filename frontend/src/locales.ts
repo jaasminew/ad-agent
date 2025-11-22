@@ -167,6 +167,23 @@ export const translations = {
       alertTitle: "Workflow stopped",
       alertDescription:
         "Don't worry, your previous results are safe. Restart this node to continue your workflow.",
+      alertDetailTemplate:
+        "That run stopped because {reason}. That's okay—give the agent another try when you're ready.",
+      stageFailureTitle: "{stage} misfired",
+      alertTitles: {
+        workflow_failed: "Workflow stopped",
+        network_error: "Connection dropped",
+        api_error: "Workflow setup failed",
+        user_cancelled: "Workflow cancelled",
+        unknown: "Workflow paused",
+      },
+      reasonFallbacks: {
+        workflow_failed: "the agent hit an internal error",
+        network_error: "the connection dropped mid-stream",
+        api_error: "we couldn't reach the agent service",
+        user_cancelled: "you stopped the run",
+        unknown: "something interrupted the run",
+      },
       emptyState: "Nodes appear after you start a run or once outputs are ready.",
     },
     nodeCard: {
@@ -244,13 +261,13 @@ export const translations = {
       eyebrow: "智能体控制室",
       title: "商业广告视频生成智能体",
       description:
-        "一款自主演算的智能体，借助智能规划、参考检索与迭代视觉润色，将脚本转化为电影级商业广告视频。",
+        "一款借助智能规划、参考检索与迭代视觉润色,将脚本化为高质量商业广告的视频智能体系统",
       badge: "Preliminary Version",
     },
     statusMessages: {
       running: "智能体正在执行当前工作流。",
       interrupted: "上次运行已被中断，可以随时恢复。",
-      idle: "待命中。填写提示后点击生成。",
+      idle: "待命中，填写提示后点击生成。",
     },
     themeToggle: {
       toLight: "切换为亮色模式",
@@ -406,6 +423,22 @@ export const translations = {
       },
       alertTitle: "工作流已停止",
       alertDescription: "别担心，之前的结果都已保存。重新启动此节点即可继续你的工作流。",
+      alertDetailTemplate: "本次流程因为 {reason} 暂停了。没关系，稍作调整再试一次即可。",
+      stageFailureTitle: "{stage} 出错了",
+      alertTitles: {
+        workflow_failed: "流程已暂停",
+        network_error: "连接中断",
+        api_error: "启动失败",
+        user_cancelled: "流程已取消",
+        unknown: "流程暂停",
+      },
+      reasonFallbacks: {
+        workflow_failed: "智能体遇到内部错误",
+        network_error: "连接在中途断开",
+        api_error: "我们无法连上后台服务",
+        user_cancelled: "你手动停止了本次运行",
+        unknown: "流程被意外打断",
+      },
       emptyState: "启动运行或生成输出后即可查看节点。",
     },
     nodeCard: {

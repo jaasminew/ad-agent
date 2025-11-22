@@ -61,6 +61,7 @@ import {
   type ThoughtContentBlock,
   type ChecklistContentBlock,
   type ChecklistItemBlock,
+  type InterruptionDetails,
 } from "@/store/workflow-store"
 import { translations, type AppCopy, type Language } from "@/locales"
 import { toast } from "sonner"
@@ -97,6 +98,7 @@ function App() {
     nodes,
     isRunning,
     interrupted,
+    interruptionDetails,
     startWorkflow,
     toggleNodeFeedback,
     finalResult,
@@ -432,6 +434,7 @@ function App() {
                 disabled={timelineDisabled}
                 isRunning={isRunning}
                 interrupted={interrupted}
+                interruptionDetails={interruptionDetails}
                 onFeedback={(node, sentiment, reason) => {
                   toggleNodeFeedback(node.id, sentiment, reason)
                 }}
@@ -743,6 +746,7 @@ interface TimelinePanelProps {
   disabled: boolean
   isRunning: boolean
   interrupted: boolean
+  interruptionDetails?: InterruptionDetails
   onFeedback: (
     node: WorkflowNode,
     feedback: WorkflowNode["feedback"],
@@ -759,6 +763,7 @@ function TimelinePanel({
   disabled,
   isRunning,
   interrupted,
+  interruptionDetails,
   onFeedback,
   feedbackDraft,
   setFeedbackDraft,
@@ -774,6 +779,36 @@ function TimelinePanel({
   const nodesWithActivity = nodes.filter(nodeHasActivity)
   const shouldShowNodes = nodesWithActivity.length > 0
   const nodesToRender = nodesWithActivity
+  const stageLabel =
+    interruptionDetails?.stageId &&
+    (copy.nodes[interruptionDetails.stageId as keyof typeof copy.nodes]?.label ??
+      nodes.find((node) => node.id === interruptionDetails.stageId)?.label ??
+      interruptionDetails.stageId)
+  const stageTitle =
+    stageLabel && timelineCopy.stageFailureTitle
+      ? timelineCopy.stageFailureTitle.replace("{stage}", stageLabel)
+      : undefined
+  const typeTitle =
+    interruptionDetails?.type && timelineCopy.alertTitles
+      ? timelineCopy.alertTitles[interruptionDetails.type]
+      : undefined
+  const fallbackTitle = interruptionDetails?.title ?? timelineCopy.alertTitle
+  const alertTitle = stageTitle ?? typeTitle ?? fallbackTitle
+
+  const normalizedDetail = interruptionDetails?.detail
+    ? interruptionDetails.detail.replace(/\s+/g, " ").trim().replace(/[.。!！?？]+$/, "")
+    : undefined
+  const reasonFallback =
+    (interruptionDetails?.type &&
+      timelineCopy.reasonFallbacks &&
+      timelineCopy.reasonFallbacks[interruptionDetails.type]) ||
+    timelineCopy.reasonFallbacks?.unknown
+  const templateReason = normalizedDetail || reasonFallback
+  const detailTemplate = timelineCopy.alertDetailTemplate
+  const alertDescription =
+    templateReason && detailTemplate
+      ? detailTemplate.replace("{reason}", templateReason)
+      : timelineCopy.alertDescription
 
   return (
     <div className="h-full px-1">
@@ -805,8 +840,8 @@ function TimelinePanel({
           {interrupted ? (
             <Alert variant="destructive" className="mb-4">
               <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>{timelineCopy.alertTitle}</AlertTitle>
-              <AlertDescription>{timelineCopy.alertDescription}</AlertDescription>
+              <AlertTitle>{alertTitle}</AlertTitle>
+              <AlertDescription>{alertDescription}</AlertDescription>
             </Alert>
           ) : null}
           {shouldShowNodes ? (
