@@ -51,8 +51,13 @@ ANTHROPIC_API_KEY=your_key_here
 MIDJOURNEY_API_URL=...
 MIDJOURNEY_API_KEY=...
 
+# 并发任务限制(可选,默认为 5)
+MAX_CONCURRENT_TASKS=5
+
 # 其他服务配置...
 ```
+
+> **注意**: `MAX_CONCURRENT_TASKS` 用于限制同时执行的任务数量，避免一次性耗光服务提供者的 token。如果当前运行的任务数已达到上限，创建新任务的请求将返回 HTTP 429 错误。
 
 ### 2. 启动服务
 
@@ -387,7 +392,7 @@ curl http://localhost:8000/
 
 1. **SQLite 限制**: 默认使用 SQLite,适合开发和小规模部署。生产环境建议使用 PostgreSQL。
 
-2. **并发限制**: 当前使用线程池,单个实例的并发能力有限。可以使用 Celery 等任务队列扩展。
+2. **并发限制**: 通过 `MAX_CONCURRENT_TASKS` 环境变量配置(默认5)。超过限制时,新任务请求将返回 HTTP 429 错误。可以使用 Celery 等任务队列进一步扩展。
 
 3. **内容存储**: 所有内容块都存储在数据库中,大规模使用时注意数据库大小。
 
