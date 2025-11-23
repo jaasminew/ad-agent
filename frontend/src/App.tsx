@@ -1,5 +1,6 @@
 import React from "react"
 import { createPortal } from "react-dom"
+import { Link } from "react-router-dom"
 import {
   AlertTriangle,
   BadgeCheck,
@@ -105,6 +106,9 @@ function App() {
     history,
     interruptWorkflow,
     restartWorkflowFromStage,
+    quotaBlocked,
+    quotaBlockedDetail,
+    dismissQuotaBlocked,
   } = useWorkflowStore()
 
   const [productName, setProductName] = React.useState("")
@@ -112,7 +116,7 @@ function App() {
   const [productImage, setProductImage] = React.useState<File | null>(null)
   const [mustHaveShotsText, setMustHaveShotsText] = React.useState("")
   const [numberOfShots, setNumberOfShots] = React.useState("")
-  const [videoFormats, setVideoFormats] = React.useState<string[]>(["16:9 Landscape"])
+  const [selectedVideoFormat, setSelectedVideoFormat] = React.useState("16:9 Landscape")
   const [lightboxOpen, setLightboxOpen] = React.useState(false)
   const [feedbackDraft, setFeedbackDraft] = React.useState<Record<string, string>>(
     {}
@@ -173,7 +177,7 @@ function App() {
       return
     }
 
-    if (!videoFormats.length) {
+    if (!selectedVideoFormat) {
       toast.error(copy.validation.missingVideoFormat.title, {
         description: copy.validation.missingVideoFormat.description,
       })
@@ -186,7 +190,7 @@ function App() {
       productImage,
       mustHaveShots: parsedShots,
       numberOfShots: parsedNumberOfShots,
-      videoFormats,
+      videoFormats: [selectedVideoFormat],
     }
 
     try {
@@ -205,8 +209,8 @@ function App() {
     numberOfShots,
     productImage,
     productName,
+    selectedVideoFormat,
     startWorkflow,
-    videoFormats,
   ])
 
   const handleInterruptRequest = React.useCallback(() => {
@@ -308,10 +312,8 @@ function App() {
     Math.max(baseProgress, isRunning && !hasActiveNodes ? 0.05 : 0)
   )
 
-  const toggleVideoFormat = React.useCallback((format: string) => {
-    setVideoFormats((prev) =>
-      prev.includes(format) ? prev.filter((item) => item !== format) : [...prev, format]
-    )
+  const handleSelectVideoFormat = React.useCallback((format: string) => {
+    setSelectedVideoFormat(format)
   }, [])
 
   React.useEffect(() => {
@@ -409,7 +411,7 @@ function App() {
                   productImage,
                   mustHaveShotsText,
                   numberOfShots,
-                  videoFormats,
+                  videoFormat: selectedVideoFormat,
                 }}
                 onChange={{
                   productName: setProductName,
@@ -418,7 +420,7 @@ function App() {
                   mustHaveShotsText: setMustHaveShotsText,
                   numberOfShots: setNumberOfShots,
                 }}
-                onToggleVideoFormat={toggleVideoFormat}
+                onSelectVideoFormat={handleSelectVideoFormat}
                 disabled={isRunning}
                 onGenerate={handleGenerate}
                 onInterrupt={handleInterruptRequest}
@@ -544,6 +546,37 @@ function App() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog
+        open={quotaBlocked}
+        onOpenChange={(open: boolean) => {
+          if (!open) {
+            dismissQuotaBlocked()
+          }
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{copy.quotaModal.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {copy.quotaModal.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {quotaBlockedDetail ? (
+            <div className="rounded-xl border border-dashed border-muted bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
+                {copy.quotaModal.detailLabel}
+              </p>
+              <p>{quotaBlockedDetail}</p>
+            </div>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={dismissQuotaBlocked}>
+              {copy.quotaModal.action}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Toaster theme={theme} />
       {lightboxOpen && finalResult
         ? createPortal(
@@ -567,7 +600,7 @@ interface InputPanelProps {
     productImage: File | null
     mustHaveShotsText: string
     numberOfShots: string
-    videoFormats: string[]
+    videoFormat: string
   }
   onChange: {
     productName: (value: string) => void
@@ -576,7 +609,7 @@ interface InputPanelProps {
     mustHaveShotsText: (value: string) => void
     numberOfShots: (value: string) => void
   }
-  onToggleVideoFormat: (format: string) => void
+  onSelectVideoFormat: (format: string) => void
   disabled: boolean
   onGenerate: () => void
   onInterrupt: () => void
@@ -588,7 +621,7 @@ function InputPanel({
   copy,
   formState,
   onChange,
-  onToggleVideoFormat,
+  onSelectVideoFormat,
   disabled,
   onGenerate,
   onInterrupt,
@@ -682,12 +715,12 @@ function InputPanel({
             <FieldLabel text={inputCopy.fields.videoFormat.label} required />
             <div
               className="flex flex-wrap gap-2"
-              role="group"
+              role="radiogroup"
               aria-label={inputCopy.fields.videoFormat.label}
               aria-required="true"
             >
               {inputCopy.videoFormatOptions.map((format) => {
-                const isSelected = formState.videoFormats.includes(format)
+                const isSelected = formState.videoFormat === format
                 return (
                   <Button
                     key={format}
@@ -695,7 +728,9 @@ function InputPanel({
                     size="sm"
                     variant={isSelected ? "default" : "outline"}
                     className="rounded-full"
-                    onClick={() => onToggleVideoFormat(format)}
+                    onClick={() => onSelectVideoFormat(format)}
+                    role="radio"
+                    aria-checked={isSelected}
                     disabled={disabled}
                   >
                     {format}
@@ -1308,6 +1343,16 @@ function FinalOutputPanel({
               <div className="mt-2 text-right text-xs font-medium text-muted-foreground">
                 {progressPercent}%
               </div>
+              <Link
+                to="/gallery"
+                className="mt-3 inline-flex w-fit items-center text-xs font-semibold text-accent hover:text-accent/80"
+                aria-label={finalCopy.galleryLink.ariaLabel}
+              >
+                {finalCopy.galleryLink.text}
+                <span aria-hidden="true" className="ml-1 text-sm">
+                  &gt;
+                </span>
+              </Link>
             </CardContent>
           </Card>
           {!result ? (

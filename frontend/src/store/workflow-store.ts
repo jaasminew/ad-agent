@@ -97,9 +97,12 @@ interface WorkflowState {
   history: WorkflowResult[];
   currentForm?: WorkflowFormPayload;
   currentTaskId?: string;
+  quotaBlocked: boolean;
+  quotaBlockedDetail?: string;
   startWorkflow: (payload: WorkflowFormPayload) => Promise<number>;
   restartWorkflowFromStage: (stage: api.WorkflowStage) => Promise<void>;
   interruptWorkflow: () => Promise<void>;
+  dismissQuotaBlocked: () => void;
   setNodeStatus: (id: string, status: NodeStatus) => void;
   appendNodeTranscript: (id: string, entry: TranscriptEntry) => void;
   overwriteNodeTranscript: (id: string, entries: TranscriptEntry[]) => void;
@@ -161,6 +164,8 @@ const nodeDisplayNames = baseNodes.reduce<Record<string, string>>(
 const MAX_ALERT_TITLE_LENGTH = 80;
 const FALLBACK_ERROR_MESSAGE = "Workflow failed mid-run";
 const UNKNOWN_INTERRUPTION_MESSAGE = "Workflow paused unexpectedly";
+const DEFAULT_CONCURRENT_LIMIT_MESSAGE =
+  "Only one workflow can run at a time. Please try again shortly.";
 
 const formatAlertTitle = (text: string): string => {
   if (!text) return "Workflow stopped";
@@ -413,6 +418,23 @@ const removeChecklistBlocksFromEntry = (
 let streamAbortController: AbortController | null = null;
 
 export const useWorkflowStore = create<WorkflowState>((set, get) => {
+  const showQuotaBlockedModal = (detail?: string) => {
+    const trimmed = detail?.trim();
+    set({
+      quotaBlocked: true,
+      quotaBlockedDetail:
+        trimmed && trimmed.length > 0
+          ? trimmed
+          : DEFAULT_CONCURRENT_LIMIT_MESSAGE,
+    });
+  };
+
+  const dismissQuotaBlocked = () =>
+    set({
+      quotaBlocked: false,
+      quotaBlockedDetail: undefined,
+    });
+
   const markRunInterrupted = (details?: InterruptionDetails) => {
     const resolvedDetails =
       details ??
@@ -425,7 +447,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
       isRunning: false,
       interrupted: true,
       interruptionDetails: resolvedDetails,
-    });
+      });
   };
 
   return {
@@ -438,6 +460,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
     currentForm: undefined,
     currentTaskId: undefined,
     finalResult: undefined,
+    quotaBlocked: false,
+    quotaBlockedDetail: undefined,
+    dismissQuotaBlocked,
 
     startWorkflow: async (payload) => {
       const nextRun = get().runVersion + 1;
@@ -593,6 +618,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
               "Server is at maximum concurrent task limit. Please try again later."
             ),
           );
+          showQuotaBlockedModal(extractErrorMessage(error));
         } else {
           markRunInterrupted(
             buildDetailsFromError("api_error", error, "Failed to start workflow"),
@@ -754,6 +780,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
               "Server is at maximum concurrent task limit. Please try again later."
             ),
           );
+          showQuotaBlockedModal(extractErrorMessage(error));
         } else {
           markRunInterrupted(
             buildDetailsFromError(
