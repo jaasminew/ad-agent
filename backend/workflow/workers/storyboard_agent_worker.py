@@ -286,8 +286,18 @@ def _process_episode_with_streaming(
             self.task_manager = task_manager
             self.task_id = task_id
         
+        def _check_cancellation(self):
+            """Check if task is cancelled"""
+            if self.task_manager and self.task_id and self.task_manager.is_cancelled(self.task_id):
+                logger.info(f"[Task {self.task_id}] Task cancelled by user during agent execution")
+                from service.workflow_executor import TaskCancelledException
+                raise TaskCancelledException(f"Task {self.task_id} cancelled")
+        
         def on_agent_action(self, action, **kwargs):
             """Called when agent takes an action."""
+            # Check for cancellation before action
+            self._check_cancellation()
+            
             tool_name = action.tool
             
             # Extract and display Thought from action log
@@ -436,6 +446,10 @@ def _process_episode_with_streaming(
             )
             
         except Exception as e:
+            # If it's a cancellation exception, re-raise it
+            if e.__class__.__name__ == "TaskCancelledException":
+                raise
+
             logger.error(f"❌ Failed to process beat {beat.beat}: {e}")
             # Create a failed beat result
             from storyboard_gen_agent.models import BeatResult
