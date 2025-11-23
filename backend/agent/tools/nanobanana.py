@@ -132,7 +132,9 @@ class NanobananaClient:
 
             generation_config = types.GenerateContentConfig(
                 response_modalities=["image"],
-                image_generation_config=image_config
+                image_config=types.ImageConfig(
+                    aspect_ratio=aspect_ratio
+                )
             )
             
             response = self.client.models.generate_content(
