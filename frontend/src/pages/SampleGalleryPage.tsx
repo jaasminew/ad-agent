@@ -1,20 +1,58 @@
+import React from "react"
 import { Link } from "react-router-dom"
 
+import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { translations, type Language } from "@/locales"
+
+const LANGUAGE_STORAGE_KEY = "language"
+
+const getStoredLanguage = (): Language => {
+  if (typeof window === "undefined") {
+    return "en"
+  }
+  const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY)
+  return stored === "zh" ? "zh" : "en"
+}
+
 export default function SampleGalleryPage() {
+  const [language] = React.useState<Language>(getStoredLanguage)
+  const copy = translations[language]?.gallery ?? translations.en.gallery
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background px-6 py-16 text-center text-foreground">
-      <div className="max-w-2xl space-y-6">
-        <p className="text-sm uppercase tracking-widest text-muted-foreground">Coming Soon</p>
-        <h1 className="text-3xl font-semibold">Generated Video Gallery</h1>
-        <p className="text-base text-muted-foreground">
-          We&apos;re preparing a curated set of sample videos. Check back soon to explore what the agent can create.
-        </p>
-        <Link
-          to="/"
-          className="inline-flex items-center justify-center rounded-full border border-foreground/20 px-4 py-2 text-sm font-semibold text-accent hover:border-accent hover:text-accent"
-        >
-          ← Back to workspace
-        </Link>
+    <main className="min-h-screen bg-background px-6 py-16 text-foreground">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-12">
+        <header className="space-y-4 text-center">
+          <h1 className="text-3xl font-semibold">{copy.title}</h1>
+          <p className="text-base text-muted-foreground">{copy.subtitle}</p>
+        </header>
+
+        <section className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          {copy.samples.map((sample) => (
+            <Card key={sample.src} className="overflow-hidden border-foreground/10 shadow-sm">
+              <CardContent className="p-0">
+                <video
+                  src={sample.src}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="h-64 w-full bg-black object-cover"
+                />
+              </CardContent>
+              <CardFooter className="border-t border-border/60 px-4 py-3">
+                <p className="text-sm font-semibold">{sample.title}</p>
+              </CardFooter>
+            </Card>
+          ))}
+        </section>
+
+        <div className="text-center">
+          <Link
+            to="/"
+            className="inline-flex items-center justify-center rounded-full border border-foreground/20 px-4 py-2 text-sm font-semibold text-accent hover:border-accent hover:text-accent"
+          >
+            {copy.backButton}
+          </Link>
+        </div>
       </div>
     </main>
   )

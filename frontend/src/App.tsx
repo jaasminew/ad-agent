@@ -69,6 +69,7 @@ import { toast } from "sonner"
 import { LandingPage } from "./landing/LandingPage"
 
 const LANGUAGE_STORAGE_KEY = "language"
+const HAS_STARTED_STORAGE_KEY = "hasStarted"
 const INPUT_PANEL_FIELD_CLASS = "input-panel-field"
 
 const shotListFromText = (value: string) =>
@@ -138,7 +139,10 @@ function App() {
     return "en"
   })
 
-  const [hasStarted, setHasStarted] = React.useState(false)
+  const [hasStarted, setHasStarted] = React.useState<boolean>(() => {
+    if (typeof window === "undefined") return false
+    return window.localStorage.getItem(HAS_STARTED_STORAGE_KEY) === "true"
+  })
 
   const copy = translations[language]
 
@@ -353,8 +357,15 @@ function App() {
     setLanguage((prev) => (prev === "en" ? "zh" : "en"))
   }, [])
 
+  const handleEnterWorkspace = React.useCallback(() => {
+    setHasStarted(true)
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(HAS_STARTED_STORAGE_KEY, "true")
+    }
+  }, [])
+
   if (!hasStarted) {
-    return <LandingPage onEnter={() => setHasStarted(true)} />
+    return <LandingPage onEnter={handleEnterWorkspace} />
   }
 
   return (
@@ -987,19 +998,6 @@ function NodeCard({
           <p className="text-xs text-muted-foreground">{summaryText}</p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Restart button - only show if node is done and workflow is not running */}
-          {node.status === "done" && !isWorkflowRunning && onRestart && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => onRestart(node.id)}
-              aria-label={copy.restartButtonAria || "Restart from this stage"}
-              title={copy.restartButtonAria || "Restart from this stage"}
-            >
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-          )}
           <Badge
             variant={statusBadge.variant}
             className="flex items-center justify-center gap-1"
@@ -1015,6 +1013,19 @@ function NodeCard({
             )}
           </Badge>
           <div className="flex items-center gap-1 text-muted-foreground">
+            {/* Restart button - only show if node is done and workflow is not running */}
+            {node.status === "done" && !isWorkflowRunning && onRestart && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => onRestart(node.id)}
+                aria-label={copy.restartButtonAria || "Restart from this stage"}
+                title={copy.restartButtonAria || "Restart from this stage"}
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant={node.feedback === "up" ? "default" : "ghost"}
               size="icon"
@@ -1345,7 +1356,7 @@ function FinalOutputPanel({
               </div>
               <Link
                 to="/gallery"
-                className="mt-3 inline-flex w-fit items-center text-xs font-semibold text-accent hover:text-accent/80"
+                className="mt-3 inline-flex w-fit items-center text-sm font-semibold text-accent hover:text-accent/80"
                 aria-label={finalCopy.galleryLink.ariaLabel}
               >
                 {finalCopy.galleryLink.text}
@@ -1474,20 +1485,22 @@ interface LightboxProps {
 function Lightbox({ copy, videoUrl, onClose }: LightboxProps) {
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-6">
-      <div className="w-full max-w-4xl rounded-2xl bg-black shadow-2xl ring-2 ring-white/10">
+      <div className="w-full max-w-5xl rounded-2xl bg-black shadow-2xl ring-2 ring-white/10">
         <div className="flex justify-end p-3">
           <Button variant="ghost" className="text-white" onClick={onClose}>
             {copy.close}
           </Button>
         </div>
-        <AspectRatio ratio={16 / 9}>
+        <div className="flex items-center justify-center px-6 pb-6">
           <video
             src={videoUrl}
             controls
             autoPlay
-            className="h-full w-full rounded-b-2xl object-cover"
+            playsInline
+            preload="metadata"
+            className="max-h-[75vh] w-auto max-w-full rounded-2xl bg-black object-contain"
           />
-        </AspectRatio>
+        </div>
       </div>
     </div>
   )
