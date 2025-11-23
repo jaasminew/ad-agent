@@ -303,8 +303,14 @@ BEAT_PROCESSING_PROMPT = """Process beat {beat_number} from the script:
 - You must process only Beat {beat_number}. After delivering the summary + Final Answer, stop and await the next beat input.
 
 ### Checklist Planning
-Before calling any tool, draft a custom checklist for this beat and print it exactly once. Keep it updated throughout the beat. Follow these rules:
-- Checklist (print this before any tool call and refresh it after each status change):
+Before calling any tool, draft a custom checklist for this beat. Keep it updated throughout the beat. Follow these rules:
+- **Format Requirement**: You MUST enclose the checklist in a code block starting with `Checklist:`.
+  Example:
+  ```text
+  Checklist:
+  - [ ] slug_name - Description of the task
+  - [ ] another_task - Description
+  ```
 - Always include the slug (e.g., `continuity_recall`) so controllers can parse progress.
 - Format each row as `- [ ] slug - description` and switch to `[x]` only after the task is DONE. If you skip something, use `[x] slug - description (skipped – reason)`.
 - Invent concise snake_case slugs for every step you intend to perform in order (reference search, palette extraction, generations, QA, etc.).

@@ -272,7 +272,7 @@ const generateTranscriptId = () => {
 };
 
 const CHECKLIST_CODE_BLOCK_REGEX =
-  /```[\t ]*\n?[\t ]*Checklist:\s*\n[\s\S]*?```/gi;
+  /```(?:[^\n]*\n)?\s*Checklist:?\s*\n[\s\S]*?```/gi;
 
 const stripChecklistCodeBlocks = (text: string): string => {
   if (!text) return text;

@@ -69,7 +69,8 @@ def parse_thought_into_blocks(thought_text: str) -> List[ContentBlock]:
     blocks: List[ContentBlock] = []
     
     # Pattern to find checklist blocks with their positions
-    checklist_pattern = r'```\s*\n?\s*Checklist:\s*\n(.*?)\n```'
+    # Matches code blocks that start with "Checklist:" (case insensitive), optionally with language tag
+    checklist_pattern = r'```(?:[^\n]*\n)?\s*Checklist:?\s*\n(.*?)\n```'
     
     last_pos = 0
     
@@ -111,7 +112,11 @@ def _parse_checklist_block(checklist_content: str) -> Optional[ChecklistBlock]:
     """
     # Pattern: - [ ] slug - description
     # or: - [x] slug - description
-    item_pattern = r'[-*]\s*\[([ x])\]\s+([a-z_0-9]+)\s*[-–—]\s*(.+?)(?:\(.*?\))?$'
+    # Supports:
+    # - Checkbox: [ ], [x], [X]
+    # - Slug: alphanumeric, underscore, hyphen
+    # - Separator: -, –, —, :
+    item_pattern = r'[-*]\s*\[([ xX])\]\s+([a-zA-Z0-9_-]+)\s*[-–—:]\s*(.+?)(?:\(.*?\))?$'
     
     items = []
     for line in checklist_content.split('\n'):
