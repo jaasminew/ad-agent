@@ -469,7 +469,7 @@ Thought: {{agent_scratchpad}}
     # Internal helpers for memory + progress management
     # ------------------------------------------------------------------ #
 
-    ESSENTIAL_MEMORY_PREFIXES = ("episode_palette:", "global_product_url:")
+    ESSENTIAL_MEMORY_PREFIXES = ("episode_palette:", "global_product_url:", "reference_style_tags:")
 
     def _clear_agent_memory(self):
         """Completely clear shared tool memory."""

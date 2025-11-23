@@ -1,7 +1,6 @@
 """Prompt templates for the Storyboard Generation Agent."""
 
 import json
-import os
 from pathlib import Path
 
 
@@ -158,16 +157,25 @@ The checklist simply proves that outcomes have been met.
 
 ## Reference & Palette Rules
 
-- You may use **any available image search strategy**
-  - (`list_tags`, `search_images_by_tags`, etc.)
-- A reference image **must appear FIRST** in every MidJourney prompt
+- **Image Search Strategy**:
+  1. Call `list_tags` to see available tags.
+  2. Pick tags that match the current beat's description.
+  3. **CRITICAL FOR CONSISTENCY**:
+     - **Beat 1**: Select tags that best fit the scene. After selecting a reference image, you MUST store its key style tags in memory:
+       `remember("reference_style_tags: <color_tone_tag>, <location_tag>")` (e.g., "yellow warm tone, outdoor forest")
+     - **Beat 2 and all subsequent beats**: You MUST read `reference_style_tags` from memory.
+       - When searching, try to include these tags if they fit the new context.
+       - **Selection Criteria**: Look at the candidate images returned by `search_images_by_tags`. You MUST prioritize images that share the same **color/tone** and **location/environment** tags as the first beat, provided they still match the current script action.
+       - **Example**: If Beat 1 was "yellow warm tone, outdoor forest", and for Beat 2 you see two good candidates:
+         - Image A tags: "blue cool tone, indoor office" (Reject)
+         - Image B tags: "yellow warm tone, outdoor park" (Select this one, as it matches the style)
+     - **Goal**: Ensure all beats share the same visual identity (lighting, tone, environment).
+
+- A reference image **must appear FIRST** in every MidJourney prompt.
 - If `episode_palette` does not exist:
-  - Extract one using the reference image
-  - Store it as:
-
-remember("episode_palette: #hex1, #hex2, #hex3, #hex4")
-
-- All subsequent beats **reuse this palette**
+  - Extract one using the reference image.
+  - Store it as: `remember("episode_palette: #hex1, #hex2, #hex3, #hex4")`
+- All subsequent beats **reuse this palette**.
 
 ---
 
@@ -295,8 +303,14 @@ BEAT_PROCESSING_PROMPT = """Process beat {beat_number} from the script:
 - You must process only Beat {beat_number}. After delivering the summary + Final Answer, stop and await the next beat input.
 
 ### Checklist Planning
-Before calling any tool, draft a custom checklist for this beat and print it exactly once. Keep it updated throughout the beat. Follow these rules:
-- Checklist (print this before any tool call and refresh it after each status change):
+Before calling any tool, draft a custom checklist for this beat. Keep it updated throughout the beat. Follow these rules:
+- **Format Requirement**: You MUST enclose the checklist in a code block starting with `Checklist:`.
+  Example:
+  ```text
+  Checklist:
+  - [ ] slug_name - Description of the task
+  - [ ] another_task - Description
+  ```
 - Always include the slug (e.g., `continuity_recall`) so controllers can parse progress.
 - Format each row as `- [ ] slug - description` and switch to `[x]` only after the task is DONE. If you skip something, use `[x] slug - description (skipped – reason)`.
 - Invent concise snake_case slugs for every step you intend to perform in order (reference search, palette extraction, generations, QA, etc.).
