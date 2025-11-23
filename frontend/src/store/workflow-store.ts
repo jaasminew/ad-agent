@@ -443,11 +443,14 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         "",
         UNKNOWN_INTERRUPTION_MESSAGE,
       );
-    set({
+    set((state) => ({
       isRunning: false,
       interrupted: true,
       interruptionDetails: resolvedDetails,
-      });
+      nodes: state.nodes.map((node) =>
+        node.status === "running" ? { ...node, status: "error" } : node,
+      ),
+    }));
   };
 
   return {
@@ -672,102 +675,105 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         await api.restartTask(currentTaskId, { stage });
         streamAbortController = new AbortController();
 
-        try {
-          for await (const event of api.streamTaskUpdates(
-            currentTaskId,
-            streamAbortController.signal,
-          )) {
-            if ("status" in event) {
-              const completeEvent = event as api.SSECompleteEvent;
-              if (completeEvent.status === "completed") {
-                const taskData = await api.queryTask(currentTaskId);
-                const finalVideoUrl =
-                  taskData.final_video_with_bgm_url ||
-                  taskData.final_video_url ||
-                  "";
+        // Start streaming in background
+        (async () => {
+          try {
+            for await (const event of api.streamTaskUpdates(
+              currentTaskId,
+              streamAbortController!.signal,
+            )) {
+              if ("status" in event) {
+                const completeEvent = event as api.SSECompleteEvent;
+                if (completeEvent.status === "completed") {
+                  const taskData = await api.queryTask(currentTaskId);
+                  const finalVideoUrl =
+                    taskData.final_video_with_bgm_url ||
+                    taskData.final_video_url ||
+                    "";
 
-                const result: WorkflowResult = {
-                  id: currentTaskId,
-                  title: taskData.product_name,
-                  script: taskData.final_script || "",
-                  videoUrl: finalVideoUrl,
-                  createdAt: taskData.created_at,
-                };
-                get().completeWorkflow(result);
-              } else if (completeEvent.status === "failed") {
-                const runningNode = get().nodes.find(
-                  (node) => node.status === "running",
-                );
-                if (runningNode) {
-                  get().setNodeStatus(runningNode.id, "error");
-                }
-                const failureDetails = await fetchFailureDetails(currentTaskId);
-                markRunInterrupted(failureDetails);
-              } else if (completeEvent.status === "cancelled") {
-              markRunInterrupted(
-                buildDetailsFromMessage(
-                  "user_cancelled",
-                  "Workflow cancelled",
-                  "Workflow cancelled",
-                ),
-              );
-              }
-              break;
-            } else {
-              const contentEvent = event as api.SSEContentEvent;
-              const { data } = contentEvent;
-
-              if (contentEvent.type === "llm_output") {
-                const llmData = data as api.LLMOutputData;
-                const nodeId = stageToNodeId[llmData.stage];
-                if (nodeId) {
-                  get().setNodeStatus(nodeId, "running");
-                  get().appendNodeTranscript(
-                    nodeId,
-                    buildTranscriptEntry(llmData.message, llmData.output),
+                  const result: WorkflowResult = {
+                    id: currentTaskId,
+                    title: taskData.product_name,
+                    script: taskData.final_script || "",
+                    videoUrl: finalVideoUrl,
+                    createdAt: taskData.created_at,
+                  };
+                  get().completeWorkflow(result);
+                } else if (completeEvent.status === "failed") {
+                  const runningNode = get().nodes.find(
+                    (node) => node.status === "running",
                   );
-                  if (llmData.reasoning) {
-                    get().appendNodeTranscript(
-                      nodeId,
-                      buildTranscriptEntry(`Reasoning: ${llmData.reasoning}`),
-                    );
+                  if (runningNode) {
+                    get().setNodeStatus(runningNode.id, "error");
                   }
-                }
-              } else if (contentEvent.type === "tool_calling") {
-                const toolData = data as api.ToolCallingData;
-                const nodeId = stageToNodeId[toolData.stage];
-                if (nodeId) {
-                  get().appendNodeTranscript(
-                    nodeId,
-                    buildTranscriptEntry(
-                      `🔧 ${toolData.tool_name}: ${toolData.success ? "✓" : "✗"}`,
+                  const failureDetails = await fetchFailureDetails(currentTaskId);
+                  markRunInterrupted(failureDetails);
+                } else if (completeEvent.status === "cancelled") {
+                  markRunInterrupted(
+                    buildDetailsFromMessage(
+                      "user_cancelled",
+                      "Workflow cancelled",
+                      "Workflow cancelled",
                     ),
                   );
-                  if (toolData.error) {
+                }
+                break;
+              } else {
+                const contentEvent = event as api.SSEContentEvent;
+                const { data } = contentEvent;
+
+                if (contentEvent.type === "llm_output") {
+                  const llmData = data as api.LLMOutputData;
+                  const nodeId = stageToNodeId[llmData.stage];
+                  if (nodeId) {
+                    get().setNodeStatus(nodeId, "running");
                     get().appendNodeTranscript(
                       nodeId,
-                      buildTranscriptEntry(`Error: ${toolData.error}`),
+                      buildTranscriptEntry(llmData.message, llmData.output),
                     );
+                    if (llmData.reasoning) {
+                      get().appendNodeTranscript(
+                        nodeId,
+                        buildTranscriptEntry(`Reasoning: ${llmData.reasoning}`),
+                      );
+                    }
                   }
-                  if (!toolData.success) {
-                    get().setNodeStatus(nodeId, "error");
+                } else if (contentEvent.type === "tool_calling") {
+                  const toolData = data as api.ToolCallingData;
+                  const nodeId = stageToNodeId[toolData.stage];
+                  if (nodeId) {
+                    get().appendNodeTranscript(
+                      nodeId,
+                      buildTranscriptEntry(
+                        `🔧 ${toolData.tool_name}: ${toolData.success ? "✓" : "✗"}`,
+                      ),
+                    );
+                    if (toolData.error) {
+                      get().appendNodeTranscript(
+                        nodeId,
+                        buildTranscriptEntry(`Error: ${toolData.error}`),
+                      );
+                    }
+                    if (!toolData.success) {
+                      get().setNodeStatus(nodeId, "error");
+                    }
                   }
                 }
               }
             }
+          } catch (error) {
+            if (!(error instanceof Error && error.name === "AbortError")) {
+              console.error("Streaming error:", error);
+              markRunInterrupted(
+                buildDetailsFromError(
+                  "network_error",
+                  error,
+                  "Connection to the agent dropped",
+                ),
+              );
+            }
           }
-        } catch (error) {
-          if (!(error instanceof Error && error.name === "AbortError")) {
-            console.error("Streaming error:", error);
-            markRunInterrupted(
-              buildDetailsFromError(
-                "network_error",
-                error,
-                "Connection to the agent dropped",
-              ),
-            );
-          }
-        }
+        })();
       } catch (error) {
         console.error("Failed to restart workflow:", error);
         

@@ -998,6 +998,19 @@ function NodeCard({
           <p className="text-xs text-muted-foreground">{summaryText}</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Restart button - only show if node is done or error and workflow is not running */}
+          {(node.status === "done" || node.status === "error") && !isWorkflowRunning && onRestart && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => onRestart(node.id)}
+              aria-label={copy.restartButtonAria || "Restart from this stage"}
+              title={copy.restartButtonAria || "Restart from this stage"}
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          )}
           <Badge
             variant={statusBadge.variant}
             className="flex items-center justify-center gap-1"
