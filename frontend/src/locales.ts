@@ -20,6 +20,13 @@ export const translations = {
       toChinese: "Switch to Chinese",
       toEnglish: "Switch to English",
     },
+    quotaModal: {
+      title: "Ada is busy right now",
+      description:
+        "To keep everything responsive, we only run one workflow at a time. Someone else is currently exploring Ada—please check back in a moment.",
+      detailLabel: "Server message",
+      action: "Got it, I'll try later",
+    },
     inputPanel: {
       title: "User Input",
       description: "Provide the prompt and context for the agent workflow.",
@@ -79,7 +86,7 @@ export const translations = {
       },
       missingVideoFormat: {
         title: "Select a video format",
-        description: "Pick one or more aspect ratios for the final delivery.",
+        description: "Pick an aspect ratio for the final delivery.",
       },
     },
     toasts: {
@@ -216,6 +223,10 @@ export const translations = {
         expand: "Expand video",
         collapse: "Collapse video",
       },
+      galleryLink: {
+        text: "Waiting too long? Go check our sample video gallery",
+        ariaLabel: "View sample video gallery",
+      },
     },
     stackedFallback: {
       desktopTitle: "Desktop experience",
@@ -279,6 +290,13 @@ export const translations = {
       toChinese: "切换为中文",
       toEnglish: "切换为英文",
     },
+    quotaModal: {
+      title: "Ada 正在忙碌",
+      description:
+        "为确保体验稳定，我们一次只允许一位用户运行该智能体。当前有人正在使用，请稍后再来。",
+      detailLabel: "系统提示",
+      action: "好的，稍后再试",
+    },
     inputPanel: {
       title: "用户输入",
       description: "为智能体工作流提供提示与上下文。",
@@ -338,7 +356,7 @@ export const translations = {
       },
       missingVideoFormat: {
         title: "请选择视频比例",
-        description: "至少勾选一种交付比例。",
+        description: "请选择一种交付比例。",
       },
     },
     toasts: {
@@ -472,6 +490,10 @@ export const translations = {
       videoButton: {
         expand: "放大视频",
         collapse: "收起视频",
+      },
+      galleryLink: {
+        text: "等太久了吗？去看看我们的示例视频库",
+        ariaLabel: "查看示例视频库",
       },
     },
     stackedFallback: {
