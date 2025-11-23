@@ -119,7 +119,7 @@ class NanobananaClient:
             # Build generation config with aspect ratio
             generation_config = types.GenerateContentConfig(
                 response_modalities=["image"],
-                image_generation_config=types.ImageGenerationConfig(
+                image_config=types.ImageConfig(
                     aspect_ratio=aspect_ratio
                 )
             )
