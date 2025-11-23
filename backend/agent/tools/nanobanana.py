@@ -9,6 +9,7 @@ from typing import List, Optional, Union
 from urllib.parse import urlparse
 
 from google import genai
+from google.genai import types
 from PIL import Image
 from langchain.tools import tool
 from pydantic import BaseModel, Field, model_validator
@@ -52,7 +53,7 @@ class NanobananaClient:
         self._cos_available = None
 
     def generate_image(
-        self, prompt: str, input_image_paths: Union[str, List[str]], upload_to_cos: bool = True
+        self, prompt: str, input_image_paths: Union[str, List[str]], upload_to_cos: bool = True, aspect_ratio: str = "16:9"
     ) -> dict:
         """
         Generate image based on text prompt and input image(s).
@@ -61,6 +62,7 @@ class NanobananaClient:
             prompt: Text description for image generation
             input_image_paths: Path or URL to the input reference image, or a list of paths/URLs
             upload_to_cos: Whether to upload the generated image to COS
+            aspect_ratio: Aspect ratio of the generated images. Supported values are "1:1", "3:4", "4:3", "9:16", and "16:9"
 
         Returns:
             Dictionary containing:
@@ -70,6 +72,13 @@ class NanobananaClient:
             - error: str (if failed)
         """
         try:
+            # Validate aspect ratio
+            valid_aspect_ratios = ["1:1", "3:4", "4:3", "9:16", "16:9"]
+            if aspect_ratio not in valid_aspect_ratios:
+                # Fallback to 16:9 if invalid, or raise error? Let's log warning and fallback to 16:9 to be safe
+                logger.warning(f"Invalid aspect ratio: {aspect_ratio}. Fallback to 16:9. Supported values are: {', '.join(valid_aspect_ratios)}")
+                aspect_ratio = "16:9"
+
             # Normalize input to list
             if isinstance(input_image_paths, str):
                 input_image_paths = [input_image_paths]
@@ -102,14 +111,34 @@ class NanobananaClient:
                 images.append(image)
 
             # Generate image
-            logger.info(f"Generating image with prompt: {prompt} and {len(images)} input image(s)")
+            logger.info(f"Generating image with prompt: {prompt} and {len(images)} input image(s), aspect ratio: {aspect_ratio}")
             
             # Build contents list: [image1, image2, ..., prompt]
             contents = images + [prompt]
             
+            # Build generation config with aspect ratio
+            # Note: Google GenAI SDK structure varies by version.
+            # We use dependency inspection to find the correct class.
+            # Based on inspection, `ImageConfig` might be the correct class name if `ImageGenerationConfig` is missing.
+            
+            image_config = None
+            if hasattr(types, "ImageGenerationConfig"):
+                 image_config = types.ImageGenerationConfig(aspect_ratio=aspect_ratio)
+            elif hasattr(types, "ImageConfig"):
+                 image_config = types.ImageConfig(aspect_ratio=aspect_ratio)
+            else:
+                 # Fallback to dictionary which often works with Pydantic models
+                 image_config = {"aspect_ratio": aspect_ratio}
+
+            generation_config = types.GenerateContentConfig(
+                response_modalities=["image"],
+                image_generation_config=image_config
+            )
+            
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=contents,
+                config=generation_config,
             )
 
             # Extract generated image
@@ -225,6 +254,9 @@ def _payload_with_validation_error(
 
     if "upload_to_cos" not in safe_payload:
         safe_payload["upload_to_cos"] = True
+    
+    if "aspect_ratio" not in safe_payload:
+        safe_payload["aspect_ratio"] = "16:9"
 
     safe_payload["validation_error"] = message
     return safe_payload
@@ -240,6 +272,10 @@ class NanobananaToolInput(BaseModel):
     )
     upload_to_cos: bool = Field(
         default=True, description="Whether to upload the generated image to COS."
+    )
+    aspect_ratio: str = Field(
+        default="16:9",
+        description="Aspect ratio of the generated images. Supported values are '1:1', '3:4', '4:3', '9:16', and '16:9'.",
     )
     validation_error: Optional[str] = Field(
         default=None,
@@ -295,6 +331,7 @@ class NanobananaToolInput(BaseModel):
                             "nanobanana_generate guard detected double-encoded Action Input; auto-extracting fields."
                         )
                         payload.setdefault("upload_to_cos", nested.get("upload_to_cos", True))
+                        payload.setdefault("aspect_ratio", nested.get("aspect_ratio", "16:9"))
                         payload["input_image_paths"] = nested.get("input_image_paths")
                         payload["prompt"] = nested.get("prompt", prompt_value)
 
@@ -410,6 +447,7 @@ def nanobanana_generate(
     prompt: str,
     input_image_paths: Optional[Union[str, List[str]]] = None,
     upload_to_cos: bool = True,
+    aspect_ratio: str = "16:9",
     validation_error: Optional[str] = None,
 ) -> str:
     """Generate an image based on text prompt and reference image(s) using Google Gemini.
@@ -424,6 +462,7 @@ def nanobanana_generate(
         prompt: Text description for the image generation. Be creative and detailed!
         input_image_paths: Path or URL to the input reference image, or a list of paths/URLs for multiple images
         upload_to_cos: Whether to upload the generated image to Tencent Cloud COS (default: True)
+        aspect_ratio: Aspect ratio of the generated images. Supported values are "1:1", "3:4", "4:3", "9:16", and "16:9" (default: "16:9")
 
     Returns:
         The URL of the uploaded image (if COS is enabled) or the local file path.
@@ -446,6 +485,7 @@ def nanobanana_generate(
             prompt = recovered.get("prompt", prompt)
             input_image_paths = recovered.get("input_image_paths")
             upload_to_cos = recovered.get("upload_to_cos", upload_to_cos)
+            aspect_ratio = recovered.get("aspect_ratio", aspect_ratio)
 
     # Validate image paths before proceeding. This is defensive—under normal
     # circumstances the Pydantic args schema already guarantees a value, but
@@ -468,12 +508,12 @@ def nanobanana_generate(
     
     logger.info(
         f"🍌 [nanobanana_generate] Called - Prompt: '{prompt}', "
-        f"{image_info}, Upload: {upload_to_cos}"
+        f"{image_info}, Upload: {upload_to_cos}, Aspect Ratio: {aspect_ratio}"
     )
 
     try:
         client = get_nanobanana_client()
-        result = client.generate_image(prompt, input_image_paths, upload_to_cos)
+        result = client.generate_image(prompt, input_image_paths, upload_to_cos, aspect_ratio)
 
         if result["success"]:
             # Return COS URL if available, otherwise return local path
