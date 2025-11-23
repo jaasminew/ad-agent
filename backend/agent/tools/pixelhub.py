@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import requests
 from langchain.tools import tool
@@ -222,348 +222,6 @@ def _normalize_tags(tags_value: Any) -> List[str]:
     return []
 
 
-def _normalize_tag_text(text: str) -> str:
-    """Lowercase and strip punctuation so keyword lookups can be compared reliably."""
-    normalized = text.lower().replace("-", " ")
-    normalized = re.sub(r"[^a-z0-9\s]", " ", normalized)
-    return re.sub(r"\s+", " ", normalized).strip()
-
-
-COLOR_FAMILY_KEYWORDS: Dict[str, List[str]] = {
-    "blue": [
-        "blue",
-        "deep blue",
-        "navy",
-        "royal blue",
-        "midnight blue",
-        "cobalt",
-        "indigo",
-        "azure",
-        "cerulean",
-        "sky blue",
-        "baby blue",
-        "ice blue",
-        "sapphire",
-        "denim",
-        "ocean blue",
-        "prussian blue",
-        "teal",
-        "turquoise",
-        "cyan",
-        "aqua",
-        "aquamarine",
-    ],
-    "green": [
-        "green",
-        "forest green",
-        "emerald",
-        "olive",
-        "sage",
-        "mint",
-        "lime",
-        "chartreuse",
-        "seafoam",
-        "moss",
-        "jade",
-        "hunter green",
-    ],
-    "red": [
-        "red",
-        "crimson",
-        "scarlet",
-        "ruby",
-        "burgundy",
-        "maroon",
-        "wine",
-        "cherry",
-        "carmine",
-        "garnet",
-    ],
-    "orange": [
-        "orange",
-        "amber",
-        "tangerine",
-        "apricot",
-        "coral",
-        "copper",
-        "rust",
-        "vermillion",
-        "sunset orange",
-    ],
-    "yellow": [
-        "yellow",
-        "mustard",
-        "lemon",
-        "sunflower",
-        "goldenrod",
-        "citrine",
-        "dandelion",
-    ],
-    "purple": [
-        "purple",
-        "violet",
-        "lavender",
-        "plum",
-        "amethyst",
-        "mauve",
-        "lilac",
-    ],
-    "pink": [
-        "pink",
-        "rose",
-        "blush",
-        "fuchsia",
-        "magenta",
-        "salmon",
-        "bubblegum",
-        "hot pink",
-    ],
-    "brown": [
-        "brown",
-        "chocolate",
-        "coffee",
-        "mocha",
-        "taupe",
-        "sepia",
-        "umber",
-        "espresso",
-        "caramel",
-        "hazel",
-    ],
-    "black": [
-        "black",
-        "charcoal",
-        "jet",
-        "ebony",
-        "onyx",
-        "ink",
-    ],
-    "white": [
-        "white",
-        "ivory",
-        "cream",
-        "alabaster",
-        "snow",
-        "pearl",
-    ],
-    "gray": [
-        "gray",
-        "grey",
-        "slate",
-        "ash",
-        "graphite",
-        "pewter",
-        "smoke",
-    ],
-    "gold": [
-        "gold",
-        "golden",
-        "champagne",
-    ],
-    "silver": [
-        "silver",
-        "platinum",
-        "chrome",
-    ],
-    "beige": [
-        "beige",
-        "khaki",
-        "sand",
-        "tan",
-        "ecru",
-    ],
-}
-
-_COLOR_PHRASE_KEYWORDS: Dict[str, str] = {}
-_COLOR_WORD_KEYWORDS: Dict[str, str] = {}
-for family, keywords in COLOR_FAMILY_KEYWORDS.items():
-    for keyword in keywords:
-        normalized_keyword = _normalize_tag_text(keyword)
-        if not normalized_keyword:
-            continue
-        if " " in normalized_keyword:
-            _COLOR_PHRASE_KEYWORDS[normalized_keyword] = family
-        else:
-            _COLOR_WORD_KEYWORDS[normalized_keyword] = family
-
-
-def _detect_color_family_from_text(text: str) -> Optional[str]:
-    """Attempt to map a freeform tag into one of the coarse color families."""
-    normalized = _normalize_tag_text(text)
-    if not normalized:
-        return None
-
-    for phrase, family in _COLOR_PHRASE_KEYWORDS.items():
-        if phrase in normalized:
-            return family
-
-    for token in normalized.split():
-        if token in _COLOR_WORD_KEYWORDS:
-            return _COLOR_WORD_KEYWORDS[token]
-    return None
-
-
-def _extract_color_family_from_tags(tags: Any) -> Optional[str]:
-    """Inspect a list of tags and return the first recognizable color family."""
-    tag_list: List[str]
-    if isinstance(tags, list):
-        tag_list = [str(tag) for tag in tags]
-    elif isinstance(tags, str):
-        tag_list = [tags]
-    else:
-        return None
-
-    for tag in tag_list:
-        family = _detect_color_family_from_text(tag)
-        if family:
-            return family
-    return None
-
-
-def _tags_match_color_family(tags: Any, target_family: Optional[str]) -> bool:
-    """Check whether the provided tag collection matches the given color family."""
-    if not target_family:
-        return False
-
-    tag_list: List[str]
-    if isinstance(tags, list):
-        tag_list = [str(tag) for tag in tags]
-    elif isinstance(tags, str):
-        tag_list = [tags]
-    else:
-        return False
-
-    for tag in tag_list:
-        if _detect_color_family_from_text(tag) == target_family:
-            return True
-    return False
-
-
-LOCATION_KEYWORDS: Dict[str, List[str]] = {
-    "indoor": [
-        "indoor",
-        "indoors",
-        "inside",
-        "interior",
-        "studio",
-        "loft",
-        "apartment",
-        "office",
-        "workspace",
-        "kitchen",
-        "living room",
-        "bedroom",
-        "hallway",
-        "atrium",
-        "classroom",
-        "library",
-        "warehouse interior",
-    ],
-    "outdoor": [
-        "outdoor",
-        "outdoors",
-        "outside",
-        "exterior",
-        "street",
-        "park",
-        "garden",
-        "forest",
-        "beach",
-        "mountain",
-        "field",
-        "plaza",
-        "courtyard",
-        "rooftop",
-        "urban exterior",
-        "nature",
-        "seaside",
-        "desert",
-    ],
-}
-
-_LOCATION_KEYWORD_MAP: Dict[str, str] = {}
-for label, keywords in LOCATION_KEYWORDS.items():
-    for keyword in keywords:
-        normalized_keyword = _normalize_tag_text(keyword)
-        if normalized_keyword:
-            _LOCATION_KEYWORD_MAP[normalized_keyword] = label
-
-
-def _detect_location_label_from_text(text: str) -> Optional[str]:
-    normalized = _normalize_tag_text(text)
-    if not normalized:
-        return None
-    for keyword, label in _LOCATION_KEYWORD_MAP.items():
-        if keyword in normalized:
-            return label
-    return None
-
-
-def _extract_location_label_from_tags(tags: Any) -> Optional[str]:
-    tag_list: List[str]
-    if isinstance(tags, list):
-        tag_list = [str(tag) for tag in tags]
-    elif isinstance(tags, str):
-        tag_list = [tags]
-    else:
-        return None
-
-    for tag in tag_list:
-        label = _detect_location_label_from_text(tag)
-        if label:
-            return label
-    return None
-
-
-def _tags_match_location_label(tags: Any, target_label: Optional[str]) -> bool:
-    if not target_label:
-        return False
-
-    tag_list: List[str]
-    if isinstance(tags, list):
-        tag_list = [str(tag) for tag in tags]
-    elif isinstance(tags, str):
-        tag_list = [tags]
-    else:
-        return False
-
-    for tag in tag_list:
-        if _detect_location_label_from_text(tag) == target_label:
-            return True
-    return False
-
-
-def _apply_reference_filters(
-    sorted_results: List[Dict[str, Any]],
-    max_results: int = 2,
-) -> Tuple[List[Dict[str, Any]], Optional[str], Optional[str], Dict[str, int]]:
-    """
-    Keep the anchor result and only include additional candidates whose tags map to the
-    same color family and indoor/outdoor label. Returns the filtered list, detected
-    attributes, and discard statistics.
-    """
-    if not sorted_results or max_results <= 0:
-        return [], None, None, {"color_mismatch": 0, "location_mismatch": 0}
-
-    anchor = sorted_results[0]
-    reference_family = _extract_color_family_from_tags(anchor.get("tags"))
-    reference_location = _extract_location_label_from_tags(anchor.get("tags"))
-
-    filtered: List[Dict[str, Any]] = [anchor]
-    discarded_stats = {"color_mismatch": 0, "location_mismatch": 0}
-    for candidate in sorted_results[1:]:
-        if reference_family and not _tags_match_color_family(candidate.get("tags"), reference_family):
-            discarded_stats["color_mismatch"] += 1
-            continue
-        if reference_location and not _tags_match_location_label(candidate.get("tags"), reference_location):
-            discarded_stats["location_mismatch"] += 1
-            continue
-        filtered.append(candidate)
-        if len(filtered) == max_results:
-            break
-    return filtered, reference_family, reference_location, discarded_stats
-
-
 def _coerce_int(value: Any, field_name: str, tool_name: str) -> Any:
     if isinstance(value, int):
         return value
@@ -725,19 +383,17 @@ def list_tags(page: int = 1, limit: int = 1000) -> str:
 
 @tool("search_images_by_tags", args_schema=SearchImagesInput)
 def search_images_by_tags(tags: List[str], page: int = 1, limit: int = 20) -> str:
-    """Search images by tags using relevance ranking (OR logic). Returns the top matches
-    (max 2) sorted by matched tags and highlights the single best match explicitly. Additional
-    results are only accepted if they share the color/tone family of the top match.
+    """Search images by tags using relevance ranking (OR logic).
+    Returns a list of images sorted by the number of matched tags.
     IMPORTANT: Only use tags that exist in the system (call list_tags first).
 
     Args:
         tags: List of tags to search for. MUST use tags from list_tags result.
         page: Page number (default: 1)
-        limit: Number of results per page (default: 20, max: 100)
+        limit: Number of results per page (default: 20, max: 100).
 
     Returns:
-        A JSON string containing the highlighted top match plus up to two top-ranked
-        results with image URLs, descriptions, and matched tag counts.
+        A JSON string containing the list of results with image URLs, descriptions, and matched tag counts.
     """
     normalized_tags = _coerce_tags_argument(tags)
     normalized_page = _coerce_int(page, "page", "search_images_by_tags")
@@ -759,6 +415,8 @@ def search_images_by_tags(tags: List[str], page: int = 1, limit: int = 20) -> st
         total = result.get("total", 0)
         current_page = result.get("current_page", page)
         results = result.get("results", [])
+        
+        # Sort by matched tag count (descending)
         sorted_results = sorted(
             results,
             key=lambda item: (
@@ -768,48 +426,19 @@ def search_images_by_tags(tags: List[str], page: int = 1, limit: int = 20) -> st
             ),
             reverse=True,
         )
-        filtered_results, reference_color_family, reference_location_label, discarded_stats = _apply_reference_filters(
-            sorted_results,
-            max_results=2,
-        )
-        top_match = filtered_results[0] if filtered_results else None
-
-        if reference_color_family or reference_location_label:
-            logger.info(
-                "🎨 [search_images_by_tags] Anchor filters - color: %s, location: %s | retained %d result(s), discarded %d (color=%d, location=%d)",
-                reference_color_family or "N/A",
-                reference_location_label or "N/A",
-                len(filtered_results),
-                discarded_stats["color_mismatch"] + discarded_stats["location_mismatch"],
-                discarded_stats["color_mismatch"],
-                discarded_stats["location_mismatch"],
-            )
-        else:
-            logger.debug("[search_images_by_tags] Reference filters skipped (no color or location tags detected in top result).")
-
+        
+        # Return the full sorted list without filtering
         response = {
             "total": total,
             "current_page": current_page,
-            "available_results_count": len(results),
-            "results_count": len(filtered_results),
-            "top_match": top_match,
-            "results": filtered_results,
-            "color_filter": {
-                "filter_applied": bool(reference_color_family),
-                "reference_family": reference_color_family,
-                "discarded_candidates": discarded_stats["color_mismatch"] if reference_color_family else 0,
-            },
-            "location_filter": {
-                "filter_applied": bool(reference_location_label),
-                "reference_label": reference_location_label,
-                "discarded_candidates": discarded_stats["location_mismatch"] if reference_location_label else 0,
-            },
+            "results_count": len(sorted_results),
+            "results": sorted_results,
         }
 
         logger.info(
-            "✓ [search_images_by_tags] Found %d images, returning %d filtered result(s)",
+            "✓ [search_images_by_tags] Found %d images, returning %d result(s)",
             total,
-            len(filtered_results),
+            len(sorted_results),
         )
         return json.dumps(response, ensure_ascii=False, indent=2)
 

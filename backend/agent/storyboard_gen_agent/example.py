@@ -61,9 +61,9 @@ def main():
             ),
             Beat(
                 beat=3,
-                heading="Outdoor Innovation",
-                shot_description="A person working on a laptop in a vibrant urban park, trees and city skyline in background",
-                action="Types intently while sipping from a reusable water bottle, looking inspired and focused"
+                heading="Home Office",
+                shot_description="Close up of the laptop screen displaying code, with a cozy home office background",
+                action="The person types quickly, smiling as the code compiles successfully"
             ),
         ]
     )
