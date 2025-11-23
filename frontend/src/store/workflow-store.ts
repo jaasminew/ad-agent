@@ -443,11 +443,14 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => {
         "",
         UNKNOWN_INTERRUPTION_MESSAGE,
       );
-    set({
+    set((state) => ({
       isRunning: false,
       interrupted: true,
       interruptionDetails: resolvedDetails,
-      });
+      nodes: state.nodes.map((node) =>
+        node.status === "running" ? { ...node, status: "error" } : node,
+      ),
+    }));
   };
 
   return {
