@@ -55,10 +55,16 @@ export const translations = {
         },
       },
       dropzone: {
-        helperText: "Upload packaging renders, hero shots, or brand references.",
+        helperText: "",
         selectedPrefix: "Selected:",
         replaceHint: "Drag & drop or click to replace",
         uploadHint: "Drag & drop or click to upload",
+      },
+      presetImages: {
+        title: "Or pick a sample image",
+        helperText: "",
+        loadErrorTitle: "Couldn't load sample",
+        loadErrorDescription: "Please try again or upload your own file.",
       },
       videoFormatOptions: ["16:9 Landscape", "9:16 Vertical", "1:1 Square"],
       actions: {
@@ -349,10 +355,16 @@ export const translations = {
         },
       },
       dropzone: {
-        helperText: "上传包装渲染、主视觉或品牌参考。",
+        helperText: "",
         selectedPrefix: "已选择：",
         replaceHint: "拖拽文件或点击替换",
         uploadHint: "拖拽文件或点击上传",
+      },
+      presetImages: {
+        title: "或选择一个示例图片",
+        helperText: "",
+        loadErrorTitle: "示例图片加载失败",
+        loadErrorDescription: "请重试或上传自己的图片。",
       },
       videoFormatOptions: ["16:9 横屏", "9:16 竖屏", "1:1 方形"],
       actions: {

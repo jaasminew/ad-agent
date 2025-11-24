@@ -71,6 +71,38 @@ import { LandingPage } from "./landing/LandingPage"
 const LANGUAGE_STORAGE_KEY = "language"
 const INPUT_PANEL_FIELD_CLASS = "input-panel-field"
 
+type PresetProductImage = {
+  id: string
+  url: string
+  assetPath: string
+  label: string
+  fileName: string
+}
+
+const PRESET_PRODUCT_IMAGES: readonly PresetProductImage[] = [
+  {
+    id: "lamp",
+    url: "https://ad-agent-1309327302.cos.ap-guangzhou.myqcloud.com/demo/lamp.jpg",
+    assetPath: "/preset-images/lamp.jpg",
+    label: "Lamp product photo",
+    fileName: "lamp.jpg",
+  },
+  {
+    id: "laptop",
+    url: "https://ad-agent-1309327302.cos.ap-guangzhou.myqcloud.com/demo/macbookpro.jpg",
+    assetPath: "/preset-images/macbookpro.jpg",
+    label: "Laptop product photo",
+    fileName: "laptop.jpg",
+  },
+  {
+    id: "polaroid",
+    url: "https://ad-agent-1309327302.cos.ap-guangzhou.myqcloud.com/demo/polaroid-camera.jpg",
+    assetPath: "/preset-images/polaroid-camera.jpg",
+    label: "Polaroid camera product photo",
+    fileName: "polaroid.jpg",
+  },
+]
+
 const shotListFromText = (value: string) =>
   value
     .split(/[\n,|]/)
@@ -633,6 +665,66 @@ function InputPanel({
   isInterrupting,
 }: InputPanelProps) {
   const inputCopy = copy.inputPanel
+  const [selectedPresetId, setSelectedPresetId] = React.useState<string | null>(null)
+  const [loadingPresetId, setLoadingPresetId] = React.useState<string | null>(null)
+  const presetFileCacheRef = React.useRef<Record<string, File>>({})
+
+  React.useEffect(() => {
+    if (!formState.productImage) {
+      setSelectedPresetId((prev) => (prev === null ? prev : null))
+      return
+    }
+    const matchedPreset =
+      PRESET_PRODUCT_IMAGES.find((preset) => formState.productImage?.name === preset.fileName)?.id ??
+      null
+
+    setSelectedPresetId((prev) => (prev === matchedPreset ? prev : matchedPreset))
+  }, [formState.productImage])
+
+  const handlePresetToggle = React.useCallback(
+    async (preset: PresetProductImage) => {
+      if (disabled) return
+      if (selectedPresetId === preset.id) {
+        onChange.productImage(null)
+        setSelectedPresetId(null)
+        return
+      }
+
+      setLoadingPresetId(preset.id)
+      try {
+        let file = presetFileCacheRef.current[preset.id]
+        if (!file) {
+          const response = await fetch(preset.assetPath ?? preset.url, {
+            credentials: "omit",
+          })
+          if (!response.ok) {
+            throw new Error(`Failed to load preset image: ${response.status}`)
+          }
+          const blob = await response.blob()
+          file = new File([blob], preset.fileName, {
+            type: blob.type || "image/jpeg",
+          })
+          presetFileCacheRef.current[preset.id] = file
+        }
+        onChange.productImage(file)
+        setSelectedPresetId(preset.id)
+      } catch (error) {
+        console.error("Failed to load preset image", error)
+        toast.error(inputCopy.presetImages.loadErrorTitle, {
+          description: inputCopy.presetImages.loadErrorDescription,
+        })
+      } finally {
+        setLoadingPresetId(null)
+      }
+    },
+    [
+      disabled,
+      inputCopy.presetImages.loadErrorDescription,
+      inputCopy.presetImages.loadErrorTitle,
+      onChange,
+      selectedPresetId,
+    ]
+  )
 
   return (
     <div className="h-full px-1">
@@ -689,6 +781,13 @@ function InputPanel({
                 ? `${inputCopy.dropzone.selectedPrefix} ${formatFileNameForDisplay(formState.productImage.name)}`
                 : inputCopy.dropzone.helperText}
             </p>
+            <PresetImageSelector
+              presetCopy={inputCopy.presetImages}
+              disabled={disabled}
+              selectedPresetId={selectedPresetId}
+              loadingPresetId={loadingPresetId}
+              onTogglePreset={handlePresetToggle}
+            />
           </div>
           <div className="space-y-2">
             <FieldLabel text={inputCopy.fields.mustHaveShots.label} />
@@ -775,6 +874,71 @@ function InputPanel({
           </Button>
         </CardFooter>
       </Card>
+    </div>
+  )
+}
+
+type PresetImageSelectorProps = {
+  presetCopy: AppCopy["inputPanel"]["presetImages"]
+  disabled: boolean
+  selectedPresetId: string | null
+  loadingPresetId: string | null
+  onTogglePreset: (preset: PresetProductImage) => void
+}
+
+function PresetImageSelector({
+  presetCopy,
+  disabled,
+  selectedPresetId,
+  loadingPresetId,
+  onTogglePreset,
+}: PresetImageSelectorProps) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold uppercase text-muted-foreground">
+        {presetCopy.title}
+      </p>
+      <div className="flex gap-2">
+        {PRESET_PRODUCT_IMAGES.map((preset) => {
+          const isSelected = preset.id === selectedPresetId
+          const isLoading = preset.id === loadingPresetId
+          const isDisabled = disabled || isLoading
+
+          return (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => onTogglePreset(preset)}
+              disabled={isDisabled}
+              aria-pressed={isSelected}
+              aria-label={preset.label}
+              className={cn(
+                "relative h-10 w-10 overflow-hidden rounded-md border border-border/60 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60",
+                isSelected
+                  ? "border-accent shadow-[0_0_0_1px_rgba(255,255,255,0.08)] ring-2 ring-accent/40"
+                  : "hover:border-foreground/60",
+                isDisabled && "pointer-events-none opacity-60"
+              )}
+            >
+              <img
+                src={preset.url}
+                alt={preset.label}
+                width={40}
+                height={40}
+                loading="lazy"
+                className="h-full w-full object-cover"
+                draggable={false}
+              />
+              {isLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/70">
+                  <LoaderCircle className="h-4 w-4 animate-spin text-foreground" />
+                </div>
+              ) : null}
+            </button>
+          )
+        })}
+      </div>
+      <p className="text-xs text-muted-foreground">{presetCopy.helperText}</p>
     </div>
   )
 }
