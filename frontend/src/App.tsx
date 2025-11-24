@@ -69,7 +69,6 @@ import { toast } from "sonner"
 import { LandingPage } from "./landing/LandingPage"
 
 const LANGUAGE_STORAGE_KEY = "language"
-const HAS_STARTED_STORAGE_KEY = "hasStarted"
 const INPUT_PANEL_FIELD_CLASS = "input-panel-field"
 
 const shotListFromText = (value: string) =>
@@ -139,10 +138,7 @@ function App() {
     return "en"
   })
 
-  const [hasStarted, setHasStarted] = React.useState<boolean>(() => {
-    if (typeof window === "undefined") return false
-    return window.localStorage.getItem(HAS_STARTED_STORAGE_KEY) === "true"
-  })
+  const [hasStarted, setHasStarted] = React.useState(false)
 
   const copy = translations[language]
 
@@ -359,9 +355,6 @@ function App() {
 
   const handleEnterWorkspace = React.useCallback(() => {
     setHasStarted(true)
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(HAS_STARTED_STORAGE_KEY, "true")
-    }
   }, [])
 
   if (!hasStarted) {
