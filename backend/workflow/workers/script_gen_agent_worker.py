@@ -1,7 +1,7 @@
 """Script Generation Agent Worker - Generate advertising script using ReAct Agent"""
 
 import logging
-from langchain_openai import ChatOpenAI
+from workflow.utils.llm_factory import get_chat_model
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from .state import WorkflowState
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 def _generate_script_with_agent(product_name: str, brand_identity: str, must_have_shots: str, num_shots: int = 3):
     """Generate shots using Script Generation Agent with retry mechanism."""
     # Initialize LLM
-    llm = ChatOpenAI(model="gpt-4", temperature=0.7)
+    llm = get_chat_model(model="gpt-4", temperature=0.7)
     
     # Create agent
     agent = ScriptGenerationAgent(llm=llm, verbose=True)
@@ -131,7 +131,7 @@ def _generate_script_with_agent_streaming(
                 logger.debug(f"[Script Gen Agent] Tool output (internal): {output_str}")
     
     # Initialize LLM
-    llm = ChatOpenAI(model="gpt-4", temperature=0.7)
+    llm = get_chat_model(model="gpt-4", temperature=0.7)
     
     # Create agent
     agent = ScriptGenerationAgent(llm=llm, verbose=True)

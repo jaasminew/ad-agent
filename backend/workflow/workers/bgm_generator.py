@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from .state import WorkflowState
-from langchain_openai import ChatOpenAI
+from workflow.utils.llm_factory import get_chat_model
 from workflow.tools.suno_music import suno_generate_music
 from workflow.tools.video_add_bgm import add_bgm_to_video
 from workflow.prompts.bgm_generator import get_music_prompt_generation, get_style_detection_prompt
@@ -188,7 +188,7 @@ def generate_and_add_bgm(state: WorkflowState) -> dict:
     try:
         _check_cancellation()
         
-        llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
+        llm = get_chat_model(model="gpt-4o", temperature=0.7)
         
         # Prepare context for LLM
         shots_text = "\n".join([f"{i+1}. {shot}" for i, shot in enumerate(shots)])

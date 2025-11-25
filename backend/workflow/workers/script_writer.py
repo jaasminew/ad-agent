@@ -1,7 +1,7 @@
 """Script Writer Worker - Generate advertising script with shots"""
 
 import logging
-from langchain_openai import ChatOpenAI
+from workflow.utils.llm_factory import get_chat_model
 from langchain_core.prompts import ChatPromptTemplate
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from .state import WorkflowState
@@ -27,7 +27,7 @@ def _generate_shots_with_retry(product_name: str, brand_identity: str, must_have
     ])
     
     # Call LLM
-    llm = ChatOpenAI(model="gpt-4", temperature=0.7)
+    llm = get_chat_model(model="gpt-4", temperature=0.7)
     chain = prompt | llm
     
     response = chain.invoke({

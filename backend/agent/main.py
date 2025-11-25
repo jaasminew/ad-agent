@@ -135,13 +135,18 @@ def main():
     # Initialize LLM
     logger.info("🤖 Initializing LLM...")
     try:
-        from langchain_openai import ChatOpenAI
-        llm = ChatOpenAI(
+        # Add backend to path to allow importing workflow utils
+        backend_path = Path(__file__).resolve().parent.parent
+        if str(backend_path) not in sys.path:
+            sys.path.insert(0, str(backend_path))
+
+        from workflow.utils.llm_factory import get_chat_model
+        llm = get_chat_model(
             model="gpt-4o-mini",
             temperature=0.7,
             max_tokens=4096,
         )
-        logger.info("✓ Using OpenAI GPT-4o-mini")
+        logger.info("✓ Using LLM (OpenAI/DeepSeek)")
     except Exception as e:
         logger.error(f"❌ Failed to initialize LLM: {e}")
         logger.error("\nPlease set up your OpenAI API key:")
