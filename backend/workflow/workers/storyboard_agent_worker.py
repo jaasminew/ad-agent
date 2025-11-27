@@ -121,7 +121,7 @@ def extract_uploaded_final_urls(episode_result: EpisodeResult) -> List[str]:
                 logger.warning(f"Failed to parse uploaded_final_urls from global_memory: {e}")
                 break
     
-    # Method 2: Fallback to beats collection
+    # Method 2: Fallback to collecting final_image_url from beats
     logger.info("Falling back to collecting final_image_url from beats")
     final_urls = [
         beat.final_image_url
@@ -516,7 +516,6 @@ def _process_beat_with_callback(
     This reimplements the core logic of agent.process_beat but with callback support.
     """
     from storyboard_gen_agent.prompt_templates import BEAT_PROCESSING_PROMPT
-    from tools.memory import MEM
     
     # Build input prompt (same as agent.process_beat)
     agent._start_shot_episode()
@@ -549,7 +548,7 @@ def _process_beat_with_callback(
         
         logger.info(f"Agent execution completed for beat {beat.beat}")
         logger.debug(f"Agent output: {result.get('output', '')[:200]}...")
-        memory_snapshot = list(MEM)
+        memory_snapshot = list(agent.memory)
         checklist_confirmed, checklist_gap_reason = agent._evaluate_dynamic_checklist(
             beat.beat, memory_snapshot
         )
@@ -566,7 +565,9 @@ def _process_beat_with_callback(
                 beat.beat,
                 "\n".join(f"   - {item}" for item in summary_items),
             )
-            agent._append_global_memory_items(summary_items)
+            # FIX: Use _append_shot_memory_entry instead of _append_global_memory_items
+            # which seems to be the correct method name in StoryboardAgent
+            agent._append_shot_memory_entry(summary_items)
         
         # Extract beat result
         beat_result = agent._extract_beat_result_from_agent_output(
@@ -581,4 +582,3 @@ def _process_beat_with_callback(
     except Exception as e:
         logger.error(f"Agent execution failed for beat {beat.beat}: {e}")
         raise
-

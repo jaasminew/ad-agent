@@ -13,6 +13,7 @@ from langchain_core.language_models import BaseChatModel
 from .models import ScriptConfig, ScriptResult, Shot
 from .tools import get_script_gen_tools
 from .prompt_templates import SYSTEM_PROMPT, SCRIPT_GENERATION_PROMPT
+from tools.memory import Memory
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +63,11 @@ class ScriptGenerationAgent:
             self.llm = llm
             logger.info(f"✓ Using provided LLM: {type(llm).__name__}")
         
+        # Initialize instance memory
+        self.memory = Memory()
+        
         # Load tools
-        self.tools = get_script_gen_tools()
+        self.tools = get_script_gen_tools(memory_instance=self.memory)
         logger.info(f"✓ Loaded {len(self.tools)} tools")
         
         # Create ReAct agent
@@ -261,8 +265,6 @@ Thought: {{agent_scratchpad}}
     def reset(self):
         """Reset the agent state."""
         # Clear memory
-        from tools.memory import MEM
-        MEM.clear()
+        self.memory.clear()
         
         logger.info("🔄 Agent state reset")
-
