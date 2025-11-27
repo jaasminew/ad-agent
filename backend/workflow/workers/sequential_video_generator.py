@@ -4,7 +4,7 @@ import logging
 import sys
 from pathlib import Path
 from typing import Dict, Any, List
-from langchain_openai import ChatOpenAI
+from workflow.utils.llm_factory import get_chat_model
 from langchain_core.prompts import ChatPromptTemplate
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from workflow.tools.veo_video import get_veo_video_client
@@ -78,7 +78,7 @@ def _generate_video_prompt_with_retry(shot: str, context_info: str, position_hin
         ("user", VIDEO_GENERATOR_USER_PROMPT)
     ])
     
-    llm = ChatOpenAI(model="gpt-4", temperature=0.6)
+    llm = get_chat_model(model="gpt-4", temperature=0.6)
     chain = prompt_template | llm
     
     response = chain.invoke({

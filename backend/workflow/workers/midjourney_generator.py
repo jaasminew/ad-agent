@@ -1,7 +1,7 @@
 """Midjourney Generator Worker - Generate images using Midjourney"""
 
 import logging
-from langchain_openai import ChatOpenAI
+from workflow.utils.llm_factory import get_chat_model
 from langchain_core.prompts import ChatPromptTemplate
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from workflow.tools.midjourney import get_midjourney_client
@@ -29,7 +29,7 @@ def _generate_midjourney_prompt_with_retry(shot: str, colors_text: str, retry_co
         ("user", MIDJOURNEY_USER_PROMPT)
     ])
     
-    llm = ChatOpenAI(model="gpt-4", temperature=0.7)
+    llm = get_chat_model(model="gpt-4", temperature=0.7)
     chain = prompt_template | llm
     
     response = chain.invoke({

@@ -91,10 +91,10 @@ def example_5_with_langchain_agent():
     
     try:
         from langchain.agents import initialize_agent, AgentType
-        from langchain_openai import ChatOpenAI
+        from workflow.utils.llm_factory import get_chat_model
         
         # Initialize LLM
-        llm = ChatOpenAI(model="gpt-4", temperature=0)
+        llm = get_chat_model(model="gpt-4", temperature=0)
         
         # Set up tools
         tools = [
