@@ -65,6 +65,7 @@ import {
   type InterruptionDetails,
 } from "@/store/workflow-store"
 import { translations, type AppCopy, type Language } from "@/locales"
+import type { WorkflowStage } from "@/services/api"
 import { toast } from "sonner"
 import { LandingPage } from "./landing/LandingPage"
 
@@ -108,6 +109,19 @@ const shotListFromText = (value: string) =>
     .split(/[\n,|]/)
     .map((shot) => shot.trim())
     .filter(Boolean)
+
+const RESTARTABLE_STAGES: readonly WorkflowStage[] = [
+  "script_gen_agent",
+  "storyboard_gen_agent",
+  "video_generator",
+  "video_concatenater",
+  "bgm_generator",
+]
+
+const normalizeNodeIdToStage = (value: string): WorkflowStage | null =>
+  (RESTARTABLE_STAGES as readonly string[]).includes(value)
+    ? (value as WorkflowStage)
+    : null
 
 function FieldLabel({ text, required }: { text: string; required?: boolean }) {
   return (
@@ -158,7 +172,7 @@ function App() {
   const [interruptDialogOpen, setInterruptDialogOpen] = React.useState(false)
   const [isInterrupting, setIsInterrupting] = React.useState(false)
   const [restartDialogOpen, setRestartDialogOpen] = React.useState(false)
-  const [restartStage, setRestartStage] = React.useState<string | null>(null)
+  const [restartStage, setRestartStage] = React.useState<WorkflowStage | null>(null)
   const [isRestarting, setIsRestarting] = React.useState(false)
   const [language, setLanguage] = React.useState<Language>(() => {
     if (typeof window !== "undefined") {
@@ -276,11 +290,21 @@ function App() {
   const handleRestartRequest = React.useCallback((nodeId: string) => {
     if (isRunning) {
       toast.error(copy.restartDialog.cannotRestartWhileRunning || "Cannot restart while running", {
-        description: copy.restartDialog.cannotRestartWhileRunningDescription || "Please wait for current task to complete",
+        description:
+          copy.restartDialog.cannotRestartWhileRunningDescription || "Please wait for current task to complete",
       })
       return
     }
-    setRestartStage(nodeId)
+    const normalizedStage = normalizeNodeIdToStage(nodeId)
+    if (!normalizedStage) {
+      toast.error(copy.restartDialog?.invalidStageTitle || "Unsupported stage", {
+        description:
+          copy.restartDialog?.invalidStageDescription ||
+          "This stage cannot be restarted automatically. Please pick an earlier one.",
+      })
+      return
+    }
+    setRestartStage(normalizedStage)
     setRestartDialogOpen(true)
   }, [copy, isRunning])
 
@@ -291,7 +315,7 @@ function App() {
       
       setIsRestarting(true)
       try {
-        await restartWorkflowFromStage(restartStage as any)
+        await restartWorkflowFromStage(restartStage)
         toast.success(copy.restartDialog?.successTitle || "Workflow restarted", {
           description: (copy.restartDialog?.successDescription || "Restarted from stage: {stage}").replace("{stage}", restartStage),
         })
@@ -1141,6 +1165,109 @@ function NodeCard({
     }
   }, [node.transcript, node.status])
 
+  const finalScriptMetadata =
+    node.id === "script_gen_agent"
+      ? (() => {
+          for (let index = node.transcript.length - 1; index >= 0; index -= 1) {
+            const entry = node.transcript[index]
+            const shots = entry.metadata?.shots
+            if (shots && shots.length) {
+              return {
+                shots,
+                totalShots: entry.metadata?.totalShots,
+              }
+            }
+          }
+          return null
+        })()
+      : null
+
+  const finalScriptText = finalScriptMetadata
+    ? finalScriptMetadata.shots.map((shot, idx) => `Shot ${idx + 1}: ${shot}`).join("\n\n")
+    : null
+
+  const finalScriptCard = finalScriptText ? (
+    <Card className="border border-accent/30 bg-background/95 shadow-inner">
+      <CardContent className="px-3 py-2">
+        <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">
+          {finalScriptText}
+        </p>
+      </CardContent>
+    </Card>
+  ) : null
+
+  const finalStoryboardImages = React.useMemo<Array<{ url: string; beatNumber?: number }>>(() => {
+    if (node.id !== "storyboard_gen_agent") {
+      return []
+    }
+    const seen = new Set<string>()
+    const images: Array<{ url: string; beatNumber?: number }> = []
+    for (const entry of node.transcript) {
+      const url = entry.metadata?.storyboardImageUrl
+      if (!url || seen.has(url)) {
+        continue
+      }
+      seen.add(url)
+      images.push({
+        url,
+        beatNumber: entry.metadata?.storyboardBeatNumber,
+      })
+    }
+    images.sort((a, b) => {
+      if (typeof a.beatNumber === "number" && typeof b.beatNumber === "number") {
+        return a.beatNumber - b.beatNumber
+      }
+      if (typeof a.beatNumber === "number") {
+        return -1
+      }
+      if (typeof b.beatNumber === "number") {
+        return 1
+      }
+      return 0
+    })
+    return images
+  }, [node.id, node.transcript])
+
+  const finalStoryboardCard =
+    finalStoryboardImages.length > 0 ? (
+      <Card className="border border-accent/30 bg-background/95 shadow-inner">
+        <CardContent className="space-y-3 px-3 py-3">
+          <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <span>Final storyboard</span>
+            <span>
+              {finalStoryboardImages.length}{" "}
+              {finalStoryboardImages.length === 1 ? "image" : "images"}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {finalStoryboardImages.map((image, index) => (
+              <a
+                key={`${image.url}-${image.beatNumber ?? index}`}
+                href={image.url}
+                target="_blank"
+                rel="noreferrer"
+                className="group relative block overflow-hidden rounded-lg border border-border/60 bg-background/70"
+              >
+                <img
+                  src={image.url}
+                  alt={
+                    image.beatNumber
+                      ? `Beat ${image.beatNumber} storyboard`
+                      : "Storyboard frame"
+                  }
+                  loading="lazy"
+                  className="h-24 w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+                />
+                <div className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                  {image.beatNumber ? `Beat ${image.beatNumber}` : `Shot ${index + 1}`}
+                </div>
+              </a>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    ) : null
+
   return (
     <div
       className={cn(
@@ -1266,6 +1393,8 @@ function NodeCard({
             {node.transcript.map((entry) => (
               <TranscriptLine key={entry.id} entry={entry} />
             ))}
+            {finalScriptCard}
+            {finalStoryboardCard}
           </>
         ) : (
           <p className="text-muted-foreground">{copy.nodeCard.waitingMessage}</p>
@@ -1305,10 +1434,17 @@ function TranscriptLine({ entry }: TranscriptLineProps) {
           : isError
             ? "font-semibold"
             : "font-normal"
+
+  const thoughtLineClassName = isThought
+    ? "text-xs text-foreground"
+    : "text-sm text-foreground/80"
+  const thoughtLineStyle = isThought ? { opacity: 0.58 } : undefined
   
   return (
     <div className="space-y-3">
-      <p className={cn(fontWeight, "text-foreground/80")}>{line}</p>
+      <p className={cn(fontWeight, thoughtLineClassName)} style={thoughtLineStyle}>
+        {line}
+      </p>
       {urls.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {urls.map((url, idx) => (
@@ -1317,7 +1453,10 @@ function TranscriptLine({ entry }: TranscriptLineProps) {
         </div>
       )}
       {entry.contentBlocks && entry.contentBlocks.length > 0 ? (
-        <div className="space-y-3">
+        <div
+          className={cn("space-y-3", isThought ? "text-xs" : undefined)}
+          style={isThought ? { opacity: 0.58 } : undefined}
+        >
           {entry.contentBlocks.map((block, index) => (
             <TranscriptContentBlock key={`${entry.id}-block-${index}`} block={block} />
           ))}
@@ -1330,7 +1469,7 @@ function TranscriptLine({ entry }: TranscriptLineProps) {
 function TranscriptContentBlock({ block }: { block: ThoughtContentBlock }) {
   if (block.type === "text") {
     return (
-      <div className="rounded-lg border border-dashed border-muted/50 bg-background/80 px-3 py-2 text-xs text-muted-foreground">
+      <div className="rounded-lg border border-dashed border-muted/50 bg-background/80 px-3 py-2 text-[11px] text-muted-foreground">
         {block.content}
       </div>
     )
@@ -1348,8 +1487,8 @@ function ChecklistBlock({ block }: { block: ChecklistContentBlock }) {
   const progressPercent = Math.round(stats.progress * 100)
   
   return (
-    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm shadow-sm">
-      <div className="mb-3 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs shadow-sm">
+      <div className="mb-3 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         <span>Checklist</span>
         <span>
           {stats.checkedItems}/{stats.totalItems} · {progressPercent}%
@@ -1386,10 +1525,10 @@ function ChecklistItemRow({ item }: { item: ChecklistItemBlock }) {
         )}
       />
       <div className="flex-1 space-y-1">
-        <p className={cn("text-sm leading-tight", item.checked ? "text-foreground" : "text-muted-foreground")}>
+        <p className={cn("text-xs leading-tight", item.checked ? "text-foreground" : "text-muted-foreground")}>
           {item.description}
         </p>
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
           {item.slug}
           {item.optional ? " · Optional" : ""}
         </p>
@@ -1589,9 +1728,9 @@ function FinalOutputPanel({
                   </span>
                 </div>
                 <ScrollArea className="h-40 rounded-lg border px-4 py-3 text-sm">
-                  <pre className="whitespace-pre-wrap font-mono text-foreground/80">
+                  <p className="whitespace-pre-wrap text-foreground/90 leading-relaxed">
                     {result.script}
-                  </pre>
+                  </p>
                 </ScrollArea>
               </div>
 

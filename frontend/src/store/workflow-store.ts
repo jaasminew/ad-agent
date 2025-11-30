@@ -56,6 +56,10 @@ export interface TranscriptEntry {
   metadata?: {
     outputType?: string;
     checklistSummary?: string;
+    shots?: string[];
+    totalShots?: number;
+    storyboardImageUrl?: string;
+    storyboardBeatNumber?: number;
   };
 }
 
@@ -180,12 +184,15 @@ const extractErrorMessage = (error: unknown): string => {
   if (!error) return "";
   if (error instanceof api.APIError) {
     const detail = error.details;
-    if (detail) {
-      if (typeof detail.detail === "string" && detail.detail.trim().length) {
-        return detail.detail.trim();
+    if (detail && typeof detail === "object") {
+      const detailRecord = detail as Record<string, unknown>;
+      const detailMessage = detailRecord.detail;
+      if (typeof detailMessage === "string" && detailMessage.trim().length) {
+        return detailMessage.trim();
       }
-      if (typeof detail.message === "string" && detail.message.trim().length) {
-        return detail.message.trim();
+      const nestedMessage = detailRecord.message;
+      if (typeof nestedMessage === "string" && nestedMessage.trim().length) {
+        return nestedMessage.trim();
       }
     }
     return error.message;
@@ -356,9 +363,11 @@ const buildTranscriptEntry = (
     return entry;
   }
 
-  const outputType = typeof output.type === "string" ? output.type : undefined;
-  const rawBlocks = Array.isArray(output.content_blocks)
-    ? output.content_blocks
+  const typedOutput = output as Record<string, unknown>;
+  const outputType =
+    typeof typedOutput.type === "string" ? typedOutput.type : undefined;
+  const rawBlocks = Array.isArray(typedOutput.content_blocks)
+    ? typedOutput.content_blocks
     : [];
   const contentBlocks = rawBlocks
     .map((block) =>
@@ -366,21 +375,112 @@ const buildTranscriptEntry = (
     )
     .filter((block): block is ThoughtContentBlock => Boolean(block));
 
+  const metadata: TranscriptEntry["metadata"] = {};
+  if (outputType) {
+    metadata.outputType = outputType;
+  }
+
   if (outputType === "thought" && contentBlocks.length) {
     entry.contentBlocks = contentBlocks;
-    entry.metadata = {
-      outputType,
-      checklistSummary:
-        typeof output.checklist_summary === "string"
-          ? output.checklist_summary
-          : undefined,
-    };
+    metadata.checklistSummary =
+      typeof typedOutput.checklist_summary === "string"
+        ? typedOutput.checklist_summary
+        : undefined;
 
     const cleanedMessage = stripChecklistCodeBlocks(entry.message);
     const fallback = entry.message.includes("💭")
       ? "💭 Checklist updated."
       : "Checklist updated.";
     entry.message = cleanedMessage.length ? cleanedMessage : fallback;
+  }
+
+  if (outputType === "result") {
+    const rawShots = Array.isArray(typedOutput.shots)
+      ? typedOutput.shots
+      : [];
+    if (rawShots.length) {
+      const normalizedShots = rawShots
+        .map((shot, index) => {
+          if (!shot) return "";
+          if (typeof shot === "string") {
+            return shot.trim();
+          }
+          if (typeof shot === "object") {
+            const shotRecord = shot as Record<string, unknown>;
+            const candidate =
+              (typeof shotRecord.description === "string"
+                ? shotRecord.description
+                : undefined) ??
+              (typeof shotRecord.shot_description === "string"
+                ? shotRecord.shot_description
+                : undefined) ??
+              (typeof shotRecord.shot === "string" ? shotRecord.shot : undefined) ??
+              (typeof shotRecord.text === "string" ? shotRecord.text : undefined);
+            if (candidate) {
+              return candidate.trim();
+            }
+          }
+          return String(shot ?? `Shot ${index + 1}`).trim();
+        })
+        .filter((shot) => shot.length > 0);
+
+      if (normalizedShots.length) {
+        metadata.shots = normalizedShots;
+        const rawTotal =
+          typedOutput.total_shots ?? typedOutput.totalShots ?? normalizedShots.length;
+        let parsedTotal: number;
+        if (typeof rawTotal === "number") {
+          parsedTotal = rawTotal;
+        } else if (typeof rawTotal === "string") {
+          const numeric = Number.parseInt(rawTotal, 10);
+          parsedTotal = Number.isFinite(numeric) ? numeric : normalizedShots.length;
+        } else {
+          parsedTotal = normalizedShots.length;
+        }
+        metadata.totalShots = parsedTotal;
+      }
+    }
+  }
+
+  const imageUrlCandidate =
+    typeof typedOutput.image_url === "string"
+      ? typedOutput.image_url
+      : typeof typedOutput.final_image_url === "string"
+        ? typedOutput.final_image_url
+        : Array.isArray(typedOutput.image_urls)
+          ? (typedOutput.image_urls.find(
+              (value) => typeof value === "string" && value.trim().length > 0,
+            ) as string | undefined)
+          : undefined;
+
+  if (imageUrlCandidate) {
+    const normalizedImageUrl = imageUrlCandidate.trim();
+    if (normalizedImageUrl) {
+      metadata.storyboardImageUrl = normalizedImageUrl;
+      const rawBeatNumber =
+        typedOutput.beat_number ??
+        typedOutput.beat ??
+        typedOutput.index ??
+        typedOutput.shot_number ??
+        typedOutput.shotIndex ??
+        typedOutput.shot_index;
+      let parsedBeatNumber: number | undefined;
+      if (typeof rawBeatNumber === "number" && Number.isFinite(rawBeatNumber)) {
+        parsedBeatNumber = rawBeatNumber;
+      } else if (typeof rawBeatNumber === "string") {
+        const numeric = Number.parseInt(rawBeatNumber, 10);
+        if (Number.isFinite(numeric)) {
+          parsedBeatNumber = numeric;
+        }
+      }
+      if (typeof parsedBeatNumber === "number") {
+        metadata.storyboardBeatNumber = parsedBeatNumber;
+      }
+    }
+  }
+
+  if (Object.keys(metadata).length > 0) {
+    entry.metadata = metadata;
   }
 
   return entry;

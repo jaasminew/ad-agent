@@ -17,6 +17,13 @@ backend_path = Path(__file__).parent.parent.parent
 if str(backend_path) not in sys.path:
     sys.path.insert(0, str(backend_path))
 
+# Import models for reconstructing from dict (needed when rerunning from snapshot)
+agent_path = backend_path / "agent"
+if str(agent_path) not in sys.path:
+    sys.path.insert(0, str(agent_path))
+
+from storyboard_gen_agent.models import EpisodeResult, BeatResult
+
 logger = logging.getLogger(__name__)
 
 
@@ -155,6 +162,11 @@ def generate_videos_sequentially(state: Dict[str, Any]) -> Dict[str, Any]:
     logger.info("=" * 80)
     
     episode_result = state["episode_result"]
+    # Handle case where episode_result is a dict (e.g., when rerunning from snapshot)
+    if isinstance(episode_result, dict):
+        logger.info("Reconstructing EpisodeResult from dict (snapshot rerun)")
+        episode_result = EpisodeResult(**episode_result)
+    
     nanobanana_images = state["nanobanana_images"]
     generate_video_flag = state.get("generate_video", False)
     video_model = state.get("video_model", "kling").lower()
