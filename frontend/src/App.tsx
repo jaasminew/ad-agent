@@ -4,6 +4,8 @@ import { Link } from "react-router-dom"
 import {
   AlertTriangle,
   BadgeCheck,
+  ChevronDown,
+  ChevronRight,
   History,
   LoaderCircle,
   Maximize2,
@@ -1410,13 +1412,40 @@ interface TranscriptLineProps {
 
 function TranscriptLine({ entry }: TranscriptLineProps) {
   const line = entry.message
+  const normalizedLine = line.trim()
+  const outputType = entry.metadata?.outputType
+  const [isExpanded, setIsExpanded] = React.useState(false)
+  const thoughtWords = React.useMemo(
+    () => normalizedLine.split(/\s+/).filter(Boolean),
+    [normalizedLine]
+  )
+  const truncatedThought = React.useMemo(() => {
+    if (thoughtWords.length <= 10) {
+      return normalizedLine
+    }
+    return `${thoughtWords.slice(0, 10).join(" ")}…`
+  }, [normalizedLine, thoughtWords])
+
   // Detect line type and apply styling
-  const isThought = line.includes("🤔") || line.startsWith("Thought:")
-  const isAction = line.includes("🔧") || line.startsWith("Action:")
-  const isObservation = line.includes("📊") || line.startsWith("Observation:")
-  const isSuccess = line.includes("✅") || line.includes("✓")
-  const isError = line.includes("❌") || line.includes("✗") || line.startsWith("Error:")
-  const isProgress = line.includes("🎬") || line.includes("🎥") || line.includes("📝")
+  const isThought =
+    outputType === "thought" ||
+    normalizedLine.includes("💭") ||
+    normalizedLine.includes("🤔") ||
+    normalizedLine.startsWith("Thought:") ||
+    normalizedLine.startsWith("Reasoning:")
+  const isAction =
+    outputType === "tool_call" ||
+    normalizedLine.includes("🔧") ||
+    normalizedLine.startsWith("Action:")
+  const isProgress =
+    outputType === "progress" ||
+    normalizedLine.includes("🎬") ||
+    normalizedLine.includes("🎥") ||
+    normalizedLine.includes("📝")
+  const isObservation = normalizedLine.includes("📊") || normalizedLine.startsWith("Observation:")
+  const isSuccess = normalizedLine.includes("✅") || normalizedLine.includes("✓")
+  const isError =
+    normalizedLine.includes("❌") || normalizedLine.includes("✗") || normalizedLine.startsWith("Error:")
   
   // Extract URLs (images and videos)
   const urlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|mp4|mov|avi))/gi
@@ -1434,29 +1463,41 @@ function TranscriptLine({ entry }: TranscriptLineProps) {
           : isError
             ? "font-semibold"
             : "font-normal"
-
+  
   const thoughtLineClassName = isThought
-    ? "text-xs text-foreground"
+    ? "text-[14px] leading-snug text-foreground"
     : "text-sm text-foreground/80"
-  const thoughtLineStyle = isThought ? { opacity: 0.58 } : undefined
+  const thoughtStyle = isThought ? { opacity: 0.58 } : undefined
+  const showDetails = !isThought || isExpanded
+  const displayLine = isThought && !isExpanded ? truncatedThought : line
   
   return (
-    <div className="space-y-3">
-      <p className={cn(fontWeight, thoughtLineClassName)} style={thoughtLineStyle}>
-        {line}
-      </p>
-      {urls.length > 0 && (
+    <div className="space-y-3" style={thoughtStyle}>
+      <div className="flex items-start gap-2">
+        <p className={cn(fontWeight, thoughtLineClassName)}>
+          {displayLine}
+        </p>
+        {isThought ? (
+          <button
+            type="button"
+            onClick={() => setIsExpanded((prev) => !prev)}
+            aria-expanded={isExpanded}
+            className="mt-0.5 text-muted-foreground transition hover:text-foreground"
+          >
+            {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            <span className="sr-only">{isExpanded ? "Collapse thought" : "Expand thought"}</span>
+          </button>
+        ) : null}
+      </div>
+      {showDetails && urls.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {urls.map((url, idx) => (
             <MediaPreview key={idx} url={url} />
           ))}
         </div>
       )}
-      {entry.contentBlocks && entry.contentBlocks.length > 0 ? (
-        <div
-          className={cn("space-y-3", isThought ? "text-xs" : undefined)}
-          style={isThought ? { opacity: 0.58 } : undefined}
-        >
+      {showDetails && entry.contentBlocks && entry.contentBlocks.length > 0 ? (
+        <div className={cn("space-y-3", isThought ? "text-[10px]" : undefined)}>
           {entry.contentBlocks.map((block, index) => (
             <TranscriptContentBlock key={`${entry.id}-block-${index}`} block={block} />
           ))}
@@ -1469,7 +1510,7 @@ function TranscriptLine({ entry }: TranscriptLineProps) {
 function TranscriptContentBlock({ block }: { block: ThoughtContentBlock }) {
   if (block.type === "text") {
     return (
-      <div className="rounded-lg border border-dashed border-muted/50 bg-background/80 px-3 py-2 text-[11px] text-muted-foreground">
+      <div className="rounded-lg border border-dashed border-muted/50 bg-background/80 px-3 py-2 text-[10px] text-muted-foreground">
         {block.content}
       </div>
     )
@@ -1487,8 +1528,8 @@ function ChecklistBlock({ block }: { block: ChecklistContentBlock }) {
   const progressPercent = Math.round(stats.progress * 100)
   
   return (
-    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs shadow-sm">
-      <div className="mb-3 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-[11px] shadow-sm">
+      <div className="mb-3 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
         <span>Checklist</span>
         <span>
           {stats.checkedItems}/{stats.totalItems} · {progressPercent}%
@@ -1500,7 +1541,7 @@ function ChecklistBlock({ block }: { block: ChecklistContentBlock }) {
         ))}
       </div>
       {block.summary ? (
-        <p className="mt-3 text-xs text-muted-foreground">{block.summary}</p>
+        <p className="mt-3 text-[11px] text-muted-foreground">{block.summary}</p>
       ) : null}
     </div>
   )
@@ -1525,10 +1566,10 @@ function ChecklistItemRow({ item }: { item: ChecklistItemBlock }) {
         )}
       />
       <div className="flex-1 space-y-1">
-        <p className={cn("text-xs leading-tight", item.checked ? "text-foreground" : "text-muted-foreground")}>
+        <p className={cn("text-[11px] leading-tight", item.checked ? "text-foreground" : "text-muted-foreground")}>
           {item.description}
         </p>
-        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
           {item.slug}
           {item.optional ? " · Optional" : ""}
         </p>
@@ -1727,8 +1768,8 @@ function FinalOutputPanel({
                     })}
                   </span>
                 </div>
-                <ScrollArea className="h-40 rounded-lg border px-4 py-3 text-sm">
-                  <p className="whitespace-pre-wrap text-foreground/90 leading-relaxed">
+                <ScrollArea className="h-40 rounded-lg border px-4 py-3">
+                  <p className="whitespace-pre-wrap font-mono text-sm font-semibold text-foreground/80 leading-relaxed">
                     {result.script}
                   </p>
                 </ScrollArea>
