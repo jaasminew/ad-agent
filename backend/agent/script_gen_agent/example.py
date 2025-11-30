@@ -2,7 +2,15 @@
 
 import logging
 import os
-from langchain_openai import ChatOpenAI
+import sys
+from pathlib import Path
+
+# Add backend to path
+backend_path = Path(__file__).resolve().parent.parent.parent
+if str(backend_path) not in sys.path:
+    sys.path.insert(0, str(backend_path))
+
+from workflow.utils.llm_factory import get_chat_model
 
 from agent.script_gen_agent import ScriptGenerationAgent, ScriptConfig
 
@@ -24,7 +32,7 @@ def main():
         return
     
     # Initialize LLM
-    llm = ChatOpenAI(model="gpt-4", temperature=0.7)
+    llm = get_chat_model(model="gpt-4", temperature=0.7)
     
     # Create agent
     agent = ScriptGenerationAgent(llm=llm, verbose=True)

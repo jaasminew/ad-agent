@@ -82,8 +82,14 @@ def main():
 
     # Initialize LLM (using OpenAI as it's in the project dependencies)
     logger.info("\n🤖 Initializing LLM...")
-    from langchain_openai import ChatOpenAI
-    llm = ChatOpenAI(
+    
+    # Add backend to path to allow importing workflow utils
+    backend_path = Path(__file__).resolve().parent.parent.parent
+    if str(backend_path) not in sys.path:
+        sys.path.insert(0, str(backend_path))
+
+    from workflow.utils.llm_factory import get_chat_model
+    llm = get_chat_model(
         model="gpt-4o-mini",
         temperature=0.7,
     )

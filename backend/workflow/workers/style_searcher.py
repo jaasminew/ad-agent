@@ -2,7 +2,7 @@
 
 import logging
 import json
-from langchain_openai import ChatOpenAI
+from workflow.utils.llm_factory import get_chat_model
 from langchain_core.prompts import ChatPromptTemplate
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from workflow.tools.pixelhub import get_pixelhub_client
@@ -40,7 +40,7 @@ def _select_tags_with_retry(all_tags: list, product_name: str, brand_identity: s
         ("user", STYLE_SEARCHER_USER_PROMPT)
     ])
     
-    llm = ChatOpenAI(model="gpt-4", temperature=0.3)
+    llm = get_chat_model(model="gpt-4", temperature=0.3)
     chain = prompt | llm
     
     response = chain.invoke({
