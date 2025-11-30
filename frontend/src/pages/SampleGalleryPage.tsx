@@ -1,8 +1,9 @@
 import React from "react"
-import { Link } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { translations, type Language } from "@/locales"
+import { WORKSPACE_STARTED_KEY } from "@/constants/workspace"
 
 const LANGUAGE_STORAGE_KEY = "language"
 
@@ -15,8 +16,31 @@ const getStoredLanguage = (): Language => {
 }
 
 export default function SampleGalleryPage() {
+  const navigate = useNavigate()
   const [language] = React.useState<Language>(getStoredLanguage)
   const copy = translations[language]?.gallery ?? translations.en.gallery
+
+  React.useEffect(() => {
+    if (typeof document === "undefined") return
+    const { style } = document.body
+    const previousOverflow = style.overflow
+    const previousHeight = style.height
+
+    style.overflow = "auto"
+    style.height = "auto"
+
+    return () => {
+      style.overflow = previousOverflow
+      style.height = previousHeight
+    }
+  }, [])
+
+  const handleBackToWorkspace = React.useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(WORKSPACE_STARTED_KEY, "true")
+    }
+    navigate("/")
+  }, [navigate])
 
   return (
     <main className="min-h-screen bg-background px-6 py-16 text-foreground">
@@ -46,12 +70,13 @@ export default function SampleGalleryPage() {
         </section>
 
         <div className="text-center">
-          <Link
-            to="/"
+          <button
+            type="button"
+            onClick={handleBackToWorkspace}
             className="inline-flex items-center justify-center rounded-full border border-foreground/20 px-4 py-2 text-sm font-semibold text-accent hover:border-accent hover:text-accent"
           >
             {copy.backButton}
-          </Link>
+          </button>
         </div>
       </div>
     </main>

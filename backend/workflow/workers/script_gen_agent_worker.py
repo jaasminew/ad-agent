@@ -36,7 +36,7 @@ def _generate_script_with_agent(product_name: str, brand_identity: str, must_hav
     llm = get_chat_model(model="gpt-4", temperature=0.7)
     
     # Create agent
-    agent = ScriptGenerationAgent(llm=llm, verbose=True)
+    agent = ScriptGenerationAgent(llm=llm, verbose=False)
     
     # Configure script generation
     script_config = ScriptConfig(
@@ -139,7 +139,7 @@ def _generate_script_with_agent_streaming(
     llm = get_chat_model(model="gpt-4", temperature=0.7)
     
     # Create agent
-    agent = ScriptGenerationAgent(llm=llm, verbose=True)
+    agent = ScriptGenerationAgent(llm=llm, verbose=False)
     
     # Configure script generation
     script_config = ScriptConfig(

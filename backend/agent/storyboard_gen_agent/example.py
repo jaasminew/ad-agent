@@ -98,7 +98,7 @@ def main():
     logger.info("\n📦 Initializing Storyboard Agent...")
     agent = StoryboardAgent(
         llm=llm,
-        verbose=True,
+        verbose=False,
         max_iterations=50,
         max_execution_time=3600,  # 1 hour max
     )

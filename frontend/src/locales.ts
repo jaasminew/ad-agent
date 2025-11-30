@@ -256,6 +256,14 @@ export const translations = {
           src: "https://ad-agent-1309327302.cos.ap-guangzhou.myqcloud.com/demo/mackbook.mp4",
           title: "Creator Workspace Highlight",
         },
+        {
+          src: "https://ad-agent-tko-1309327302.cos.ap-tokyo.myqcloud.com/videos/%E6%B1%BD%E8%BD%A6_final_with_bgm_20251126_201708_with_bgm.mp4",
+          title: "Automotive Spotlight",
+        },
+        {
+          src: "https://ad-agent-1309327302.cos.ap-guangzhou.myqcloud.com/videos/Vinyl_machine_final_with_bgm_20251130_225002_with_bgm.mp4",
+          title: "Vinyl Machine Showcase",
+        },
       ],
     },
     stackedFallback: {
@@ -552,6 +560,14 @@ export const translations = {
         {
           src: "https://ad-agent-1309327302.cos.ap-guangzhou.myqcloud.com/demo/mackbook.mp4",
           title: "创作者工作空间",
+        },
+        {
+          src: "https://ad-agent-tko-1309327302.cos.ap-tokyo.myqcloud.com/videos/%E6%B1%BD%E8%BD%A6_final_with_bgm_20251126_201708_with_bgm.mp4",
+          title: "智能汽车风尚",
+        },
+        {
+          src: "https://ad-agent-1309327302.cos.ap-guangzhou.myqcloud.com/videos/Vinyl_machine_final_with_bgm_20251130_225002_with_bgm.mp4",
+          title: "黑胶机器演示",
         },
       ],
     },

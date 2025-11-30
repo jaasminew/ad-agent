@@ -60,6 +60,8 @@ export interface TranscriptEntry {
     totalShots?: number;
     storyboardImageUrl?: string;
     storyboardBeatNumber?: number;
+    storyboardImageUrls?: string[];
+    storyboardFinalImageUrls?: string[];
   };
 }
 
@@ -292,6 +294,49 @@ const stripChecklistCodeBlocks = (text: string): string => {
   return withoutBlocks.replace(/\n{3,}/g, "\n\n").trim();
 };
 
+const extractNormalizedUrlList = (value: unknown): string[] => {
+  if (!value) return [];
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) =>
+        typeof item === "string" ? item.trim() : typeof item === "number" ? String(item) : "",
+      )
+      .filter((item): item is string => Boolean(item) && /^https?:\/\//i.test(item));
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return extractNormalizedUrlList(parsed);
+      }
+    } catch {
+      // Not JSON array, fall back to regex extraction
+    }
+
+    const matches = trimmed.match(/https?:\/\/[^\s"'<>]+/gi);
+    return matches ? matches.map((match) => match.trim()) : [];
+  }
+
+  return [];
+};
+
+const mergeUniqueStrings = (...lists: string[][]): string[] => {
+  const unique = new Set<string>();
+  for (const list of lists) {
+    for (const item of list) {
+      if (item) {
+        unique.add(item);
+      }
+    }
+  }
+  return Array.from(unique);
+};
+
 const normalizeChecklistStats = (
   block: Record<string, unknown>,
 ): ChecklistStats => ({
@@ -442,40 +487,54 @@ const buildTranscriptEntry = (
     }
   }
 
-  const imageUrlCandidate =
-    typeof typedOutput.image_url === "string"
-      ? typedOutput.image_url
-      : typeof typedOutput.final_image_url === "string"
-        ? typedOutput.final_image_url
-        : Array.isArray(typedOutput.image_urls)
-          ? (typedOutput.image_urls.find(
-              (value) => typeof value === "string" && value.trim().length > 0,
-            ) as string | undefined)
-          : undefined;
+  const singleImageCandidates = mergeUniqueStrings(
+    extractNormalizedUrlList(typedOutput.image_url),
+    extractNormalizedUrlList(typedOutput.final_image_url),
+  );
 
-  if (imageUrlCandidate) {
-    const normalizedImageUrl = imageUrlCandidate.trim();
-    if (normalizedImageUrl) {
-      metadata.storyboardImageUrl = normalizedImageUrl;
-      const rawBeatNumber =
-        typedOutput.beat_number ??
-        typedOutput.beat ??
-        typedOutput.index ??
-        typedOutput.shot_number ??
-        typedOutput.shotIndex ??
-        typedOutput.shot_index;
-      let parsedBeatNumber: number | undefined;
-      if (typeof rawBeatNumber === "number" && Number.isFinite(rawBeatNumber)) {
-        parsedBeatNumber = rawBeatNumber;
-      } else if (typeof rawBeatNumber === "string") {
-        const numeric = Number.parseInt(rawBeatNumber, 10);
-        if (Number.isFinite(numeric)) {
-          parsedBeatNumber = numeric;
-        }
+  const multiImageCandidates = extractNormalizedUrlList(typedOutput.image_urls);
+  if (multiImageCandidates.length) {
+    metadata.storyboardImageUrls = multiImageCandidates;
+  }
+
+  const finalImageCandidates = mergeUniqueStrings(
+    extractNormalizedUrlList(typedOutput.final_urls),
+    extractNormalizedUrlList(typedOutput.finalUrls),
+    extractNormalizedUrlList(typedOutput.uploaded_final_urls),
+    extractNormalizedUrlList(typedOutput.uploadedFinalUrls),
+    extractNormalizedUrlList(typedOutput.nanobanana_images),
+    extractNormalizedUrlList(typedOutput.nanobananaImages),
+  );
+
+  if (finalImageCandidates.length) {
+    metadata.storyboardFinalImageUrls = finalImageCandidates;
+  }
+
+  const preferredImageUrl =
+    singleImageCandidates[0] ??
+    finalImageCandidates[0] ??
+    multiImageCandidates[0];
+
+  if (preferredImageUrl) {
+    metadata.storyboardImageUrl = preferredImageUrl;
+    const rawBeatNumber =
+      typedOutput.beat_number ??
+      typedOutput.beat ??
+      typedOutput.index ??
+      typedOutput.shot_number ??
+      typedOutput.shotIndex ??
+      typedOutput.shot_index;
+    let parsedBeatNumber: number | undefined;
+    if (typeof rawBeatNumber === "number" && Number.isFinite(rawBeatNumber)) {
+      parsedBeatNumber = rawBeatNumber;
+    } else if (typeof rawBeatNumber === "string") {
+      const numeric = Number.parseInt(rawBeatNumber, 10);
+      if (Number.isFinite(numeric)) {
+        parsedBeatNumber = numeric;
       }
-      if (typeof parsedBeatNumber === "number") {
-        metadata.storyboardBeatNumber = parsedBeatNumber;
-      }
+    }
+    if (typeof parsedBeatNumber === "number") {
+      metadata.storyboardBeatNumber = parsedBeatNumber;
     }
   }
 

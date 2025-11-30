@@ -70,7 +70,7 @@ class StoryboardAgent:
     def __init__(
         self,
         llm: Optional[BaseChatModel] = None,
-        verbose: bool = True,
+        verbose: bool = False,
         max_iterations: int = 50,
         max_execution_time: Optional[float] = None,
     ):

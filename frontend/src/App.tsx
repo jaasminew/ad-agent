@@ -67,6 +67,7 @@ import {
   type InterruptionDetails,
 } from "@/store/workflow-store"
 import { translations, type AppCopy, type Language } from "@/locales"
+import { WORKSPACE_STARTED_KEY } from "@/constants/workspace"
 import type { WorkflowStage } from "@/services/api"
 import { toast } from "sonner"
 import { LandingPage } from "./landing/LandingPage"
@@ -186,7 +187,12 @@ function App() {
     return "en"
   })
 
-  const [hasStarted, setHasStarted] = React.useState(false)
+  const [hasStarted, setHasStarted] = React.useState(() => {
+    if (typeof window === "undefined") {
+      return false
+    }
+    return window.localStorage.getItem(WORKSPACE_STARTED_KEY) === "true"
+  })
 
   const copy = translations[language]
 
@@ -413,6 +419,9 @@ function App() {
 
   const handleEnterWorkspace = React.useCallback(() => {
     setHasStarted(true)
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(WORKSPACE_STARTED_KEY, "true")
+    }
   }, [])
 
   if (!hasStarted) {
@@ -1205,14 +1214,30 @@ function NodeCard({
     const seen = new Set<string>()
     const images: Array<{ url: string; beatNumber?: number }> = []
     for (const entry of node.transcript) {
-      const url = entry.metadata?.storyboardImageUrl
-      if (!url || seen.has(url)) {
+      const metadata = entry.metadata
+      if (!metadata) {
         continue
       }
-      seen.add(url)
-      images.push({
-        url,
-        beatNumber: entry.metadata?.storyboardBeatNumber,
+      const candidateUrls: string[] = []
+      if (metadata.storyboardImageUrl) {
+        candidateUrls.push(metadata.storyboardImageUrl)
+      }
+      if (Array.isArray(metadata.storyboardImageUrls)) {
+        candidateUrls.push(...metadata.storyboardImageUrls)
+      }
+      if (Array.isArray(metadata.storyboardFinalImageUrls)) {
+        candidateUrls.push(...metadata.storyboardFinalImageUrls)
+      }
+      candidateUrls.forEach((rawUrl, index) => {
+        const normalized = typeof rawUrl === "string" ? rawUrl.trim() : ""
+        if (!normalized || seen.has(normalized)) {
+          return
+        }
+        seen.add(normalized)
+        images.push({
+          url: normalized,
+          beatNumber: index === 0 ? metadata.storyboardBeatNumber : undefined,
+        })
       })
     }
     images.sort((a, b) => {
