@@ -3,6 +3,8 @@ import json
 import logging
 import os
 import tempfile
+import threading
+import functools
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Union
@@ -32,6 +34,21 @@ NANOBANANA_CONFIG = {
     "model": "gemini-2.5-flash-image",
     "timeout": 120,  # Timeout in seconds
 }
+
+# Global semaphore for Nanobanana generation concurrency control
+MAX_CONCURRENT_NANOBANANA = int(os.getenv("MAX_NANOBANANA_CONCURRENCY", "2"))
+_nanobanana_semaphore = threading.Semaphore(MAX_CONCURRENT_NANOBANANA)
+
+
+def with_concurrency_limit(semaphore):
+    """Decorator to limit concurrency of a function using a semaphore."""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            with semaphore:
+                return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 # ==================== Nanobanana Client ====================
@@ -445,6 +462,7 @@ def _validate_storyboard_path(storyboard_url: str) -> None:
 
 
 @tool("nanobanana_generate", args_schema=NanobananaToolInput)
+@with_concurrency_limit(_nanobanana_semaphore)
 def nanobanana_generate(
     prompt: str,
     input_image_paths: Optional[Union[str, List[str]]] = None,
