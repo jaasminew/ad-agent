@@ -136,6 +136,9 @@ export const translations = {
       errorDescription: "Failed to restart workflow. Please try again.",
       cannotRestartWhileRunning: "Cannot restart while running",
       cannotRestartWhileRunningDescription: "Please wait for the current task to complete or stop it first.",
+      invalidStageTitle: "Unsupported stage",
+      invalidStageDescription:
+        "This stage cannot be restarted automatically. Please pick an earlier one.",
     },
     restartButtonAria: "Restart from this stage",
     workflow: {
@@ -444,6 +447,8 @@ export const translations = {
       errorDescription: "无法重启工作流，请重试。",
       cannotRestartWhileRunning: "运行中无法重启",
       cannotRestartWhileRunningDescription: "请等待当前任务完成或先停止任务。",
+      invalidStageTitle: "暂不支持的阶段",
+      invalidStageDescription: "此阶段暂无法自动重启，请选择更早的阶段。",
     },
     restartButtonAria: "从此阶段重新开始",
     workflow: {
