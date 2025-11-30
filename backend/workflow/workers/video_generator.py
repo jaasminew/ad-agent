@@ -1,6 +1,9 @@
 """Video Generator Worker - Generate video using Veo 3, Kling AI, or SeeDance"""
 
 import logging
+import os
+import threading
+import functools
 from workflow.utils.llm_factory import get_chat_model
 from langchain_core.prompts import ChatPromptTemplate
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -11,6 +14,21 @@ from .state import ShotState
 from workflow.prompts.video_generator import VIDEO_GENERATOR_SYSTEM_PROMPT, VIDEO_GENERATOR_USER_PROMPT
 
 logger = logging.getLogger(__name__)
+
+# Global semaphore for video generation concurrency control
+# Default to 2 concurrent generations if not specified
+MAX_CONCURRENT_VIDEO_GENERATION = int(os.getenv("MAX_VIDEO_GENERATION_CONCURRENCY", "2"))
+_video_generation_semaphore = threading.Semaphore(MAX_CONCURRENT_VIDEO_GENERATION)
+
+def with_concurrency_limit(semaphore):
+    """Decorator to limit concurrency of a function using a semaphore."""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            with semaphore:
+                return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 @retry(
@@ -113,6 +131,7 @@ def _generate_video_with_veo(client, nanobanana_image_url: str, video_prompt: st
     return veo_result
 
 
+@with_concurrency_limit(_video_generation_semaphore)
 def generate_video(state: ShotState) -> dict:
     """
     Generate video from composed image using Veo 3.1 or Kling AI.
