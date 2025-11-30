@@ -1,6 +1,6 @@
 # tools/__init__.py
+# from .memory import remember, recall  # Deprecated: use create_memory_tools from memory.py instead
 from .web_search import web_search
-from .memory import remember, recall
 from .midjourney import midjourney_imagine, midjourney_upscale
 from .pixelhub import list_tags, search_images_by_tags
 from .nanobanana import nanobanana_generate
@@ -32,8 +32,8 @@ except ImportError:
 
 __all__ = [
     "web_search",
-    "remember",
-    "recall",
+    # "remember",  # Removed from public API
+    # "recall",    # Removed from public API
     "midjourney_imagine",
     "midjourney_upscale",
     "list_tags",
@@ -50,5 +50,3 @@ __all__ = [
     "get_distortion_stats",
     "DISTORTION_CHECKER_AVAILABLE",
 ]
-
-
