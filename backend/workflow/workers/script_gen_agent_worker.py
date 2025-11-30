@@ -17,6 +17,11 @@ from script_gen_agent import ScriptGenerationAgent, ScriptConfig
 logger = logging.getLogger(__name__)
 
 
+class HardCancellationException(BaseException):
+    """Exception that inherits from BaseException to break out of LangChain's catch-all blocks."""
+    pass
+
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -88,8 +93,8 @@ def _generate_script_with_agent_streaming(
                 # Check for cancellation before each action
                 if self.task_manager.is_cancelled(self.task_id):
                     logger.info(f"[Task {self.task_id}] Task cancelled by user during script generation")
-                    from service.workflow_executor import TaskCancelledException
-                    raise TaskCancelledException(f"Task {self.task_id} cancelled")
+                    # Raise BaseException to bypass LangChain's exception handling
+                    raise HardCancellationException(f"Task {self.task_id} cancelled")
                 
                 self.step_count += 1
                 
@@ -165,6 +170,11 @@ def _generate_script_with_agent_streaming(
                 config={"callbacks": callbacks}
             )
             
+            # Double check cancellation after invoke (in case it was missed or swallowed)
+            if task_manager and task_id and task_manager.is_cancelled(task_id):
+                from service.workflow_executor import TaskCancelledException
+                raise TaskCancelledException(f"Task {task_id} cancelled")
+            
             # Parse result (reuse agent's parsing logic)
             result = agent._extract_script_result(
                 agent_output=result_dict,
@@ -173,6 +183,12 @@ def _generate_script_with_agent_streaming(
         else:
             # No streaming, use normal generate_script
             result = agent.generate_script(script_config)
+
+    except HardCancellationException:
+        # Re-raise as TaskCancelledException for the outer handler
+        from service.workflow_executor import TaskCancelledException
+        raise TaskCancelledException(f"Task {task_id} cancelled")
+
     finally:
         # Clean up agent memory
         agent.reset()
