@@ -28,6 +28,11 @@ from service.tool_intents import emit_tool_intent_message, get_tool_intent_label
 logger = logging.getLogger(__name__)
 
 
+class HardCancellationException(BaseException):
+    """Exception that inherits from BaseException to break out of LangChain's catch-all blocks."""
+    pass
+
+
 def create_storyboard_agent(llm=None) -> StoryboardAgent:
     """
     Create and configure a Storyboard Agent instance.
@@ -224,7 +229,7 @@ def run_storyboard_agent(state: Dict[str, Any]) -> Dict[str, Any]:
                 agent, episode_config, task_manager, task_id
             )
         else:
-                episode_result = agent.process_episode(episode_config)
+            episode_result = agent.process_episode(episode_config)
         
         logger.info("\n" + "=" * 80)
         logger.info("✅ Storyboard Agent Completed")
@@ -278,7 +283,7 @@ def _process_episode_with_streaming(
     from service.models import WorkflowStage
     from .checklist_parser import parse_thought_into_blocks, has_checklist, get_checklist_summary
     import uuid
-    
+
     class StoryboardStreamingCallback(BaseCallbackHandler):
         """Callback to stream storyboard agent thoughts and actions."""
         
@@ -290,8 +295,8 @@ def _process_episode_with_streaming(
             """Check if task is cancelled"""
             if self.task_manager and self.task_id and self.task_manager.is_cancelled(self.task_id):
                 logger.info(f"[Task {self.task_id}] Task cancelled by user during agent execution")
-                from service.workflow_executor import TaskCancelledException
-                raise TaskCancelledException(f"Task {self.task_id} cancelled")
+                # Raise BaseException to bypass LangChain's exception handling
+                raise HardCancellationException(f"Task {self.task_id} cancelled")
         
         def on_agent_action(self, action, **kwargs):
             """Called when agent takes an action."""
@@ -516,7 +521,7 @@ def _process_beat_with_callback(
     This reimplements the core logic of agent.process_beat but with callback support.
     """
     from storyboard_gen_agent.prompt_templates import BEAT_PROCESSING_PROMPT
-    from tools.memory import MEM
+    from tools.memory import get_memory
     
     # Build input prompt (same as agent.process_beat)
     agent._start_shot_episode()
@@ -547,9 +552,14 @@ def _process_beat_with_callback(
             config={"callbacks": [callback]}
         )
         
+        # Double check cancellation after invoke (in case it was missed or swallowed)
+        if callback.task_manager and callback.task_id and callback.task_manager.is_cancelled(callback.task_id):
+            from service.workflow_executor import TaskCancelledException
+            raise TaskCancelledException(f"Task {callback.task_id} cancelled")
+        
         logger.info(f"Agent execution completed for beat {beat.beat}")
         logger.debug(f"Agent output: {result.get('output', '')[:200]}...")
-        memory_snapshot = list(MEM)
+        memory_snapshot = list(get_memory())
         checklist_confirmed, checklist_gap_reason = agent._evaluate_dynamic_checklist(
             beat.beat, memory_snapshot
         )
@@ -577,6 +587,11 @@ def _process_beat_with_callback(
         )
         
         return beat_result
+        
+    except HardCancellationException:
+        # Re-raise as TaskCancelledException for the outer handler
+        from service.workflow_executor import TaskCancelledException
+        raise TaskCancelledException(f"Task {callback.task_id} cancelled")
         
     except Exception as e:
         logger.error(f"Agent execution failed for beat {beat.beat}: {e}")
