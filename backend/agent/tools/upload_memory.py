@@ -43,7 +43,8 @@ def register_uploaded_url(url: str) -> None:
     if normalized not in urls:
         urls.append(normalized)
     
-    _update_memory_note()
+    # Removed _update_memory_note as it relied on global/context memory
+    # Memory synchronization is now handled by StoryboardAgent explicitly
 
 
 def get_uploaded_urls() -> List[str]:
@@ -54,28 +55,3 @@ def get_uploaded_urls() -> List[str]:
 def clear_uploaded_urls() -> None:
     """Reset the registry (e.g., when starting a new episode run)."""
     _UPLOADED_URLS_VAR.set([])
-    _update_memory_note()
-
-
-def _update_memory_note() -> None:
-    """Keep the shared LangChain memory's first entry synchronized."""
-    try:
-        from .memory import get_memory
-    except Exception:
-        return
-
-    urls = _get_urls_list()
-    note = format_uploaded_urls_note(urls)
-    mem = get_memory()
-
-    if not mem:
-        mem.append(note)
-        return
-
-    first = mem[0]
-    if isinstance(first, str) and first.startswith("uploaded_final_urls:"):
-        mem[0] = note
-        return
-
-    mem.insert(0, note)
-

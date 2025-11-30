@@ -283,7 +283,7 @@ def _process_episode_with_streaming(
     from service.models import WorkflowStage
     from .checklist_parser import parse_thought_into_blocks, has_checklist, get_checklist_summary
     import uuid
-
+    
     class StoryboardStreamingCallback(BaseCallbackHandler):
         """Callback to stream storyboard agent thoughts and actions."""
         
@@ -521,7 +521,6 @@ def _process_beat_with_callback(
     This reimplements the core logic of agent.process_beat but with callback support.
     """
     from storyboard_gen_agent.prompt_templates import BEAT_PROCESSING_PROMPT
-    from tools.memory import get_memory
     
     # Build input prompt (same as agent.process_beat)
     agent._start_shot_episode()
@@ -559,7 +558,7 @@ def _process_beat_with_callback(
         
         logger.info(f"Agent execution completed for beat {beat.beat}")
         logger.debug(f"Agent output: {result.get('output', '')[:200]}...")
-        memory_snapshot = list(get_memory())
+        memory_snapshot = list(agent.memory)
         checklist_confirmed, checklist_gap_reason = agent._evaluate_dynamic_checklist(
             beat.beat, memory_snapshot
         )
@@ -576,7 +575,7 @@ def _process_beat_with_callback(
                 beat.beat,
                 "\n".join(f"   - {item}" for item in summary_items),
             )
-            agent._append_global_memory_items(summary_items)
+            agent._append_shot_memory_entry(summary_items)
         
         # Extract beat result
         beat_result = agent._extract_beat_result_from_agent_output(
@@ -596,4 +595,3 @@ def _process_beat_with_callback(
     except Exception as e:
         logger.error(f"Agent execution failed for beat {beat.beat}: {e}")
         raise
-

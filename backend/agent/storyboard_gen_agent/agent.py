@@ -46,7 +46,7 @@ from .utils import (
     build_global_memory_with_uploaded_urls,
 )
 from .checklist import extract_checklist_statuses
-from tools.memory import get_memory, reset_memory, recall as recall_tool
+from tools.memory import Memory
 from tools.upload_memory import clear_uploaded_urls, get_uploaded_urls, format_uploaded_urls_note
 
 logger = logging.getLogger(__name__)
@@ -101,8 +101,11 @@ class StoryboardAgent:
             self.llm = llm
             logger.info(f"✓ Using provided LLM: {type(llm).__name__}")
         
+        # Initialize instance memory
+        self.memory = Memory()
+        
         # Load tools
-        self.tools = get_storyboard_tools()
+        self.tools = get_storyboard_tools(memory_instance=self.memory)
         logger.info(f"✓ Loaded {len(self.tools)} tools")
         
         # Create ReAct agent
@@ -349,7 +352,7 @@ Thought: {{agent_scratchpad}}
             
             logger.info(f"Agent execution completed for beat {beat.beat}")
             logger.debug(f"Agent output: {result.get('output', '')[:200]}...")
-            memory_snapshot = list(get_memory())
+            memory_snapshot = list(self.memory)
             (
                 checklist_confirmed,
                 checklist_gap_reason,
@@ -473,7 +476,7 @@ Thought: {{agent_scratchpad}}
 
     def _clear_agent_memory(self):
         """Completely clear shared tool memory."""
-        reset_memory()
+        self.memory.clear()
         logger.debug("🧹 Cleared shared agent memory")
 
     def _reset_uploaded_url_memory(self) -> None:
@@ -561,7 +564,7 @@ Thought: {{agent_scratchpad}}
         serialized_snapshot = self._serialize_global_memory_snapshot(structured_snapshot)
         self._shot_seed_memory = serialized_snapshot + list(self._persistent_notes)
         if self._shot_seed_memory:
-            get_memory().extend(self._shot_seed_memory)
+            self.memory.extend(self._shot_seed_memory)
             logger.debug(
                 "🧠 Seeded shot memory with %d global items", len(self._shot_seed_memory)
             )
@@ -764,9 +767,3 @@ Thought: {{agent_scratchpad}}
 
         summary = "\n".join(ordered_urls)
         print(summary)
-
-    # ------------------------------------------------------------------ #
-    # Checklist enforcement helpers
-    # ------------------------------------------------------------------ #
-
-
