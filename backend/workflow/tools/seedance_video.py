@@ -223,6 +223,13 @@ class SeeDanceVideoClient:
                     logger.info(f"✓ Video generation succeeded!")
                     
                     # Get video URL from result
+                    # Check for 'content' attribute (based on log output)
+                    if hasattr(get_result, 'content') and get_result.content:
+                         if hasattr(get_result.content, 'video_url'):
+                            return get_result.content.video_url
+                         elif isinstance(get_result.content, dict) and 'video_url' in get_result.content:
+                            return get_result.content['video_url']
+
                     if hasattr(get_result, 'output') and get_result.output:
                         # Try to get video URL from output
                         if hasattr(get_result.output, 'video_url'):
