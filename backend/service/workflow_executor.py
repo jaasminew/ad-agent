@@ -67,7 +67,7 @@ def execute_workflow(
         "must_have_shots": normalized_shots,
         "num_shots": max_shots,
         "generate_video": True,  # Generate video by default
-        "video_model": "kling",  # Use kling by default
+        "video_model": "seedance",  # Use kling by default
         "video_format": video_format,  # Video format from task request
         "messages": [],
     }

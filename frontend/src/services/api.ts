@@ -33,14 +33,14 @@ export interface LLMOutputData {
   stage: string
   message: string
   reasoning?: string
-  output: Record<string, any>
+  output: Record<string, unknown>
 }
 
 export interface ToolCallingData {
   tool_name: string
   stage: string
-  input: Record<string, any>
-  output: Record<string, any>
+  input: Record<string, unknown>
+  output: Record<string, unknown>
   success: boolean
   error?: string
 }
@@ -78,12 +78,12 @@ export interface SSECompleteEvent {
 // API Error
 export class APIError extends Error {
   status?: number
-  details?: any
+  details?: unknown
   
   constructor(
     message: string,
     status?: number,
-    details?: any
+    details?: unknown
   ) {
     super(message)
     this.name = 'APIError'

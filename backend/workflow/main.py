@@ -38,7 +38,7 @@ def run_ad_workflow(
     product_images: str,
     must_have_shots: str,
     generate_video: bool = False,
-    video_model: str = "kling",
+    video_model: str = "seedance",
     video_format: str = "16:9"
 ) -> dict:
     """

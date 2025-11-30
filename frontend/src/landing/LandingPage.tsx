@@ -1,3 +1,4 @@
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import backgroundImage from "./Images/background.png";
@@ -6,7 +7,41 @@ interface LandingPageProps {
   onEnter: () => void;
 }
 
+const BACKGROUND_PARTICLE_COUNT = 100;
+const TITLE_PARTICLE_COUNT = 40;
+
+type ParticleStyle = React.CSSProperties;
+
+const createParticles = (
+  count: number,
+  generator: () => ParticleStyle,
+): ParticleStyle[] => Array.from({ length: count }, generator);
+
+const generateBackgroundParticleStyle = (): ParticleStyle => ({
+  top: `${Math.random() * 100}%`,
+  left: `${Math.random() * 100}%`,
+  width: `${Math.random() * 3 + 1}px`,
+  height: `${Math.random() * 3 + 1}px`,
+  animationDuration: `${Math.random() * 10 + 10}s`,
+  animationDelay: `${Math.random() * 5}s`,
+});
+
+const generateTitleParticleStyle = (): ParticleStyle => ({
+  left: `${10 + Math.random() * 80}%`,
+  top: `${Math.random() * 100}%`,
+  width: `${Math.random() * 2 + 1}px`,
+  height: `${Math.random() * 2 + 1}px`,
+  animationDelay: `${Math.random() * 2}s`,
+});
+
 export function LandingPage({ onEnter }: LandingPageProps) {
+  const [backgroundParticles] = React.useState(() =>
+    createParticles(BACKGROUND_PARTICLE_COUNT, generateBackgroundParticleStyle),
+  );
+  const [titleParticles] = React.useState(() =>
+    createParticles(TITLE_PARTICLE_COUNT, generateTitleParticleStyle),
+  );
+
   return (
     <div className="min-h-screen w-full bg-[#030303] text-white overflow-hidden relative flex flex-col font-sans selection:bg-white/20">
       {/* Background Image */}
@@ -21,18 +56,11 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         {/* Particle/Dust Effect */}
         <div className="absolute inset-0 pointer-events-none">
            {/* Creating multiple layers of particles for depth */}
-           {[...Array(100)].map((_, i) => (
+           {backgroundParticles.map((style, i) => (
              <div
                key={i}
                className="absolute rounded-full bg-white/30 blur-[1px] animate-float"
-               style={{
-                 top: `${Math.random() * 100}%`,
-                 left: `${Math.random() * 100}%`,
-                 width: `${Math.random() * 3 + 1}px`,
-                 height: `${Math.random() * 3 + 1}px`,
-                 animationDuration: `${Math.random() * 10 + 10}s`,
-                 animationDelay: `${Math.random() * 5}s`,
-               }}
+               style={style}
              />
            ))}
         </div>
@@ -48,19 +76,11 @@ export function LandingPage({ onEnter }: LandingPageProps) {
              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                 <div className="w-[120%] h-full relative">
                    {/* Creating particles concentrated around the text edges */}
-                   {[...Array(40)].map((_, i) => (
+                   {titleParticles.map((style, i) => (
                      <div
                        key={i}
                        className="absolute rounded-full bg-white/80 blur-[0.5px] animate-dissolve"
-                       style={{
-                         // Distribute particles mainly along the horizontal axis of the text
-                         left: `${10 + Math.random() * 80}%`,
-                         // Distribute vertically with some randomness to cover top/bottom edges
-                         top: `${Math.random() * 100}%`,
-                         width: `${Math.random() * 2 + 1}px`,
-                         height: `${Math.random() * 2 + 1}px`,
-                         animationDelay: `${Math.random() * 2}s`,
-                       }}
+                       style={style}
                      />
                    ))}
                 </div>
