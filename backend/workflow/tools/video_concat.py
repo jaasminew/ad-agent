@@ -5,7 +5,6 @@ import logging
 import tempfile
 import subprocess
 from typing import List
-from pathlib import Path
 import requests
 from workflow.utils.cos_uploader import get_cos_uploader
 
@@ -51,7 +50,8 @@ class VideoConcatClient:
     def concat_videos(
         self,
         video_urls: List[str],
-        output_filename: str = None
+        output_filename: str = None,
+        re_encode: bool = True
     ) -> str:
         """
         Concatenate multiple videos into a single video.
@@ -59,6 +59,7 @@ class VideoConcatClient:
         Args:
             video_urls: List of video URLs to concatenate
             output_filename: Optional custom output filename (without extension)
+            re_encode: Whether to re-encode videos (slower but more reliable). Default: True
         
         Returns:
             COS URL of the concatenated video
@@ -112,19 +113,36 @@ class VideoConcatClient:
         output_path = os.path.join(self.temp_dir, "concatenated_output.mp4")
         
         # Use ffmpeg to concatenate videos
-        logger.info("Running ffmpeg to concatenate videos...")
-        ffmpeg_cmd = [
-            'ffmpeg',
-            '-f', 'concat',
-            '-safe', '0',
-            '-i', concat_list_path,
-            '-c', 'copy',  # Copy streams without re-encoding (faster)
-            '-y',  # Overwrite output file if exists
-            output_path
-        ]
+        if re_encode:
+            logger.info("Running ffmpeg to concatenate videos (with re-encoding for compatibility)...")
+            ffmpeg_cmd = [
+                'ffmpeg',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', concat_list_path,
+                '-c:v', 'libx264',  # Re-encode video with H.264
+                '-preset', 'medium',  # Encoding speed/quality trade-off
+                '-crf', '23',  # Quality (lower = better, 23 is default)
+                '-c:a', 'aac',  # Re-encode audio with AAC
+                '-b:a', '192k',  # Audio bitrate
+                '-movflags', '+faststart',  # Enable streaming
+                '-y',  # Overwrite output file if exists
+                output_path
+            ]
+        else:
+            logger.info("Running ffmpeg to concatenate videos (copy mode - faster but may fail if videos differ)...")
+            ffmpeg_cmd = [
+                'ffmpeg',
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', concat_list_path,
+                '-c', 'copy',  # Copy streams without re-encoding (faster)
+                '-y',  # Overwrite output file if exists
+                output_path
+            ]
         
         try:
-            result = subprocess.run(
+            subprocess.run(
                 ffmpeg_cmd,
                 check=True,
                 capture_output=True,
@@ -133,7 +151,7 @@ class VideoConcatClient:
             logger.info("✓ Videos concatenated successfully")
         except subprocess.CalledProcessError as e:
             logger.error(f"ffmpeg failed: {e.stderr}")
-            raise RuntimeError(f"Video concatenation failed: {e.stderr}")
+            raise RuntimeError(f"Video concatenation failed: {e.stderr}") from e
         
         # Upload concatenated video to COS
         logger.info("Uploading concatenated video to COS...")
@@ -168,19 +186,20 @@ def get_video_concat_client() -> VideoConcatClient:
     return _client
 
 
-def concat_videos(video_urls: List[str], output_filename: str = None) -> str:
+def concat_videos(video_urls: List[str], output_filename: str = None, re_encode: bool = True) -> str:
     """
     Convenience function to concatenate videos.
     
     Args:
         video_urls: List of video URLs to concatenate
         output_filename: Optional custom output filename (without extension)
+        re_encode: Whether to re-encode videos (slower but more reliable). Default: True
     
     Returns:
         COS URL of the concatenated video
     """
     client = get_video_concat_client()
-    return client.concat_videos(video_urls, output_filename)
+    return client.concat_videos(video_urls, output_filename, re_encode)
 
 
 if __name__ == "__main__":
