@@ -32,6 +32,7 @@ export default function SampleGalleryPage() {
     return () => {
       style.overflow = previousOverflow
       style.height = previousHeight
+      window.scrollTo(0, 0)
     }
   }, [])
 
